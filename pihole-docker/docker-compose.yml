@@ -1,0 +1,64 @@
+version: "3"
+
+services:
+  pihole:
+    image: pihole/pihole
+    container_name: pihole
+    domainname: docker
+    hostname: pihole
+    restart: unless-stopped
+    links:
+      - cloudflared
+    ports:
+      - '53:53/tcp'
+      - '53:53/udp'
+      - '8080:80'
+      - '8443:443'
+    volumes:
+      - ${PIHOLEBASE}/root:/etc/pihole
+      - ${PIHOLEBASE}/log/pihole.log:/var/log/pihole.log
+      - ${PIHOLEBASE}/root/dnsmasq.d:/etc/dnsmasq.d
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    env_file: 
+      - .env
+    cap_add: 
+      - NET_ADMIN
+    dns: 
+      - 127.0.0.1
+      - 1.1.1.1
+      - 1.0.0.1
+    environment:        
+      - ServerIP=${SERVER_IP}    
+      - WEBPASSWORD=${PIHOLE_ADMIN_PASS}
+      - DNS1=127.0.0.1#5053
+      - DNS2=213.73.91.35
+
+      # Defer setting up IP v6 for now; I've not yet been able
+      # to get the IP v6 address to work correctly in pi-hole.
+      # --------------------------------------------------------
+      #- ServerIPv6=${SERVER_IP_V6}   
+      #- DNS3=2606:4700:4700::1111
+      #- DNS4=2606:4700:4700::1001
+  
+  cloudflared:
+    container_name: cloudflared
+    domainname: docker
+    hostname: cloudflared
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: cloudflared.dockerfile
+    image: squire/cloudflared
+    ports:
+      - '5053:5053/tcp'
+      - '5053:5053/udp'      
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    env_file: 
+      - .env
+    cap_add: 
+      - NET_ADMIN
+    environment:        
+      - CLOUDFLARED_OPTS=${CLOUDFLARED_OPTS}
