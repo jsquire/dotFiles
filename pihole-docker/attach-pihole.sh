@@ -1,1 +1,0 @@
-sudo docker exec -t -i  pihole  /bin/bash

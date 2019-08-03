@@ -4,7 +4,7 @@ services:
   pihole:
     image: pihole/pihole
     container_name: pihole
-    domainname: docker
+    domainname: ${LOCAL_DOMAIN}
     hostname: pihole
     restart: unless-stopped
     links:
@@ -12,12 +12,12 @@ services:
     ports:
       - '53:53/tcp'
       - '53:53/udp'
-      - '8080:80'
-      - '8443:443'
+      - '80:80'
+      - '443:443'
     volumes:
-      - ${PIHOLEBASE}/root:/etc/pihole
-      - ${PIHOLEBASE}/log/pihole.log:/var/log/pihole.log
-      - ${PIHOLEBASE}/root/dnsmasq.d:/etc/dnsmasq.d
+      - ${PIHOLE_BASE}/root:/etc/pihole
+      - ${PIHOLE_BASE}/log/pihole.log:/var/log/pihole.log
+      - ${PIHOLE_BASE}/root/dnsmasq.d:/etc/dnsmasq.d
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     env_file: 
@@ -43,7 +43,7 @@ services:
   
   cloudflared:
     container_name: cloudflared
-    domainname: docker
+    domainname: ${LOCAL_DOMAIN}
     hostname: cloudflared
     restart: unless-stopped
     build:
@@ -61,4 +61,37 @@ services:
     cap_add: 
       - NET_ADMIN
     environment:        
-      - CLOUDFLARED_OPTS=${CLOUDFLARED_OPTS}
+      - CLOUDFLARED_OPTS=-${CLOUDFLARED_OPTS}
+
+  plex:
+    container_name: plex
+    image: plexinc/pms-docker
+    hostname: plex-vm
+    restart: unless-stopped
+    domainname: ${LOCAL_DOMAIN}
+    ports:
+      - '8080:32400/tcp'
+      - '32400:32400/tcp'
+      - '3005:3005/tcp'
+      - '8324:8324/tcp'
+      - '32469:32469/tcp'
+      - '1900:1900/udp'
+      - '32410:32410/udp'
+      - '32412:32412/udp'
+      - '32413:32413/udp'
+      - '32414:32414/udp'
+    volumes:
+      - ${PLEX_BASE}/data:/config
+      - ${PLEX_TRANSCODE}:/transcode
+      - ${PLEX_BASE}/media:/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    env_file: 
+      - .env
+    dns: 
+      - 127.0.0.1
+      - 1.1.1.1
+      - 1.0.0.1
+    environment:        
+      - ADVERTISE_IP="http://${SERVER_IP}:32400/"   
+      - PLEX_CLAIM=${PLEX_CLAIM}

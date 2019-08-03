@@ -12,4 +12,4 @@ RUN chmod +x /usr/src/install-cloudflared.sh \
 EXPOSE 5053/tcp
 EXPOSE 5053/udp
 
-ENTRYPOINT [ "bin/bash", "-c", "usr/local/bin/cloudflared proxy-dns $CLOUDFLARED_OPTS" ]
+ENTRYPOINT [ "/usr/local/bin/launch-cloudflared.sh" ]
