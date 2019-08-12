@@ -16,4 +16,4 @@ fi
 # Unschedule the weekly job to update the containers.
 UPDATE_CMD=${CONTAINER_SERVICES_ROOT}/restart-update.sh
 
-( crontab -l | grep -v -F "$croncmd" ) | crontab -
+( crontab -l | grep -v -F "$UPDATE_CMD" ) | crontab -
