@@ -20,16 +20,16 @@ services:
       - ${PIHOLE_BASE}/root/dnsmasq.d:/etc/dnsmasq.d
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
-    env_file: 
+    env_file:
       - .env
-    cap_add: 
+    cap_add:
       - NET_ADMIN
-    dns: 
+    dns:
       - 127.0.0.1
       - 1.1.1.1
       - 1.0.0.1
-    environment:        
-      - ServerIP=${SERVER_IP}    
+    environment:
+      - ServerIP=${SERVER_IP}
       - WEBPASSWORD=${PIHOLE_ADMIN_PASS}
       - DNS1=127.0.0.1#5053
       - DNS2=213.73.91.35
@@ -37,10 +37,10 @@ services:
       # Defer setting up IP v6 for now; I've not yet been able
       # to get the IP v6 address to work correctly in pi-hole.
       # --------------------------------------------------------
-      #- ServerIPv6=${SERVER_IP_V6}   
+      #- ServerIPv6=${SERVER_IP_V6}
       #- DNS3=2606:4700:4700::1111
       #- DNS4=2606:4700:4700::1001
-  
+
   cloudflared:
     container_name: cloudflared
     domainname: ${LOCAL_DOMAIN}
@@ -52,21 +52,21 @@ services:
     image: squire/cloudflared
     ports:
       - '5053:5053/tcp'
-      - '5053:5053/udp'      
+      - '5053:5053/udp'
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
-    env_file: 
+    env_file:
       - .env
-    cap_add: 
+    cap_add:
       - NET_ADMIN
-    environment:        
+    environment:
       - CLOUDFLARED_OPTS=-${CLOUDFLARED_OPTS}
 
   plex:
     container_name: plex
     image: plexinc/pms-docker
-    hostname: plex-vm
+    hostname: ${PLEX_HOSTNAME}
     restart: unless-stopped
     domainname: ${LOCAL_DOMAIN}
     ports:
@@ -86,12 +86,12 @@ services:
       - ${PLEX_BASE}/media:/data
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
-    env_file: 
+    env_file:
       - .env
-    dns: 
+    dns:
       - 127.0.0.1
       - 1.1.1.1
       - 1.0.0.1
-    environment:        
-      - ADVERTISE_IP="http://${SERVER_IP}:32400/"   
+    environment:
+      - ADVERTISE_IP="http://${SERVER_IP}:32400/"
       - PLEX_CLAIM=${PLEX_CLAIM}

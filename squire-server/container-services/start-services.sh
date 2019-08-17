@@ -26,6 +26,7 @@ PIHOLE_ADMIN_PASS=<< PASS >>
 PLEX_BASE=$HOME/plex
 PLEX_TRANSCODE=/mnt/ramdisk
 PLEX_CLAIM=<< CLAIM >>
+PLEX_HOSTNAME=Container-Plex
 EOF
 
 chmod 755 .env
