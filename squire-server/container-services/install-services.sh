@@ -13,7 +13,7 @@ PIHOLE_ROOT="$2"
 if [ ${#PIHOLE_ROOT} -lt 1 ];
 then
   PIHOLE_ROOT=$PWD
-  echo "No pi-holes root supplied, using the current directory: ${PIHOLE_ROOT}"
+  echo "No pihole root supplied, using the current directory: ${PIHOLE_ROOT}"
 fi
 
 # Make the scripts executable.

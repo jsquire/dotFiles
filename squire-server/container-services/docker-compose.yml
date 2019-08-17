@@ -93,5 +93,5 @@ services:
       - 1.1.1.1
       - 1.0.0.1
     environment:
-      - ADVERTISE_IP="http://${SERVER_IP}:32400/"
+      - ADVERTISE_IP=http://${SERVER_IP}:32400/
       - PLEX_CLAIM=${PLEX_CLAIM}
