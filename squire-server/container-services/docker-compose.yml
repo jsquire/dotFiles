@@ -31,7 +31,7 @@ services:
     environment:
       - ServerIP=${SERVER_IP}
       - WEBPASSWORD=${PIHOLE_ADMIN_PASS}
-      - DNS1=127.0.0.1#5053
+      - DNS1=${SERVER_IP}#5053
       - DNS2=213.73.91.35
 
       # Defer setting up IP v6 for now; I've not yet been able
