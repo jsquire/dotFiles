@@ -61,7 +61,7 @@ services:
     cap_add:
       - NET_ADMIN
     environment:
-      - CLOUDFLARED_OPTS=-${CLOUDFLARED_OPTS}
+      - CLOUDFLARED_OPTS=${CLOUDFLARED_OPTS}
 
   plex:
     container_name: plex
