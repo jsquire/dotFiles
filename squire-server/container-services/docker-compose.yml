@@ -60,8 +60,11 @@ services:
       - .env
     cap_add:
       - NET_ADMIN
-    environment:
-      - CLOUDFLARED_OPTS=${CLOUDFLARED_OPTS}
+
+    # The script "install-cloudflared.sh" makes direct assumptions
+    # about the upstream DNS servers and port in use, as does the
+    # Cloudflared dockerfile.  These all must be kept in sync if
+    # changing the ports.
 
   plex:
     container_name: plex

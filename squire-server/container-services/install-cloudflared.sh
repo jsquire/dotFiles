@@ -19,7 +19,7 @@ cloudflared -v
 cat << EOF > launch-cloudflared.sh
 #!/bin/bash
 
-exec usr/local/bin/cloudflared proxy-dns $CLOUDFLARED_OPTS "$@"
+exec usr/local/bin/cloudflared proxy-dns --address 0.0.0.0 --port 5053 --upstream https://1.1.1.1/dns-query --upstream https://1.0.0.1/dns-query
 EOF
 
 chmod +x launch-cloudflared.sh
