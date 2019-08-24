@@ -1,0 +1,15 @@
+{
+	"name": "theme-jesse",
+	"version": "1.0.0",
+	"publisher": "Jesse Squire",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"themes": [
+			{
+				"label": "Jesse",
+				"uiTheme": "vs-dark",
+				"path": "./themes/jesse-theme.json"
+			}
+		]
+	}
+}

@@ -1,0 +1,392 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+  
+<plist version="1.0">
+  <dict>
+    <key>name</key>
+    <string>Jesse</string>
+    <key>settings</key>
+    <array>
+      <!-- General Default Values -->
+      <dict>
+        <key>settings</key>
+        <dict>
+          <key>background</key>
+          <string>#181818</string>
+          <key>editorIndentGuide</key>
+          <string>#696969</string>
+          <key>caret</key>
+          <string>#E0E0E0</string>
+          <key>foreground</key>
+          <string>#E0E0E0</string>
+          <key>invisibles</key>
+          <string>#BFBFBF</string>
+          <key>lineHighlight</key>
+          <string>#18181812</string>
+          <key>selection</key>
+          <string>#949FB1F7</string>
+        </dict>
+      </dict>
+    
+      <!-- Green [Comments] -->
+      <dict>  
+        <key>name</key>
+        <string>Comment Defaults</string>
+        <key>scope</key>
+        <string>comment, punctuation.definition.comment, comment.block, comment.documentation</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#629755</string>
+        </dict>
+      </dict>
+      
+      <!-- Maroon [Strings] -->
+      <dict>
+        <key>name</key>
+        <string>String</string>
+        <key>scope</key>
+        <string>string, string.quoted.double, string.quoted.single, punctuation.definition.string.begin, punctuation.definition.string.end, meta.toc-list.id.html</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#844646</string>
+        </dict>
+      </dict>
+      
+      <!-- Dark Red [Errors] -->
+      <dict>
+        <key>name</key>
+        <string>Error</string>
+        <key>scope</key>
+        <string>invalid, invalid.deprecated</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#FF0404CC</string>
+        </dict>
+      </dict>     
+      
+      <!-- White [Operators, Numbers, General Items] -->
+      <dict>
+        <key>name</key>
+        <string>Number</string>
+        <key>scope</key>
+        <string>constant.numeric</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#E0E0E0</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>Operator</string>
+        <key>scope</key>
+        <string>keyword.operator, keyword.operator.js</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#E0E0E0</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>Special Punctuation</string>
+        <key>scope</key>
+        <string>meta.brace.curly, meta.brace.round, meta.brace.square, meta.delimiter.object, punctuation.definition.parameters, punctuation.terminator.statement, punctuation.separator, punctuation.terminator, punctuation.section.property-list</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#E0E0E0</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>Markup Tag Body</string>
+        <key>scope</key>
+        <string>text.html.basic, text.xml.basic, text.html, text.xml</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#E0E0E0</string>
+        </dict>
+      </dict>
+
+      <dict>
+        <key>name</key>
+        <string>SQL Punctuation</string>
+        <key>scope</key>
+        <string>punctuation.sql</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#E0E0E0</string>
+        </dict>
+      </dict>
+      
+      <!-- Yellow [Functions, Constants, and Variables] -->   
+      <dict>
+        <key>name</key>
+        <string>Functions</string>
+        <key>scope</key>
+        <string>entity.name.function, support.function, storage.type.method</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#FEF1A9</string>
+        </dict>
+      </dict>
+        
+      <dict>
+        <key>name</key>
+        <string>Constant</string>
+        <key>scope</key>
+        <string>constant, constant.language, support.constant, constant.character, constant.other</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#FEF1A9</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>Variables and Arguments</string>
+        <key>scope</key>
+        <string>variable, variable.language, variable.other, variable.parameter, support.other.variable</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#FEF1A9</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>CSS Elements</string>
+        <key>scope</key>
+        <string>entity.name.tag.css, entity.name.tag.wildcard.css, entity.other.attribute-name.pseudo-element.css, entity.other.attribute-name.pseudo-class.css, entity.other.attribute-name.class.css, punctuation.definition.entity.css, meta.selector.css</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#FEF1A9</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>Javascript Method Separator</string>
+        <key>scope</key>
+        <string>meta.delimiter.method.period.js</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#FEF1A9</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>Haskell Modules</string>
+        <key>scope</key>
+        <string>support.other.module.haskell</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#FEF1A9</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>Haskell Source Default</string>
+        <key>scope</key>
+        <string>source.haskell</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#FEF1A9</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>Javascript Source Default</string>
+        <key>scope</key>
+        <string>source.js</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#FEF1A9</string>
+        </dict>
+      </dict>
+
+      <dict>
+        <key>name</key>
+        <string>SQL Source Default</string>
+        <key>scope</key>
+        <string>source.sql</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#FEF1A9</string>
+        </dict>
+      </dict>
+      
+      <!-- Dark Blue [Keywords and Markup Tags] -->
+      
+      <dict>
+        <key>name</key>
+        <string>Keyword</string>
+        <key>scope</key>
+        <string>keyword, keyword.other, keyword.control, keyword.control.import, constant.language.source, control.source, constant.language.boolean</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#8080C0</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>Markup Tags</string>
+        <key>scope</key>
+        <string>entity.name, entity.name.tag, meta.tag.any, meta.tag.xml, meta.tag.other.html, punctuation.definition.tag.begin, punctuation.definition.tag.end, punctuation.definition.tag, meta.tag.inline.any</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#8080C0</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>Javascript Storage Elements</string>
+        <key>scope</key>
+        <string>storage.type.js, storage.type.function.js, constant.language.boolean, meta.property-name.css, support.type.property-name.css, variable.language.js, entity.name</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#8080C0</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>CSS Properties</string>
+        <key>scope</key>
+        <string>meta.property-name.css, support.type.property-name.css</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#8080C0</string>
+        </dict>
+      </dict>
+
+      <dict>
+        <key>name</key>
+        <string>SQL Server Built-In Functions</string>
+        <key>scope</key>
+        <string>meta.property-name.css, support.type.property-name.css</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#8080C0</string>
+        </dict>
+      </dict>
+      
+      <!-- Light Blue [Types and Tag Attributes] -->      
+      <dict>
+        <key>name</key>
+        <string>Types</string>
+        <key>scope</key>
+        <string>storage, entity.name.class, support.class, entity.other.inherited-class, support.type</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#C7C7F1</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>Markup Attributes</string>
+        <key>scope</key>
+        <string>entity.other.attribute-name</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#C7C7F1</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>CSS Property Values</string>
+        <key>scope</key>
+        <string>meta.property-value.css, support.constant.property-value.css, constant.other.color.rgb-value.css, punctuation.definition.constant.css, constant.numeric.css, keyword.other.unit.css, support.constant.font-name.css, meta.property-list.css</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#C7C7F1</string>
+        </dict>
+      </dict>
+    
+      <dict>
+        <key>name</key>
+        <string>Haskell Types and Support Functions</string>
+        <key>scope</key>
+        <string>constant.other.haskell, support.function.prelude.haskell</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#C7C7F1</string>
+        </dict>
+      </dict>
+      
+      <dict>
+        <key>name</key>
+        <string>Plain Text Default</string>
+        <key>scope</key>
+        <string>text.plain</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#C7C7F1</string>
+        </dict>
+      </dict>
+
+      <!-- Purple [SQL Server Special Values] -->      
+      <dict>
+        <key>name</key>
+        <string>SQL Server Built-In Functions</string>
+        <key>scope</key>
+        <string>support.function.builtin.sql</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#CC7FFF</string>
+        </dict>
+      </dict>
+
+      <dict>
+        <key>name</key>
+        <string>SQL Server System Variables</string>
+        <key>scope</key>
+        <string>variable.language.system.sql</string>
+        <key>settings</key>
+        <dict>
+          <key>foreground</key>
+          <string>#CC7FFF</string>
+        </dict>
+      </dict>
+        
+    </array>
+    <key>uuid</key>
+    <string>22040635-3CA3-4DC7-BCFF-385A25A28964</string>
+  </dict>
+</plist>

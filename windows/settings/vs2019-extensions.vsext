@@ -1,0 +1,236 @@
+{
+  "id": "68a8a456-323d-4c46-a629-58e3e06fec21",
+  "name": "My Visual Studio extensions",
+  "description": "A collection of my Visual Studio extensions",
+  "version": "1.0",
+  "extensions": [
+    {
+      "name": ".ignore",
+      "vsixId": "7ac24965-ea21-4108-9cac-6e46394aaaef"
+    },
+    {
+      "name": "Add New File",
+      "vsixId": "2E78AA18-E864-4FBB-B8C8-6186FC865DB3"
+    },
+    {
+      "name": "Align Assignments",
+      "vsixId": "AlignAssignments.41858b2d-ff0b-4a43-80b0-f1b2d6084935"
+    },
+    {
+      "name": "AsmDude",
+      "vsixId": "c729d6b2-f412-49ed-893d-a8f61f25db98"
+    },
+    {
+      "name": "Azure Data Lake and Stream Analytics Tools",
+      "vsixId": "1e906ff5-9da8-4091-a299-5c253c55fdc9"
+    },
+    {
+      "name": "Azure Logic Apps Tools for Visual Studio 2019",
+      "vsixId": "Microsoft.Azure.LogicApp.VSEditor.b8dab011-2f48-4258-9630-372aed13c890"
+    },
+    {
+      "name": "Browser Reload on Save",
+      "vsixId": "2d8aa02a-8810-421f-97b9-86efc573fea3"
+    },
+    {
+      "name": "Browser Sync",
+      "vsixId": "10d9b3af-1338-4c45-bc99-4ec38c3a11fb"
+    },
+    {
+      "name": "Bundler & Minifier",
+      "vsixId": "a0ae318b-4f07-4f71-93cb-f21d3f03c6d3"
+    },
+    {
+      "name": "Chutzpah Test Adapter for the Test Explorer",
+      "vsixId": "VS11.Plugin.Chutzpah.67f38ef0-909a-40b5-b183-9477ad8c266a"
+    },
+    {
+      "name": "Cloud Explorer for VS 2019 Preview",
+      "vsixId": "Microsoft.VisualStudio.CloudExplorer.16.0"
+    },
+    {
+      "name": "Code alignment",
+      "vsixId": "2adcbb11-89c4-451e-97f2-14049154ccad"
+    },
+    {
+      "name": "Copy As Html",
+      "vsixId": "CopyAsHtml.42374550-426a-400e-96f9-237682e8dea6"
+    },
+    {
+      "name": "CSS Sorter",
+      "vsixId": "87534672-5a41-4ea1-a145-17f1a8f5502a"
+    },
+    {
+      "name": "Double-Click Maximize",
+      "vsixId": "DoubleClickMaximize.050825c2-33a4-4b7d-b3af-bd46bd99a265"
+    },
+    {
+      "name": "Editor Enhancements",
+      "vsixId": "a3112f81-e423-4f88-9f2c-e089a309e48e"
+    },
+    {
+      "name": "EditorConfig Language Service",
+      "vsixId": "1209461d-57f8-46a4-814a-dbe5fecef941"
+    },
+    {
+      "name": "Extension Manager 2019",
+      "vsixId": "4a196712-2c3f-4730-ad1d-e7cda4185eb2"
+    },
+    {
+      "name": "File Differ",
+      "vsixId": "ea5c68d6-cdae-4e79-bd46-2a39e95bb256"
+    },
+    {
+      "name": "File Icons",
+      "vsixId": "3a7b4930-a5fb-46ec-a9b8-9610c8f953b8"
+    },
+    {
+      "name": "File Nesting",
+      "vsixId": "6c799bc4-0d4c-4172-98bc-5d464b612dca"
+    },
+    {
+      "name": "Fix File Encoding",
+      "vsixId": "103cd417-9799-4ef9-96c5-bbc81a7306e1"
+    },
+    {
+      "name": "Fix Mixed Tabs",
+      "vsixId": "FixMixedTabs.9f1d3050-b986-4b10-ae36-97c6efc5e968"
+    },
+    {
+      "name": "Format All Files",
+      "vsixId": "16a2b8be-df6a-49b4-87c3-d5aeb9478822"
+    },
+    {
+      "name": "GhostDoc Community for VS2017 and Later",
+      "vsixId": "f646ea44-feb2-4168-802a-80c9b64bb8bb"
+    },
+    {
+      "name": "Git Diff Margin",
+      "vsixId": "GitDiffMargin..5ef9f816-d9ce-45cd-a8fa-cd67a807df0e"
+    },
+    {
+      "name": "Image Optimizer",
+      "vsixId": "bf95754f-93d3-42ff-bfe3-e05d23188b08"
+    },
+    {
+      "name": "Image Sprites",
+      "vsixId": "cd92c0c6-2c32-49a3-83ca-0dc767c7d78e"
+    },
+    {
+      "name": "LESS Compiler",
+      "vsixId": "d32c5250-fa82-4da6-9732-5518fabebfef"
+    },
+    {
+      "name": "Live Share",
+      "vsixId": "Microsoft.VisualStudio.LiveShare"
+    },
+    {
+      "name": "Markdown Editor",
+      "vsixId": "9ca64947-e9ca-4543-bfb8-6cce9be19fd6"
+    },
+    {
+      "name": "Match Margin",
+      "vsixId": "MatchMargin.d85a25b5-f7b3-46a9-997e-a2d669dc2c93"
+    },
+    {
+      "name": "Microsoft Child Process Debugging Power Tool",
+      "vsixId": "d279c680-2465-4297-af80-8dd01be88430"
+    },
+    {
+      "name": "Microsoft Visual Studio Installer Projects",
+      "vsixId": "VSInstallerProjects"
+    },
+    {
+      "name": "Middle Click Scroll",
+      "vsixId": "MiddleClickScroll.263a3239-a004-40e6-b790-4fd371832c85"
+    },
+    {
+      "name": "Open Command Line",
+      "vsixId": "f4ab1e64-5d35-4f06-bad9-bf414f4b3bbb"
+    },
+    {
+      "name": "Open in Visual Studio Code",
+      "vsixId": "e99dde0e-e023-410d-bc5d-3f76db71e3f0"
+    },
+    {
+      "name": "Package Installer",
+      "vsixId": "fdd64809-376e-4542-92ce-808a8df06bcc"
+    },
+    {
+      "name": "Package Security Alerts",
+      "vsixId": "1fd37423-142f-4267-8221-93163d573b90"
+    },
+    {
+      "name": "Peek Help",
+      "vsixId": "PeekHelp.51f43c96-8220-43bf-a922-390a361e7640"
+    },
+    {
+      "name": "Power Commands for Visual Studio",
+      "vsixId": "PowerCommands.3ecdd89b-f985-483d-8c94-be37de4dc083"
+    },
+    {
+      "name": "PowerShell Tools for Visual Studio",
+      "vsixId": "PowerShellTools.VS2017"
+    },
+    {
+      "name": "Productivity Power Tools 2017/2019",
+      "vsixId": "ProductivityPowerPack.0d5b9d71-e118-46de-a20c-555176e53900"
+    },
+    {
+      "name": "Pull Requests for Visual Studio",
+      "vsixId": "Microsoft.VisualStudio.RichReview"
+    },
+    {
+      "name": "Quick Launch Tasks",
+      "vsixId": "QuickLaunchTasks"
+    },
+    {
+      "name": "ResXManager",
+      "vsixId": "43b35fe0-1f30-48de-887a-68256474202a"
+    },
+    {
+      "name": "Shrink Empty Lines",
+      "vsixId": "SyntacticLineCompression.4452fb8f-b348-49eb-9499-76669d3f9c75"
+    },
+    {
+      "name": "Solution Error Visualizer",
+      "vsixId": "SolutionErrorVisualizer.a392f96b-6b33-4b53-b4bb-3376a05f986c"
+    },
+    {
+      "name": "Syntax Highlighting Pack",
+      "vsixId": "4773ce75-6f30-4269-9557-1f7c30a47be2"
+    },
+    {
+      "name": "Time Stamp Margin",
+      "vsixId": "TimeStampMargin.255e8b14-4a53-4eb7-89a7-7ab741c1f612"
+    },
+    {
+      "name": "Trailing Whitespace Visualizer",
+      "vsixId": "4c1a78e6-e7b8-4aa9-8812-4836e051ff6d"
+    },
+    {
+      "name": "Visual Studio IntelliCode",
+      "vsixId": "IntelliCode.VSIX.598224b2-b987-401b-8509-f568d0c0b946"
+    },
+    {
+      "name": "Visual Studio Spell Checker (VS2017 and Later)",
+      "vsixId": "43EA967E-0DE2-4136-8E52-C6DCFB5C2748"
+    },
+    {
+      "name": "VSColorOutput",
+      "vsixId": "CD56B219-38CB-482A-9B2D-7582DF4AAF1E"
+    },
+    {
+      "name": "Web Accessibility Checker",
+      "vsixId": "25a79d25-0fff-4748-afaa-3a67ed116bc9"
+    },
+    {
+      "name": "Web Compiler",
+      "vsixId": "148ffa77-d70a-407f-892b-9ee542346862"
+    },
+    {
+      "name": "Windows Template Studio",
+      "vsixId": "WindowsTemplateStudio2017.ProRelease.60cee341-5e8e-4db5-a1c4-e3f618500d25"
+    }
+  ]
+}

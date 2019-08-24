@@ -24,10 +24,10 @@ services:
       - .env
     cap_add:
       - NET_ADMIN
+      - CAP_NET_BIND_SERVICE
     dns:
       - 127.0.0.1
       - 1.1.1.1
-      - 1.0.0.1
     environment:
       - ServerIP=${SERVER_IP}
       - WEBPASSWORD=${PIHOLE_ADMIN_PASS}
@@ -58,6 +58,9 @@ services:
       - /etc/timezone:/etc/timezone:ro
     env_file:
       - .env
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
     cap_add:
       - NET_ADMIN
 
@@ -92,9 +95,8 @@ services:
     env_file:
       - .env
     dns:
-      - 127.0.0.1
+      - ${SERVER_IP}
       - 1.1.1.1
-      - 1.0.0.1
     environment:
       - ADVERTISE_IP=http://${SERVER_IP}:32400/
       - PLEX_CLAIM=${PLEX_CLAIM}

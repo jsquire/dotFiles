@@ -1,0 +1,250 @@
+{
+    "$schema": "vscode://schemas/color-theme",
+    "name"   : "Jesse's Theme",
+    "type"   : "dark",
+    "colors" : {
+        "editor.background"                    : "#181818",
+        "editor.foreground"                    : "#E0E0E0",
+        "editor.findMatchBackground"           : "#2C2C2C",
+        "editor.findMatchHighlightBackground"  : "#2C2C2C",
+        "editor.lineHighlightBorder"           : "#181818",
+        "editor.lineHighlightBackground"       : "#181818",
+        "editor.selectionBackground"           : "#2C2C2C",
+        "editor.inactiveSelectionBackground"   : "#3A3D41",
+        "editor.selectionHighlightBackground"  : "#313131",
+        "editorIndentGuide.background"         : "#212121",
+        "list.dropBackground"                  : "#383B3D",
+        "activityBarBadge.background"          : "#007ACC",
+        "sideBarTitle.foreground"              : "#BBBBBB",
+        "terminal.ansiBlack"                   : "#2e3436",
+        "terminal.ansiBlue"                    : "#3465a4",
+        "terminal.ansiBrightBlack"             : "#555753",
+        "terminal.ansiBrightBlue"              : "#729fcf",
+        "terminal.ansiBrightCyan"              : "#34e2e2",
+        "terminal.ansiBrightGreen"             : "#8ae234",
+        "terminal.ansiBrightMagenta"           : "#ad7fa8",
+        "terminal.ansiBrightRed"               : "#f49797",
+        "terminal.ansiBrightWhite"             : "#fbfbfb",
+        "terminal.ansiBrightYellow"            : "#fce94f",
+        "terminal.ansiCyan"                    : "#06989a",
+        "terminal.ansiGreen"                   : "#4e9a06",
+        "terminal.ansiMagenta"                 : "#75507b",
+        "terminal.ansiRed"                     : "#ae5e5e",
+        "terminal.ansiWhite"                   : "#b5bbae",
+        "terminal.ansiYellow"                  : "#c4a000",
+        "terminal.background"                  : "#2e3436",
+        "terminal.foreground"                  : "#b5bbae"
+    },
+
+    "tokenColors" : [
+        {
+            "scope" : [],
+            "settings" : {
+                "foreground" : "#E0E0E0"
+            }
+        },
+
+        {
+            "name"  : "-- Green [Comments] --",
+            "scope" : [
+                "comment",
+                "punctuation.definition.comment",
+                "comment.block",
+                "comment.documentation",
+                "comment.block.documentation.cs",
+                "punctuation.definition.tag.cs",
+                "entity.name.tag.localname.cs",
+                "entity.other.attribute-name.localname.cs"
+            ],
+            "settings" : {
+                "foreground" : "#629755"
+            }
+        },
+
+        {
+            "name"  : "-- Maroon [Strings] --",
+            "scope" : [
+                "string",
+                "string.quoted.double",
+                "string.quoted.single",
+                "punctuation.definition.string.begin",
+                "punctuation.definition.string.end",
+                "meta.toc-list.id.html"
+            ],
+            "settings" : {
+                "foreground" : "#844646"
+            }
+        },
+
+        {
+            "name"  : "-- Dark Red [Errors] --",
+            "scope" : [
+                "invalid",
+               "invalid.deprecated"
+            ],
+            "settings" : {
+                "foreground" : "#FF0404CC"
+            }
+        },
+
+        {
+            "name"  : "-- White [Operators, Numbers, General Items] --",
+            "scope" : [
+                "constant.numeric",
+                "keyword.operator",
+                "keyword.operator.js",
+                "keyword.other.unit",
+                "meta.brace.curly",
+                "meta.brace.round",
+                "meta.brace.square",
+                "meta.delimiter.object",
+                "meta.array-binding-pattern-variable.js",
+                "punctuation.definition.template-expression.begin.js",
+                "punctuation.definition.template-expression.begin.ts",
+                "punctuation.definition.template-expression.end.js",
+                "punctuation.definition.template-expression.begin.ts",
+                "punctuation.definition.parameters",
+                "punctuation.terminator.statement",
+                "punctuation.separator",
+                "punctuation.terminator",
+                "punctuation.section.property-list",
+                "text.html.basic",
+                "text.xml.basic",
+                "text.html",
+                "text.xml",
+                "punctuation.sql",
+                "punctuation.definition.block.js",
+                "punctuation.definition.block.ts",
+                "punctuation.definition.binding-pattern.object.js",
+                "punctuation.definition.binding-pattern.object.ts"
+            ],
+            "settings" : {
+                "foreground" : "#E0E0E0"
+            }
+        },
+
+        {
+            "name"  : "-- Yellow [Functions, Constants, and Variables] --",
+            "scope" : [
+                "entity.name.function",
+                "support.function",
+                "storage.type.method",
+                "constant",
+                "constant.language",
+                "support.constant",
+                "constant.character",
+                "constant.other",
+                "variable",
+                "variable.language",
+                "variable.other",
+                "variable.parameter",
+                "support.other.variable",
+                "entity.name.tag.css",
+                "entity.name.tag.wildcard.css",
+                "entity.other.attribute-name.pseudo-element.css",
+                "entity.other.attribute-name.pseudo-class.css",
+                "entity.other.attribute-name.class.css",
+                "punctuation.definition.entity.css",
+                "meta.selector.css",
+                "meta.delimiter.method.period.js",
+                "meta.template.expression.js",
+                "support.other.module.haskell",
+                "source.haskell",
+                "source.js",
+                "source.sql",
+                "entity.name.variable.local.cs"
+            ],
+            "settings" : {
+                "foreground" : "#FEF1A9"
+            }
+        },
+
+        {
+            "name"  : "-- Dark Blue [Keywords and Markup Tags] --",
+            "scope" : [
+                "keyword",
+                "keyword.other",
+                "keyword.control",
+                "keyword.control.import",
+                "keyword.operator.expression.typeof.js",
+                "keyword.operator.new.js",
+                "constant.language.source",
+                "control.source",
+                "constant.language.boolean",
+                "constant.language.json",
+                "entity.name",
+                "entity.name.tag",
+                "meta.tag.any",
+                "meta.tag.xml",
+                "meta.tag.other.html",
+                "new.expr.js",
+                "punctuation.definition.tag.begin.html",
+                "punctuation.definition.tag.begin",
+                "punctuation.definition.tag.end",
+                "punctuation.definition.tag",
+                "meta.tag.inline.any",
+                "storage.type.js",
+                "storage.type.function.js",
+                "constant.language.boolean",
+                "meta.property-name.css",
+                "support.type.property-name.css",
+                "variable.language.js",
+                "entity.name",
+                "meta.property-name.css",
+                "support.type.property-name.css",
+                "constant.language.null.js",
+                "variable.language.this.js",
+                "keyword.operator.expression.delete.js",
+                "punctuation.tag.jekyll",
+                "storage.modifier.cs"
+            ],
+            "settings" : {
+                "foreground" : "#8080C0"
+            }
+        },
+
+        {
+            "name"  : "-- Light Blue [Types and Tag Attributes] --",
+            "scope" : [
+                "storage",
+                "entity.name.class",
+                "support.class",
+                "entity.other.inherited-class",
+                "support.type",
+                "entity.other.attribute-name",
+                "meta.property-value.css",
+                "support.constant.property-value.css",
+                "constant.other.color.rgb-value.css",
+                "punctuation.definition.constant.css",
+                "constant.numeric.css",
+                "keyword.other.unit.css",
+                "support.constant.font-name.css",
+                "meta.property-list.css",
+                "constant.other.haskell",
+                "support.function.prelude.haskell",
+                "text.plain",
+                "punctuation.definition.entity.css",
+                "meta.property-name.scss",
+                "keyword.other.unit.px.css",
+                "keyword.other.unit.em.css",
+                "keyword.other.unit.percentage.css",
+                "entity.name.type.namespace.cs",
+                "variable.other.object.cs",
+            ],
+            "settings" : {
+                "foreground" : "#C7C7F1"
+            }
+        },
+
+        {
+            "name"  : "-- Purple [SQL Server Special Values] --",
+            "scope" : [
+                "support.function.builtin.sql",
+                "variable.language.system.sql"
+            ],
+            "settings" : {
+                "foreground" : "#CC7FFF"
+            }
+        }
+    ]
+}

@@ -1,0 +1,33 @@
+Background              : 24 24 24       (181818)
+Tooltip Background      : 64 64 64
+Selected Background     : 148 159 177       
+Text (Operator/Number)  : 224 224 224    (E0E0E0)
+Green                   : 98 151 85      (629755)
+Yellow                  : 254 241 169    (FEF1A9)
+Red (String)            : 132 70 70      (844646)
+Red (Error)             : 150 58 70      (963A46)
+Blue (Warnnng/Marker)   : 62 85 244      (3E55F4)
+Blue (Keyword)          : 128 128 192    (8080C0)
+Blue (User Type)        : 199 199 241    (C0C0F1)
+Blue (Attribute Value)  : 199 199 241    (C0C0F1)
+Blue (Tag/Key)          : 95 95 216      (5F5FD8)
+Pink (SQL Sys Proc)     : 208 40 208     (D028D0)
+Orange (XAML Binding)   : 255 111 62     (FF6F3E)
+
+
+Interactive Black       : 224 224 224
+Interactive Blue        : 128 128 192
+Interactive Cyan        : 95 151 85
+Interactive DarkBlue    : 62 85 244
+Interactive DarkCyan    : 69 112 63
+Interactive DarkGrey    : 127 127 127
+Interactive DarkGreen   : 0 85 0
+Interactive DarkMagenta : 149 28 149
+Interactive DarkRed     : 132 70 70 
+Interactive DarkYellow  : 252 217 18
+Interactive Grey        : 192 192 192
+Interactive Green       : 98 151 85
+Interactive Magenta     : 208 40 208
+Interactive Red         : 150 58 70
+Interactive White       : 128 127 128 
+Interactive Yellow      : 254 241 169

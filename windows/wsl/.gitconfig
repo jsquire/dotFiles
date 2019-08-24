@@ -1,0 +1,71 @@
+[user]
+  name = Jesse Squire
+  email = jesse.squire@gmail.com
+  signingkey = << GPG KEY HERE >>
+
+[core]
+  editor = vscode.sh --new-window --wait
+
+[filter "lfs"]
+  clean = git-lfs clean %f
+  smudge = git-lfs smudge %f
+  required = true
+
+[diff]
+  tool = vscode-diff
+
+[difftool]
+  prompt = false
+
+[difftool "vscode-diff"]
+  cmd = vscodediff.sh --new-window \"$LOCAL\" \"$REMOTE\"
+  keepBackup = false
+  trustEx = false
+
+[difftool "semantic-diff"]
+  cmd = "/mnt/c/Users/jesse/AppData/Local/semanticmerge/semanticmergetool.exe" -s \"$LOCAL\" -d \"$REMOTE\" --nolangwarn
+  keepBackup = false
+  trustExitCode = false
+
+[difftool "diffmerge-diff"]
+  cmd = "'/mnt/c/Program Files/SourceGear/Common/DiffMerge/sgdm.exe'" \"$LOCAL\" \"$REMOTE\"
+  keepBackup = false
+  trustExitCode = true
+
+[merge]
+  tool = vscode-merge
+
+[mergetool]
+  prompt = false
+
+[mergetool "vscode-merge"]
+  cmd = vscode.sh --wait --new-window \"$MERGED\"
+  keepBackup = false
+  trustExitCode = false
+
+[mergetool "semantic-merge"]
+  cmd = "/mnt/c/Users/jesse/AppData/Local/semanticmerge/semanticmergetool.exe" -d \"$LOCAL\" -s \"$REMOTE\" -b \"$BASE\" -r \"$MERGED\" -a --nolangwarn
+  keepBackup = false
+  trustExitCode = false
+
+[mergetool "diffmerge-merge"]
+  cmd = "'/mnt/c/Program Files/SourceGear/Common/DiffMerge/sgdm.exe'" -merge -result=\"$MERGED\" \"$LOCAL\" \"$BASE\" \"$REMOTE\"
+  keepBackup = false
+  trustExitCode = false
+
+[alias]
+  changes = diff --pretty --name-status
+  slog = log --pretty --name-status
+
+[github]
+  user = jsquire
+  token = << TOKEN HERE >>
+
+[push]
+  default = simple
+
+[commit]
+  gpgsign = true
+
+[tag]
+  gpgsign = true
