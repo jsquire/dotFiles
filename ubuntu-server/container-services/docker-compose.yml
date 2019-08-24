@@ -28,6 +28,7 @@ services:
     dns:
       - 127.0.0.1
       - 1.1.1.1
+      - 1.0.0.1
     environment:
       - ServerIP=${SERVER_IP}
       - WEBPASSWORD=${PIHOLE_ADMIN_PASS}
@@ -97,6 +98,7 @@ services:
     dns:
       - ${SERVER_IP}
       - 1.1.1.1
+      - 1.0.0.1
     environment:
       - ADVERTISE_IP=http://${SERVER_IP}:32400/
       - PLEX_CLAIM=${PLEX_CLAIM}
