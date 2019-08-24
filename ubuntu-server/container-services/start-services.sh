@@ -20,13 +20,13 @@ TZ=America/New_York
 
 # Pi-Hole
 PIHOLE_BASE=/virtualization/pihole
-PIHOLE_ADMIN_PASS=Ilikep!e
+PIHOLE_ADMIN_PASS=<< PASSWORD >>
 
 # Plex
 PLEX_BASE=/virtualization/plex
 PLEX_MEDIA=/storage/media
 PLEX_TRANSCODE=/mnt/transcode
-PLEX_CLAIM=claim-UoJ1jJia8o7ihwyagvM2
+PLEX_CLAIM=<< CLAIM VALUE >>
 PLEX_NAME=Squire-Media
 EOF
 
