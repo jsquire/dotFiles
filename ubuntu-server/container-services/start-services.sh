@@ -27,7 +27,7 @@ PLEX_BASE=/virtualization/plex
 PLEX_MEDIA=/storage/media
 PLEX_TRANSCODE=/mnt/transcode
 PLEX_CLAIM=<< CLAIM VALUE >>
-PLEX_NAME=Squire-Media
+PLEX_HOSTNAME=Squire-Media
 EOF
 
 chmod 755 .env
