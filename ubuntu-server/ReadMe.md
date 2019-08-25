@@ -1,4 +1,4 @@
-# Squire Server #
+# Ubuntu Server #
 
 ### Overview ###
 
