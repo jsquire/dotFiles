@@ -14,14 +14,6 @@ Included in this section the artifacts used to configure Samba for use as a pers
   
 ### Resources ###
 
-#### Pi-hole ####
-
-- [Pi-hole Home](https://pi-hole.net/)
-- [Pi-hole Docker Home](https://github.com/pi-hole/docker-pi-hole)
-- [Pi-hole Guide to DNS over HTTPS](https://docs.pi-hole.net/guides/dns-over-https/)
-
-#### Plex ####
-
 - [Samba Docs: Configuration](https://www.samba.org/samba/docs/current/man-html/smb.conf.5.html)
 - [Ubuntu Help: Samba file server](https://help.ubuntu.com/lts/serverguide/samba-fileserver.html)
 - [Samba group mappings](http://library.mobrien.com/Manuals/samba/htmldocs/groupmapping.html)
