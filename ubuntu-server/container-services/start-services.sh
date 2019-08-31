@@ -15,7 +15,7 @@ cat << EOF > .env
 # General
 SERVER_IP=$IP
 SERVER_IP_V6=$IP6
-LOCAL_DOMAIN=LAN
+LOCAL_DOMAIN=squire
 TZ=America/New_York
 
 # Pi-Hole
