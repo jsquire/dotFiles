@@ -1,6 +1,6 @@
 # Unix_name = SMB_Name1 SMB_Name2 ...
 root = administrator
 nobody = guest smbguest pcguest
-jesse = jesse SQUIRE\jesse jesse.squire@gmail.com "Jesse Squire" Jesse-Desktop\Jesse Jesse-Yoga\Jesse jsquire jsquire@microsoft.com NorthAmerica\jsquire
+jesse = jesse LOCAL\jesse jesse.squire@gmail.com "Jesse Squire" Jesse-Desktop\Jesse Jesse-Yoga\Jesse jsquire jsquire@microsoft.com NorthAmerica\jsquire
 shareuser = shareuser
 serveradmin = serveradmin
