@@ -58,6 +58,7 @@ services:
       - NET_BIND_SERVICE
     dns:
       - 127.0.0.1
+      - 192.168.1.1
       - 1.1.1.1
       - 1.0.0.1
     environment:
@@ -66,7 +67,7 @@ services:
       - IPv6=false
       - DNSMASQ_LISTENING=all
       - DNS1=10.0.0.2#5053
-      - DNS2=213.73.91.35
+      - DNS2=192.168.1.1
     networks:
       pihole_net:
         ipv4_address: 10.0.0.3
@@ -105,8 +106,8 @@ services:
       - .env
     dns:
       - ${SERVER_IP}
+      - 192.168.1.1
       - 1.1.1.1
-      - 1.0.0.1
     environment:
       - ADVERTISE_IP=http://${SERVER_IP}:32400/
       - PLEX_HOSTNAME=${PLEX_HOSTNAME}
