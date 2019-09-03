@@ -99,7 +99,7 @@ services:
     volumes:
       - ${PLEX_BASE}/data:/config
       - ${PLEX_TRANSCODE}:/transcode
-      - ${PLEX_BASE}/media:/data
+      - ${PLEX_MEDIA}:/data
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     env_file:
