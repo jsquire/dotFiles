@@ -13,3 +13,7 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
  
 * **ramdisk**  
   _Authored in mid-2019, these scripts assist in the creation and removal of persistent RAM mounts, using tmpfs.  At the time of writing, the server has a large set of RAM of which I want to allocate a portion to on-the-fly media transcoding._
+  
+* **samba**  
+  _Authored in mid-2019, these artifacts define the configuration for the local file share, attempting to link credentials to those of the Windows clients for transparent login._
+
