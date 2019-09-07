@@ -10,9 +10,6 @@ services:
       context: .
       dockerfile: cloudflared.dockerfile
     image: squire/cloudflared
-    ports:
-      - '5053:5053/tcp'
-      - '5053:5053/udp'
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
@@ -27,6 +24,29 @@ services:
       pihole_net:
         ipv4_address: 10.0.0.2
 
+  cloudflared-2:
+    container_name: cloudflared-2
+    domainname: ${LOCAL_DOMAIN}
+    hostname: cloudflared-2
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: cloudflared.dockerfile
+    image: squire/cloudflared
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    env_file:
+      - .env
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
+    cap_add:
+      - NET_ADMIN
+    networks:
+      pihole_net:
+        ipv4_address: 10.0.0.3
+
     # The script "install-cloudflared.sh" makes direct assumptions
     # about the upstream DNS servers and port in use, as does the
     # Cloudflared dockerfile.  These all must be kept in sync if
@@ -40,6 +60,7 @@ services:
     restart: unless-stopped
     links:
       - cloudflared
+      - cloudflared-2
     ports:
       - '53:53/tcp'
       - '53:53/udp'
@@ -67,10 +88,10 @@ services:
       - IPv6=false
       - DNSMASQ_LISTENING=all
       - DNS1=10.0.0.2#5053
-      - DNS2=192.168.1.1
+      - DNS2=10.0.0.3#5053
     networks:
       pihole_net:
-        ipv4_address: 10.0.0.3
+        ipv4_address: 10.0.0.4
 
       # Defer setting up IP v6 for now; I've not yet been able
       # to get the IP v6 address to work correctly in pi-hole.
@@ -108,13 +129,14 @@ services:
       - ${SERVER_IP}
       - 192.168.1.1
       - 1.1.1.1
+      - 1.0.0.1
     environment:
       - ADVERTISE_IP=http://${SERVER_IP}:32400/
       - PLEX_HOSTNAME=${PLEX_HOSTNAME}
       - PLEX_CLAIM=${PLEX_CLAIM}
     networks:
       pihole_net:
-        ipv4_address: 10.0.0.4
+        ipv4_address: 10.0.0.5
 
 networks:
   pihole_net:
