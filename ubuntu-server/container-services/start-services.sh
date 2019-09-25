@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Capture the current IP addresses.
 IP=$(ifconfig enp0s31f6 | grep -v 'inet6' | grep 'inet' | awk '{print $2}')
 IP6=$(ifconfig enp0s31f6 | grep 'inet6' | awk '{print $2}')
 
@@ -31,4 +32,16 @@ PLEX_HOSTNAME=Squire-Media
 EOF
 
 chmod 755 .env
-docker-compose up -d $1
+
+# Determine the arguments to use when starting.  If a "--wait" flag was passed,
+# then do not assume detached mode.  Otherwise, detatch as the default.
+ARGS="$@"
+
+if [ $(echo "$ARGS" | grep -e "--wait" | wc -l) -lt 1 ]
+then
+    ARGS="-d $ARGS"
+fi
+
+# The "--wait" flag is not an actual docker-compose argument; be sure to
+# strip it from the arguments when passing them.
+docker-compose up ${ARGS//--wait/''}
