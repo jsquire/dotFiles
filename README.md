@@ -13,8 +13,14 @@ Included are projects, documents, and presentations that were either created as 
 * **root**  
   _The root contains the overall repository configuration files, license, and general structure._
 
-* **squire-server**  
-  _The container for items used for building and configuring a multi-purpose linux server._
+* **ubuntu-server**  
+  _The container for items used for building and configuring a multi-purpose linux server used for home-related services._  
+
+* **ubuntu**  
+  _The container for items used for used for building and configuring the baseline image of an Ubuntu-flavored distribution for use as a workstation or server._  
+
+* **windows**  
+  _The container for items used for used for configuring and operating a Windows desktop machine for general, development, and gaming use._  
 
 ### Licensing ###
 
