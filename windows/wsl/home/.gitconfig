@@ -1,6 +1,6 @@
 [user]
   name = Jesse Squire
-  email = jesse.squire@gmail.com
+  email = << EMAIL HERE >>
   signingkey = << GPG KEY HERE >>
 
 [core]
