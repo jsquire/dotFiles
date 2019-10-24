@@ -27,15 +27,15 @@ sudo apt-get install \
     git \
     apt-transport-https \
     software-properties-common \
-   	ca-certificates \
+    ca-certificates \
     curl \
     net-tools \
-	bison \
-	zlib1g-dev \
-	libssl-dev \
-	libgdbm-dev \
-	libreadline-dev \
-	libffi-dev \
+    bison \
+    zlib1g-dev \
+    libssl-dev \
+    libgdbm-dev \
+    libreadline-dev \
+    libffi-dev \
     dos2unix \
     nano \
     gpg \
