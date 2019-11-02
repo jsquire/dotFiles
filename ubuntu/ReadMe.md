@@ -15,5 +15,6 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
   
 * **bootstrap.sh**  
   _Authored in 2019, this script automates the initial bootstrapping of the environment, including patching the distribution, installing/removing the default software bed, and performing configuration.  The actions performed by this script are intended to be general-purpose and suitable for both server and desktop uses, without assuming specialization._   
+  
 * **install-development.sh**  
   _Authored in 2019, this script automates installing and configuring of a set of development tools, focusing on Azure, .NET and, Nodejs. .  The actions performed by this script are intended to be general-purpose, but are targeted at a development workstation._ 
