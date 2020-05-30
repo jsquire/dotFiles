@@ -3,8 +3,8 @@
 # Capture the current execution environment.
 
 WORKDIR=$(pwd)
-DOTNETCORE=3.0
-NVM_VERSION=0.34.0
+DOTNETCORE=3.1
+NVM_VERSION=0.35.3
 
 # Update the local system to ensure a stable starting point.
 
