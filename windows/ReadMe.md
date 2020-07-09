@@ -1,12 +1,12 @@
-# Windows #
+# Windows
 
-### Overview ###
+### Overview
 
 Included in this section are the artifacts and references used for building and configuring a Windows desktop machine intended for general, development, and gaming use.
 
 In some cases, the artifacts may be a subset of functionality, requiring use in a specific way or order to be helpful, where others may be a fully automated and self-contained process.  Please remember that these were written for practical personal use and are not intended to be examples of best practice, nor polished and production-ready.
 
-### Structure ###
+### Structure
 
 * **cli**  
   _Authored over a period of time starting in the mid-2000s, herein are a collection of utilities and small scripts intended to be called as by the Windows command line as part of the path.  (It is quite likely that some of these are stale and/or should be pruned.)_
