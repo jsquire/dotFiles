@@ -9,7 +9,6 @@
 *.der
 *.p12
 
-
 ###########
 ## Linux ##
 ###########
@@ -27,7 +26,6 @@
 
 # .nfs files are created when an open file is removed but is still being accessed
 .nfs*
-
 
 #############
 ## Windows ##
@@ -55,7 +53,6 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
-
 
 #################
 ## macOS / OSX ##
@@ -87,7 +84,6 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
-
 
 #########################
 ## Build/Deploy Output ##
