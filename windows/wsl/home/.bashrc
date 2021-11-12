@@ -122,7 +122,7 @@ export NVM_DIR="$HOME/.nvm"
 # enable GPG signing
 export GPG_TTY=$(tty)
 
-if [ ! -f ~/.gnupg/S.gpg-agent ]; then
+if [ ! -e ~/.gnupg/S.gpg-agent ]; then
     eval $( gpg-agent --daemon --options ~/.gnupg/gpg-agent.conf )
 fi
 

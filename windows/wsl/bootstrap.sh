@@ -3,9 +3,12 @@
 # Capture the current execution environment.
 
 WORKDIR=$(pwd)
+
+# Define versions to install.
+
+CHRUBY_VERSION=0.3.9
 DOTNET_VERSIONS=(5.0 6.0)
 NVM_VERSION=0.39.0
-CHRUBY_VERSION=0.3.9
 RUBY_INSTALL_VERSION=0.8.3
 
 # Update the local system to ensure a stable starting point.
@@ -66,7 +69,7 @@ sudo apt-get install docker-ce docker-compose -y
 
 sudo systemctl start docker
 sudo systemctl enable docker
-d
+
 # Install .NET Core
 
 wget -q https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
@@ -120,6 +123,13 @@ cd ruby-install-${RUBY_INSTALL_VERSION}/
 sudo make install
 rm ruby-install-${RUBY_INSTALL_VERSION}.tar.gz
 rm -rf ruby-install-${RUBY_INSTALL_VERSION}/
+
+# ZSH, oh-my-zsh, PowerLevel 10k
+
+sudo apt install zsh
+sudo usermod -s /usr/bin/zsh $(whoami)
+sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k
 
 # Final clean-up pass
 
