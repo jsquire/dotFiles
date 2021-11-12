@@ -3,8 +3,10 @@
 # Capture the current execution environment.
 
 WORKDIR=$(pwd)
-DOTNETCORE=3.1
-NVM_VERSION=0.35.3
+DOTNET_VERSIONS=(5.0 6.0)
+NVM_VERSION=0.39.0
+CHRUBY_VERSION=0.3.9
+RUBY_INSTALL_VERSION=0.8.3
 
 # Update the local system to ensure a stable starting point.
 
@@ -64,14 +66,19 @@ sudo apt-get install docker-ce docker-compose -y
 
 sudo systemctl start docker
 sudo systemctl enable docker
-
+d
 # Install .NET Core
 
-wget -q https://packages.microsoft.com/config/ubuntu/19.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+wget -q https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
 sudo dpkg -i packages-microsoft-prod.deb
 
 sudo apt-get update
-sudo apt-get install dotnet-sdk-${DOTNETCORE} -y
+
+for ver in "${DOTNET_VERSIONS[@]}"
+do
+  sudo apt-get install dotnet-sdk-$ver -y
+done
+
 rm packages-microsoft-prod.deb
 
 # Install Azure CLI
@@ -89,16 +96,30 @@ nvm alias default node
 nvm use node
 npm i npm -g
 npm install -g typescript @babel/cli @babel/core eslint nyc webpack-cli webpack
-npm install -g azure-functions-core-tools@2 --unsafe-perm true --allow-root
+npm install -g azure-functions-core-tools@3 --unsafe-perm true --allow-root
 
-# Git Extra Status
+# GitHub CLI
 
-git clone https://github.com/sandeep1995/git-extra-status.git ./git-extra-status
-chmod +x ./git-extra-status/bin/*
-sudo mv ./git-extra-status /usr/local/bin
-sudo ln -s /usr/local/bin/git-extra-status/bin/abspath /usr/local/bin/abspath
-sudo ln -s /usr/local/bin/git-extra-status/bin/git-status /usr/local/bin/git-status
-sudo ln -s /usr/local/bin/git-extra-status/bin/ges /usr/local/bin/ges
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+sudo apt update
+sudo apt install gh
+
+# Chruby
+
+wget -O chruby-${CHRUBY_VERSION}.tar.gz https://github.com/postmodern/chruby/archive/v${CHRUBY_VERSION}.tar.gz
+tar -xzvf chruby-${CHRUBY_VERSION}.tar.gz
+cd chruby-${CHRUBY_VERSION}/
+sudo make install
+rm chruby-${CHRUBY_VERSION}.tar.gz
+rm -rf chruby-${CHRUBY_VERSION}/
+
+wget -O ruby-install-${RUBY_INSTALL_VERSION}.tar.gz https://github.com/postmodern/ruby-install/archive/v${RUBY_INSTALL_VERSION}.tar.gz
+tar -xzvf ruby-install-${RUBY_INSTALL_VERSION}.tar.gz
+cd ruby-install-${RUBY_INSTALL_VERSION}/
+sudo make install
+rm ruby-install-${RUBY_INSTALL_VERSION}.tar.gz
+rm -rf ruby-install-${RUBY_INSTALL_VERSION}/
 
 # Final clean-up pass
 

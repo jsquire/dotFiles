@@ -1,10 +1,11 @@
 [user]
   name = Jesse Squire
   email = << EMAIL HERE >>
-  signingkey = << GPG KEY HERE >>
+  signingkey = << GPG Key Here >>
 
 [core]
-  editor = vscode.sh --new-window --wait
+  editor = code --new-window --wait
+  excludesfile = ~/.gitignore
 
 [filter "lfs"]
   clean = git-lfs clean %f
@@ -18,19 +19,9 @@
   prompt = false
 
 [difftool "vscode-diff"]
-  cmd = vscodediff.sh --new-window \"$LOCAL\" \"$REMOTE\"
+  cmd = code --new-window --wait --diff "$LOCAL" "$REMOTE"
   keepBackup = false
   trustEx = false
-
-[difftool "semantic-diff"]
-  cmd = "/mnt/c/Users/jesse/AppData/Local/semanticmerge/semanticmergetool.exe" -s \"$LOCAL\" -d \"$REMOTE\" --nolangwarn
-  keepBackup = false
-  trustExitCode = false
-
-[difftool "diffmerge-diff"]
-  cmd = "'/mnt/c/Program Files/SourceGear/Common/DiffMerge/sgdm.exe'" \"$LOCAL\" \"$REMOTE\"
-  keepBackup = false
-  trustExitCode = true
 
 [merge]
   tool = vscode-merge
@@ -39,17 +30,7 @@
   prompt = false
 
 [mergetool "vscode-merge"]
-  cmd = vscode.sh --wait --new-window \"$MERGED\"
-  keepBackup = false
-  trustExitCode = false
-
-[mergetool "semantic-merge"]
-  cmd = "/mnt/c/Users/jesse/AppData/Local/semanticmerge/semanticmergetool.exe" -d \"$LOCAL\" -s \"$REMOTE\" -b \"$BASE\" -r \"$MERGED\" -a --nolangwarn
-  keepBackup = false
-  trustExitCode = false
-
-[mergetool "diffmerge-merge"]
-  cmd = "'/mnt/c/Program Files/SourceGear/Common/DiffMerge/sgdm.exe'" -merge -result=\"$MERGED\" \"$LOCAL\" \"$BASE\" \"$REMOTE\"
+  cmd = code --new-window --wait "$MERGED"
   keepBackup = false
   trustExitCode = false
 
@@ -59,7 +40,7 @@
 
 [github]
   user = jsquire
-  token = << TOKEN HERE >>
+  token = << GITHUB TOKEN HERE >>
 
 [push]
   default = simple
