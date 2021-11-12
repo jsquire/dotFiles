@@ -110,15 +110,6 @@ if ! shopt -oq posix; then
   fi
 fi
 
-alias python="python3"
-
-# enable python development with virtualenv wrapper
-export WORKON_HOME=$HOME/.pyenv
-export PROJECT_HOME=$HOME/Projects
-export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
-
-source /usr/local/bin/virtualenvwrapper.sh
-
 # enable chruby (default version read from ~/.ruby-version)
 source /usr/local/share/chruby/chruby.sh
 source /usr/local/share/chruby/auto.sh
