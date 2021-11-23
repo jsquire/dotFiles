@@ -6,6 +6,7 @@
 [core]
   editor = code --new-window --wait
   excludesfile = ~/.gitignore
+  pager = less -F -X
 
 [filter "lfs"]
   clean = git-lfs clean %f

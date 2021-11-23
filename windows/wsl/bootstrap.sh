@@ -70,12 +70,18 @@ sudo apt-get install docker-ce docker-compose -y
 sudo systemctl start docker
 sudo systemctl enable docker
 
-# Install .NET Core
+# Prepare prerequisites for Microsoft pacakges
 
 wget -q https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
 sudo dpkg -i packages-microsoft-prod.deb
 
 sudo apt-get update
+
+# Install PowerShell
+
+sudo apt-get install powershell -y
+
+# Install .NET Core
 
 for ver in "${DOTNET_VERSIONS[@]}"
 do
