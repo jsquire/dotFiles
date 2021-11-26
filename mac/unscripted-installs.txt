@@ -1,0 +1,17 @@
+brew install micro
+brew install powerlevel10k
+brew install wget
+brew install git
+brew install gh
+brew install gnupg
+brew install docker
+brew install docker-compose
+brew install nvm
+brew install mono-libgdiplus
+
+brew install --cask macdown
+brew install --case maczip
+
+nvm install node
+nvm use node
+nvm alias default node
