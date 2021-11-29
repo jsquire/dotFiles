@@ -76,6 +76,7 @@ wget -q https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages
 sudo dpkg -i packages-microsoft-prod.deb
 
 sudo apt-get update
+rm packages-microsoft-prod.deb
 
 # Install PowerShell
 
@@ -87,8 +88,6 @@ for ver in "${DOTNET_VERSIONS[@]}"
 do
   sudo apt-get install dotnet-sdk-$ver -y
 done
-
-rm packages-microsoft-prod.deb
 
 # Install Azure CLI
 
