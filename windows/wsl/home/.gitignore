@@ -1,6 +1,9 @@
 # Local History for Visual Studio Code
 .history/
 
+# Visual Studio Code Extensions
+.ionide
+
 # Windows thumbnail cache files
 Thumbs.db
 Thumbs.db:encryptable
@@ -96,3 +99,6 @@ Temporary Items
 
 # .nfs files are created when an open file is removed but is still being accessed
 .nfs*
+
+# Explicit local items
+.local

@@ -11,7 +11,7 @@ apt-get install apt-utils debconf-utils build-essential wget net-tools procps -y
 apt-get autoremove -y
 
 # Download and install the "cloudflared" package.
-wget https://bin.equinox.io/c/VdrWdbjqyF/cloudflared-stable-linux-amd64.deb
+wget $(wget -SO- -T 1 -t 1 https://github.com/cloudflare/cloudflared/releases/latest 2>&1 | grep 'Location:' | awk '{ print $2 }' | uniq)/cloudflared-linux-amd64.deb
 DEBIAN_FRONTEND=noninteractive apt-get install ./cloudflared-stable-linux-amd64.deb
 cloudflared -v
 
