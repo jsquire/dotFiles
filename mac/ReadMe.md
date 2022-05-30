@@ -13,4 +13,3 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
   
 * **home**  
   _Authored in late 2021, this is a container for the assets associated with building and configuring the terminal environment, targeting the z-shell on macOS Monterey._
-
