@@ -126,8 +126,7 @@ TODO          text
 *.exe  binary
 *.pyc  binary
 
-# Binary files
-# ============
+## BINARY FILES
 *.db   binary
 *.p    binary
 *.pkl  binary
