@@ -16,4 +16,3 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
   
 * **samba**  
   _Authored in mid-2019, these artifacts define the configuration for the local file share, attempting to link credentials to those of the Windows clients for transparent login._
-
