@@ -19,4 +19,3 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
   
 * **wsl**  
   _Originally authored in 2016, and revised over time, this is a container for the assets associated with building and configuring the Windows Subsystem for Linux environment, targeting an Ubuntu distribution._
-
