@@ -52,9 +52,6 @@ if [[ -d "$HOME/.local/bin" ]] ; then
     PATH="$HOME/.local/bin:$PATH"
 fi
 
-# Expose the Windows Docker host.  Note, the port may change between versions.
-export DOCKER_HOST=tcp://127.0.0.1:2375
-
 # Enable chruby (default version read from ~/.ruby-version)
 source /usr/local/share/chruby/chruby.sh
 source /usr/local/share/chruby/auto.sh
