@@ -61,28 +61,40 @@ cd $WORKDIR
 
 sudo apt-get remove docker docker-engine docker.io docker-compose -y
 
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
-sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable edge"
+echo \
+  "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  
 sudo apt-get update
-sudo apt-get install docker-ce docker-compose -y
+sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 sudo systemctl start docker
 sudo systemctl enable docker
 
 # Prepare prerequisites for Microsoft pacakges
 
-wget -q https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+declare repo_version=$(if command -v lsb_release &> /dev/null; then lsb_release -r -s; else grep -oP '(?<=^VERSION_ID=).+' /etc/os-release | tr -d '"'; fi)
+wget https://packages.microsoft.com/config/ubuntu/$repo_version/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
 sudo dpkg -i packages-microsoft-prod.deb
-
-sudo apt-get update
 rm packages-microsoft-prod.deb
+sudo apt-get update
 
 # Install PowerShell
 
 sudo apt-get install powershell -y
 
-# Install .NET Core
+# Install .NET
+
+sudo apt remove 'dotnet*' 'aspnet*' 'netstandard*'
+touch /etc/apt/preferences
+Package: dotnet* aspnet* netstandard*
+Pin: origin "archive.ubuntu.com"
+Pin-Priority: -10
 
 for ver in "${DOTNET_VERSIONS[@]}"
 do
@@ -107,8 +119,8 @@ npm install -g typescript @babel/cli @babel/core eslint nyc webpack-cli webpack
 npm install -g azure-functions-core-tools@3 --unsafe-perm true --allow-root
 
 # GitHub CLI
-
-curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
 sudo apt update
 sudo apt install gh
