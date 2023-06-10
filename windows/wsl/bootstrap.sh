@@ -7,9 +7,9 @@ WORKDIR=$(pwd)
 # Define versions to install.
 
 CHRUBY_VERSION=0.3.9
-DOTNET_VERSIONS=(5.0 6.0)
-NVM_VERSION=0.39.0
-RUBY_INSTALL_VERSION=0.8.3
+DOTNET_VERSIONS=(6.0 7.0)
+NVM_VERSION=0.39.3
+RUBY_INSTALL_VERSION=0.9.0
 
 # Update the local system to ensure a stable starting point.
 
