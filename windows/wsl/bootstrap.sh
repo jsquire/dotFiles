@@ -131,6 +131,7 @@ wget -O chruby-${CHRUBY_VERSION}.tar.gz https://github.com/postmodern/chruby/arc
 tar -xzvf chruby-${CHRUBY_VERSION}.tar.gz
 cd chruby-${CHRUBY_VERSION}/
 sudo make install
+cd ..
 rm chruby-${CHRUBY_VERSION}.tar.gz
 rm -rf chruby-${CHRUBY_VERSION}/
 
@@ -138,6 +139,7 @@ wget -O ruby-install-${RUBY_INSTALL_VERSION}.tar.gz https://github.com/postmoder
 tar -xzvf ruby-install-${RUBY_INSTALL_VERSION}.tar.gz
 cd ruby-install-${RUBY_INSTALL_VERSION}/
 sudo make install
+cd ..
 rm ruby-install-${RUBY_INSTALL_VERSION}.tar.gz
 rm -rf ruby-install-${RUBY_INSTALL_VERSION}/
 
