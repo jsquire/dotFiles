@@ -91,10 +91,16 @@ sudo apt-get install powershell -y
 # Install .NET
 
 sudo apt remove 'dotnet*' 'aspnet*' 'netstandard*'
-touch /etc/apt/preferences
-Package: dotnet* aspnet* netstandard*
-Pin: origin "archive.ubuntu.com"
+sudo touch /etc/apt/preferences
+
+sudo echo \
+"Package: dotnet* aspnet* netstandard*
+Pin: origin \"archive.ubuntu.com\"
 Pin-Priority: -10
+
+Package: dotnet* aspnet* netstandard*
+Pin: origin \"archive.ubuntu.com\"
+Pin-Priority: -10" > /etc/apt/preferences
 
 for ver in "${DOTNET_VERSIONS[@]}"
 do
