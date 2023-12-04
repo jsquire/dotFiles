@@ -7,9 +7,9 @@ WORKDIR=$(pwd)
 # Define versions to install.
 
 CHRUBY_VERSION=0.3.9
-DOTNET_VERSIONS=(6.0 7.0)
-NVM_VERSION=0.39.3
-RUBY_INSTALL_VERSION=0.9.0
+DOTNET_VERSIONS=(6.0 7.0 8.0)
+NVM_VERSION=0.39.5
+RUBY_INSTALL_VERSION=0.9.3
 
 # Update the local system to ensure a stable starting point.
 
@@ -125,11 +125,12 @@ npm install -g typescript @babel/cli @babel/core eslint nyc webpack-cli webpack
 npm install -g azure-functions-core-tools@3 --unsafe-perm true --allow-root
 
 # GitHub CLI
+
 curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
 sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
 sudo apt update
-sudo apt install gh
+sudo apt install gh -y
 
 # Chruby
 
@@ -151,7 +152,7 @@ rm -rf ruby-install-${RUBY_INSTALL_VERSION}/
 
 # ZSH, oh-my-zsh, PowerLevel 10k
 
-sudo apt install zsh
+sudo apt install zsh -y
 sudo usermod -s /usr/bin/zsh $(whoami)
 sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k
