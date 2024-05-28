@@ -6,10 +6,8 @@ services:
     domainname: ${LOCAL_DOMAIN}
     hostname: cloudflared
     restart: unless-stopped
-    build:
-      context: .
-      dockerfile: cloudflared.dockerfile
-    image: squire/cloudflared
+    image: cloudflare/cloudflared
+    command: proxy-dns --address 0.0.0.0 --port 5053 --upstream https://1.1.1.1/dns-query --upstream https://1.0.0.1/dns-query
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
@@ -29,10 +27,8 @@ services:
     domainname: ${LOCAL_DOMAIN}
     hostname: cloudflared-2
     restart: unless-stopped
-    build:
-      context: .
-      dockerfile: cloudflared.dockerfile
-    image: squire/cloudflared
+    image: cloudflare/cloudflared
+    command: proxy-dns --address 0.0.0.0 --port 5053 --upstream https://1.1.1.1/dns-query --upstream https://1.0.0.1/dns-query
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
