@@ -1,10 +1,14 @@
 [user]
-	name = Jesse Squire
-	email = jesse.squire@gmail.com
-	signingkey = << GPG KEY HERE >>
+  name = Jesse Squire
+  email = << EMAIL HERE >>
+  signingkey = << GPG KEY HERE >>
 
 [core]
-	editor = code --new-window --wait
+  editor = code --new-window --wait
+  autocrlf = input
+  filemode = false
+  excludesfile = ~/.gitignore
+  pager = less -F -X
 
 [filter "lfs"]
   clean = git-lfs clean %f
@@ -12,57 +16,37 @@
   required = true
 
 [diff]
-	tool = vscode-diff
+  tool = vscode-diff
 
 [difftool]
   prompt = false
 
 [difftool "vscode-diff"]
-  cmd = code --new-window --wait --diff $LOCAL $REMOTE
-	keepBackup = false
-	trustEx = false
-
-[difftool "semantic-diff"]
-	cmd = "/c/Users/jesse/AppData/Local/semanticmerge/semanticmergetool.exe" -s \"$LOCAL\" -d \"$REMOTE\" --nolangwarn
-	keepBackup = false
-	trustExitCode = false
-
-[difftool "diffmerge-diff"]
-  cmd = "'/c/Program Files/SourceGear/Common/DiffMerge/sgdm.exe'" \"$LOCAL\" \"$REMOTE\"
-	keepBackup = false
-	trustExitCode = true
+  cmd = code --new-window --wait --diff "$LOCAL" "$REMOTE"
+  keepBackup = false
+  trustExitCode = false
 
 [merge]
-	tool = vscode-merge
+  tool = vscode-merge
 
 [mergetool]
   prompt = false
 
 [mergetool "vscode-merge"]
-  cmd = code --new-window --wait $MERGED
-	keepBackup = false
-	trustExitCode = false
-
-[mergetool "semantic-merge"]
-	cmd = "/c/Users/jesse/AppData/Local/semanticmerge/semanticmergetool.exe" -d \"$LOCAL\" -s \"$REMOTE\" -b \"$BASE\" -r \"$MERGED\" -a --nolangwarn
-	keepBackup = false
-	trustExitCode = false
-
-[mergetool "diffmerge-merge"]
-	cmd = "'/c/Program Files/SourceGear/Common/DiffMerge/sgdm.exe'" -merge -result=\"$MERGED\" \"$LOCAL\" \"$BASE\" \"$REMOTE\"
-	keepBackup = false
-	trustExitCode = false
+  cmd = code --new-window --wait "$MERGED"
+  keepBackup = false
+  trustExitCode = false
 
 [alias]
   changes = diff --pretty --name-status
   slog = log --pretty --name-status
 
 [github]
-	user = jsquire
-	token = << TOKEN HERE >>
+  user = jsquire
+  token = << GITHUB TOKEN HERE >>
 
 [push]
-	default = simple
+  default = simple
 
 [commit]
   gpgsign = true
@@ -71,4 +55,7 @@
   gpgsign = true
 
 [credential]
-	helper = manager
+  helper = manager
+
+[gpg]
+  program = C:/Program Files (x86)/GnuPG/bin/gpg.exe

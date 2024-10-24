@@ -1,18 +1,24 @@
 LS_COLORS="ow=01;97:di=01;97"
 export LS_COLORS
 
-export PS1="\n\u@\h: \w$ "
+export PS1="\n$USER@\h: \w$ "
+
+# if running bash
+if [ -n "$BASH_VERSION" ]; then
+    # include .bashrc if it exists
+    if [ -f "$HOME/.bashrc" ]; then
+	. "$HOME/.bashrc"
+    fi
+fi
+
+# set PATH so it includes user's private bin locations, if they exist
+if [ -d "$HOME/bin" ] ; then
+    PATH="$HOME/bin:$PATH"
+fi
+
+if [ -d "$HOME/.local/bin" ] ; then
+    PATH="$HOME/.local/bin:$PATH"
+fi
+
+# Move to the projects directory
 cd $PROJECTS
-
-# Alias the color codes, to make reading easier.
-colorCyan='\[\e[0;96m\]'
-colorWhite='\[\e[0;37m\]'
-colorReset='\[\e[0m\]'
-
-# Get the name of the current Git branch and put parenthesis around it
-gitBranch() {
-    git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/ (\1)/'
-}
-
-# Build the prompt
-export PS1="${colorWhite}\n\u@\h: \w${colorCyan}\$(gitBranch)${colorWhite}\$${colorReset} "
