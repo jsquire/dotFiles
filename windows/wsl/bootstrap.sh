@@ -7,8 +7,8 @@ WORKDIR=$(pwd)
 # Define versions to install.
 
 CHRUBY_VERSION=0.3.9
-DOTNET_VERSIONS=(6.0 7.0 8.0)
-NVM_VERSION=0.39.5
+DOTNET_VERSIONS=(8.0 9.0)
+NVM_VERSION=0.40.1
 RUBY_INSTALL_VERSION=0.9.3
 
 # Update the local system to ensure a stable starting point.
@@ -71,7 +71,7 @@ echo \
   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
   
 sudo apt-get update
-sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
 
 sudo systemctl start docker
 sudo systemctl enable docker

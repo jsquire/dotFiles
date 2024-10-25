@@ -25,22 +25,17 @@ if [ -d "$HOME/.local/bin" ] ; then
     PATH="$HOME/.local/bin:$PATH"
 fi
 
-# Expose the Windows Docker host.  Note, the port may change between versions.
-export DOCKER_HOST=tcp://127.0.0.1:2375
-
-# Force Ruby version
-#     see: ~/.ruby-version
-
+# Set the default LS colors
 LS_COLORS="ow=01;97:di=01;97"
 export LS_COLORS
 
 # Alias the color codes, to make reading easier.
-colorCyan='\[\e[0;96m\]' 
-colorWhite='\[\e[0;37m\]' 
-colorReset='\[\e[0m\]' 
+colorCyan='\[\e[0;96m\]'
+colorWhite='\[\e[0;37m\]'
+colorReset='\[\e[0m\]'
 
 # Get the name of the current Git branch and put parenthesis around it
-gitBranch() { 
+gitBranch() {
     git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/ (\1)/'
 }
 

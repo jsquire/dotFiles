@@ -70,6 +70,45 @@ fi
 
 export GPG_AGENT_INFO=${HOME}/.gnupg/S.gpg-agent:0:1
 
+############################
+### SQUIRE CUSTOMIZATION ###
+############################
+
+# Preserve the window title
+DISABLE_AUTO_TITLE="true"
+
+# Path
+if [[ -d "$HOME/bin" ]] ; then
+    PATH="$HOME/bin:$PATH"
+fi
+
+if [[ -d "$HOME/.local/bin" ]] ; then
+    PATH="$HOME/.local/bin:$PATH"
+fi
+
+# Aliases
+LS_COMMON="--color=auto --group-directories-first --time-style=long-iso"
+LS_COMMON="$LS_COMMON -I 'System\ Volume\ Information'"
+LS_COMMON="$LS_COMMON -I '\$RECYCLE.BIN'"
+LS_COMMON="$LS_COMMON -I '\$Recycle.Bin'"
+LS_COMMON="$LS_COMMON -I '\$Sysreset'"
+LS_COMMON="$LS_COMMON -I RECYCLER"
+LS_COMMON="$LS_COMMON -I desktop.ini"
+LS_COMMON="$LS_COMMON -I NTUSER.DAT"
+LS_COMMON="$LS_COMMON -I ntuser.dat"
+LS_COMMON="$LS_COMMON -I thumbs.db"
+LS_COMMON="$LS_COMMON -I Thumbs.db"
+LS_COMMON="$LS_COMMON -I 'Documents and Settings'"
+
+alias ls="command ls $LS_COMMON"
+
+# DotNet Development
+export DOTNET_ROLL_FORWARD="LatestMajor"
+
+# Key Bindings
+bindkey "\033[1~" beginning-of-line
+bindkey "\033[4~" end-of-line
+
 ################################
 ### Oh My Zsh - Default Help ###
 ################################
