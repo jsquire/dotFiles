@@ -48,6 +48,9 @@
 [push]
   default = simple
 
+[pack]
+	usePathWalk = true
+
 [commit]
   gpgsign = true
 
