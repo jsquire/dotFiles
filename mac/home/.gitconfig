@@ -14,7 +14,7 @@
   required = true
 
 [diff]
-	tool = vscode-diff
+  tool = vscode-diff
 
 [difftool]
   prompt = false
