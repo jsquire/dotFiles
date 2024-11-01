@@ -1,7 +1,7 @@
 [user]
   name = Jesse Squire
-  email = jesse.squire@gmail.com
-  signingkey = F01B958FC86C6195
+  email = << ADD EMAIL HERE >>
+  signingkey = << ADD KEY HERE >>
 
 [core]
   editor = code --new-window --wait
