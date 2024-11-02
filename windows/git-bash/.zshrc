@@ -63,8 +63,8 @@ alias ls="command ls $LS_COMMON"
 # DotNet Development
 export DOTNET_ROLL_FORWARD="LatestMajor"
 
-# Ensure GPG Agent is loaded
-gpg-connect-agent reloadagent /bye > /dev/null 2>&1
+# Ensure Kleopatra GPG Agent is loaded
+"/c/Program Files (x86)/GnuPg/bin/gpg-connect-agent.exe" reloadagent //bye > /dev/null 2>&1
 
 # Key Bindings
 bindkey "\033[1~" beginning-of-line
