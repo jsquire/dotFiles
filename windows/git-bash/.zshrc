@@ -64,7 +64,7 @@ alias ls="command ls $LS_COMMON"
 export DOTNET_ROLL_FORWARD="LatestMajor"
 
 # Ensure GPG Agent is loaded
-gpg-connect-agent reloadagent /bye
+gpg-connect-agent reloadagent /bye > /dev/null 2>&1
 
 # Key Bindings
 bindkey "\033[1~" beginning-of-line
