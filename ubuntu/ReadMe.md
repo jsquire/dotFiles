@@ -1,4 +1,4 @@
-# Ubuntu Server
+# Ubuntu Desktop
 
 ### Overview
 
