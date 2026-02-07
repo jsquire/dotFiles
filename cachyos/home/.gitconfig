@@ -1,0 +1,56 @@
+[user]
+  name = Jesse Squire
+  email = << ADD EMAIL HERE >>
+  signingkey = << ADD KEY HERE >>
+
+[core]
+  editor = code --new-window --wait
+  excludesfile = ~/.gitignore
+  pager = less -F -X
+
+[filter "lfs"]
+  clean = git-lfs clean %f
+  smudge = git-lfs smudge %f
+  required = true
+
+[diff]
+  tool = vscode-diff
+
+[difftool]
+  prompt = false
+
+[difftool "vscode-diff"]
+  cmd = code --new-window --wait --diff "$LOCAL" "$REMOTE"
+  keepBackup = false
+  trustEx = false
+
+[merge]
+  tool = vscode-merge
+
+[mergetool]
+  prompt = false
+
+[mergetool "vscode-merge"]
+  cmd = code --new-window --wait "$MERGED"
+  keepBackup = false
+  trustExitCode = false
+
+[alias]
+  changes = diff --pretty --name-status
+  slog = log --pretty --name-status
+
+[github]
+  user = jsquire
+  token = << ADD TOKEN HERE >>
+
+[push]
+  default = simple
+
+[pack]
+  usePathWalk = true
+
+[commit]
+  gpgsign = true
+
+[tag]
+  gpgsign = true
