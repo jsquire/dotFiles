@@ -183,6 +183,7 @@ sudo usermod -aG gamemode "$USER"
 ############################################
 
 sudo pacman -S --needed --noconfirm flatpak
+sudo pacman -S --needed --noconfirm bazaar
 
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
