@@ -38,6 +38,13 @@ sudo pacman -S --needed --noconfirm azure-cli
 
 
 ############################################
+# Install GitHub Copilot CLI
+############################################
+
+wget -qO- https://gh.io/copilot-install | bash
+
+
+############################################
 # Install Node Version Manager (NVM)
 ############################################
 
