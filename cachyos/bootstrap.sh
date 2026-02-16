@@ -189,6 +189,8 @@ flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flat
 
 flatpak install -y --or-update flathub com.github.tchx84.Flatseal
 flatpak install -y --or-update flathub it.mijorus.gearlever
+flatpak install -y --or-update flathub io.kopia.KopiaUI
+flatpak install -y --or-update flathub org.kde.okular
 
 
 ############################################
