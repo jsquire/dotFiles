@@ -191,6 +191,7 @@ flatpak install -y --or-update flathub com.github.tchx84.Flatseal
 flatpak install -y --or-update flathub it.mijorus.gearlever
 flatpak install -y --or-update flathub io.kopia.KopiaUI
 flatpak install -y --or-update flathub org.kde.okular
+flatpak install -y --or-update flathub org.onlyoffice.desktopeditors
 
 
 ############################################
