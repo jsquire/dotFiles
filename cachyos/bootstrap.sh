@@ -55,7 +55,8 @@ sudo pacman -S --needed --noconfirm \
     nano \
     gnupg \
     gpgme \
-    pacman-contrib
+    pacman-contrib \
+    cifs-utils
 
 
 ############################################

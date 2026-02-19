@@ -26,6 +26,11 @@ fi
 source /home/jesse/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
+# Load customized .dorcolors, if it exists
+if [[ -x /usr/bin/dircolors ]]; then
+    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+fi
+
 # Preferred editor for local and remote sessions
 if [[ -n $SSH_CONNECTION ]]; then
     export EDITOR='nano'
@@ -52,9 +57,8 @@ if [[ -d "$HOME/.local/bin" ]] ; then
     PATH="$HOME/.local/bin:$PATH"
 fi
 
-# Enable chruby (default version read from ~/.ruby-version)
-source /usr/local/share/chruby/chruby.sh
-source /usr/local/share/chruby/auto.sh
+# Rust Cargo Path
+export PATH="$HOME/.cargo/bin:$PATH"
 
 # enable NVM
 export NVM_DIR="$HOME/.nvm"
@@ -69,10 +73,6 @@ if [[ ! -e ~/.gnupg/S.gpg-agent ]]; then
 fi
 
 export GPG_AGENT_INFO=${HOME}/.gnupg/S.gpg-agent:0:1
-
-############################
-### SQUIRE CUSTOMIZATION ###
-############################
 
 # Preserve the window title
 DISABLE_AUTO_TITLE="true"
@@ -101,6 +101,8 @@ LS_COMMON="$LS_COMMON -I Thumbs.db"
 LS_COMMON="$LS_COMMON -I 'Documents and Settings'"
 
 alias ls="command ls $LS_COMMON"
+
+ENABLE_CORRECTION="true"
 
 # DotNet Development
 export DOTNET_ROLL_FORWARD="LatestMajor"
