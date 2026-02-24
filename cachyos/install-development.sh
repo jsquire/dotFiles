@@ -89,14 +89,6 @@ npm install -g \
 # Install Zed Editor (AUR)
 ############################################
 
-if ! command -v yay &>/dev/null; then
-    git clone https://aur.archlinux.org/yay.git
-    cd yay
-    makepkg -si --noconfirm
-    cd ..
-    rm -rf yay
-fi
-
 yay -S --needed --noconfirm zed-preview-bin
 
 
@@ -141,36 +133,6 @@ sudo pacman -S --needed --noconfirm \
     cmake \
     meson \
     ninja
-
-
-############################################
-# Environment Setup For Dev Tools (.zshrc)
-############################################
-
-ZSHRC="$HOME/.zshrc"
-MARKER="### INSTALL-DEVELOPMENT.SH ###"
-
-if ! grep -q "$MARKER" "$ZSHRC" 2>/dev/null; then
-    echo "Adding development environment to .zshrc..."
-    cat << EOF >> "$ZSHRC"
-
-$MARKER
-# NVM
-export NVM_DIR="\$HOME/.nvm"
-[ -s "\$NVM_DIR/nvm.sh" ] && source "\$NVM_DIR/nvm.sh"
-[ -s "\$NVM_DIR/bash_completion" ] && source "\$NVM_DIR/bash_completion"
-
-# Dotnet
-export DOTNET_CLI_TELEMETRY_OPTOUT=1
-export DOTNET_NOLOGO=1
-
-# Rust Cargo Path
-export PATH="\$HOME/.cargo/bin:\$PATH"
-$MARKER
-EOF
-else
-    echo "Development environment already in .zshrc"
-fi
 
 
 ############################################

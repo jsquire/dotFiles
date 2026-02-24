@@ -18,4 +18,4 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
   _Authored over a long period of time, starting in the mid-2000s, these are a collection of miscellaneous settings and configuration-related assets._  
   
 * **wsl**  
-  _Originally authored in 2016, and revised over time, this is a container for the assets associated with building and configuring the Windows Subsystem for Linux environment, targeting an Ubuntu distribution._
+  _Originally authored in 2016, and revised over time, this is a container for the assets associated with building and configuring Windows Subsystem for Linux environments, targeting CachyOS and Ubuntu distributions._
