@@ -8,10 +8,6 @@ WORKDIR=$(pwd)
 # Helper functions
 ############################################
 
-pkg_installed() {
-    pacman -Qi "$1" &>/dev/null
-}
-
 service_enable_now() {
     systemctl is-enabled "$1" &>/dev/null || sudo systemctl enable "$1" --now
 }
@@ -27,11 +23,11 @@ sudo pacman -Syu --noconfirm
 ############################################
 
 if ! command -v yay &>/dev/null; then
-    git clone https://aur.archlinux.org/yay.git
-    cd yay
+    git clone https://aur.archlinux.org/yay.git /tmp/yay
+    cd /tmp/yay
     makepkg -si --noconfirm
-    cd ..
-    rm -rf yay
+    cd "$WORKDIR"
+    rm -rf /tmp/yay
 fi
 
 ############################################
@@ -70,7 +66,8 @@ sudo pacman -S --needed --noconfirm \
     fd \
     ripgrep \
     lazygit \
-    github-cli
+    github-cli \
+    git-lfs
 
 
 ############################################
@@ -114,8 +111,7 @@ fi
 
 yay -S --needed --noconfirm \
     microsoft-edge-stable-bin \
-    visual-studio-code-bin \
-    heroic-games-launcher-bin
+    visual-studio-code-bin
 
 # Tor Browser requires its signing key imported first
 TOR_KEY="EF6E286DDA85EA2A4BA7DE684E2C6E8793298290"
@@ -174,6 +170,8 @@ sudo pacman -S --needed --noconfirm \
     lib32-vulkan-icd-loader \
     protonup-qt
 
+yay -S --needed --noconfirm heroic-games-launcher-bin
+
 # GameMode is D-Bus activated on demand (no service enable needed)
 # User must be in gamemode group for CPU governor and renice features
 sudo usermod -aG gamemode "$USER"
@@ -184,7 +182,7 @@ sudo usermod -aG gamemode "$USER"
 ############################################
 
 sudo pacman -S --needed --noconfirm flatpak
-sudo pacman -S --needed --noconfirm bazaar
+sudo pacman -S --needed --noconfirm discover
 
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 

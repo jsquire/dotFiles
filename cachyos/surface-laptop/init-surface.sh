@@ -50,7 +50,7 @@ else
 fi
 
 # Sync package database
-sudo pacman -Sy --noconfirm
+sudo pacman -Syu --noconfirm
 
 ############################################
 # Surface Hardware Detection & Install

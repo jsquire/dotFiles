@@ -1,20 +1,24 @@
+#!/bin/bash
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 ############################################
-# ZSH SHell
+# ZSH Shell
 ############################################
 
-sudo pacman -S zsh
+sudo pacman -S --needed --noconfirm zsh
 chsh -s /usr/bin/zsh
 
 ############################################
 # Home Configuration
 ############################################
 
-cd ~
-wget https://github.com/jsquire/dotFiles/raw/refs/heads/main/cachyos/home/.bashrc
-wget https://github.com/jsquire/dotFiles/raw/refs/heads/main/cachyos/home/.dircolors
-wget https://github.com/jsquire/dotFiles/raw/refs/heads/main/cachyos/home/.gitconfig
-wget https://github.com/jsquire/dotFiles/raw/refs/heads/main/cachyos/home/.gitignore
-wget https://github.com/jsquire/dotFiles/raw/refs/heads/main/cachyos/home/.p10k.zsh
-wget https://github.com/jsquire/dotFiles/raw/refs/heads/main/cachyos/home/.profile
-wget https://github.com/jsquire/dotFiles/raw/refs/heads/main/cachyos/home/.zshrc
+cp "${SCRIPT_DIR}/home/.bashrc"    "$HOME/.bashrc"
+cp "${SCRIPT_DIR}/home/.dircolors" "$HOME/.dircolors"
+cp "${SCRIPT_DIR}/home/.gitconfig" "$HOME/.gitconfig"
+cp "${SCRIPT_DIR}/home/.gitignore" "$HOME/.gitignore"
+cp "${SCRIPT_DIR}/home/.p10k.zsh"  "$HOME/.p10k.zsh"
+cp "${SCRIPT_DIR}/home/.profile"   "$HOME/.profile"
+cp "${SCRIPT_DIR}/home/.zshrc"     "$HOME/.zshrc"
 

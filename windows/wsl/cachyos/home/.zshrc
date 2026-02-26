@@ -40,18 +40,11 @@ export PATH="$HOME/.cargo/bin:$PATH"
 
 # enable NVM
 export NVM_DIR="$HOME/.nvm"
-[[ -s "$NVM_DIR/nvm.sh" ]] && \. "$NVM_DIR/nvm.sh"
-[[ -s "$NVM_DIR/bash_completion" ]] && \. "$NVM_DIR/bash_completion"
+[[ -s "$NVM_DIR/nvm.sh" ]] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[[ -s "$NVM_DIR/bash_completion" ]] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
 # enable GPG signing
 export GPG_TTY=$(tty)
-
-# History
-HISTSIZE=50000
-SAVEHIST=50000
-setopt hist_ignore_dups
-setopt hist_ignore_space
-setopt share_history
 
 # Preserve the window title
 DISABLE_AUTO_TITLE="true"
@@ -79,6 +72,17 @@ export DOTNET_ROLL_FORWARD="LatestMajor"
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
 
+# Chruby
+[[ -f /usr/local/share/chruby/chruby.sh ]] && source /usr/local/share/chruby/chruby.sh
+[[ -f /usr/local/share/chruby/auto.sh ]] && source /usr/local/share/chruby/auto.sh
+
 # Key Bindings
 bindkey "\033[1~" beginning-of-line
 bindkey "\033[4~" end-of-line
+
+# Open files/folders in Zed on Windows from WSL
+zed() {
+    local target
+    target="$(realpath "${1:-.}")"
+    zed.exe "wsl://${WSL_DISTRO_NAME}${target}"
+}
