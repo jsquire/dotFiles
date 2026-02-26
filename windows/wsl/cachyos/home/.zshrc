@@ -4,6 +4,9 @@ plugins=(git fzf extract nvm dotnet docker docker-compose)
 # Source CachyOS system config (oh-my-zsh, p10k, autosuggestions, etc.)
 source /usr/share/cachyos-zsh-config/cachyos-config.zsh
 
+# Disable zsh-syntax-highlighting (colored text while typing)
+ZSH_HIGHLIGHT_HIGHLIGHTERS=()
+
 # Load customized .dircolors, if it exists
 if [[ -x /usr/bin/dircolors ]]; then
     test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
