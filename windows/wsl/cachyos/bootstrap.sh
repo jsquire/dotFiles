@@ -116,6 +116,7 @@ fi
 sudo pacman -S --needed --noconfirm \
     base-devel \
     git \
+    openssh \
     wget \
     net-tools \
     bison \
