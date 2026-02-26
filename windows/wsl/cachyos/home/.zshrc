@@ -1,3 +1,6 @@
+# GPG needs the real TTY before p10k instant prompt redirects stdin
+export GPG_TTY=$(tty)
+
 # Set plugins BEFORE sourcing CachyOS config (it respects pre-set plugins)
 plugins=(git fzf extract nvm dotnet docker docker-compose)
 
@@ -6,6 +9,9 @@ source /usr/share/cachyos-zsh-config/cachyos-config.zsh
 
 # Disable zsh-syntax-highlighting (colored text while typing)
 ZSH_HIGHLIGHT_HIGHLIGHTERS=()
+
+# Tell the systemd-managed gpg-agent to use this terminal for pinentry
+gpg-connect-agent updatestartuptty /bye >/dev/null 2>&1
 
 # Load customized .dircolors, if it exists
 if [[ -x /usr/bin/dircolors ]]; then
@@ -46,8 +52,6 @@ export NVM_DIR="$HOME/.nvm"
 [[ -s "$NVM_DIR/nvm.sh" ]] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [[ -s "$NVM_DIR/bash_completion" ]] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
-# enable GPG signing
-export GPG_TTY=$(tty)
 
 # Preserve the window title
 DISABLE_AUTO_TITLE="true"
