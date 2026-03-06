@@ -31,5 +31,8 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
 * **install-development.sh**  
   _Authored in 2026, this script automates installing and configuring of a set of development tools, focusing on Azure, .NET, and Node.js.  The actions performed by this script are intended to be general-purpose, but are targeted at a development workstation._
 
+* **backups/**  
+  _Backup and restore setup, configuration, and scripts.  See `backups/ReadMe.md` for details._
+
 * **secureboot.sh**  
   _Authored in 2026, this is a multi-phase script that guides configuration of Secure Boot with the Limine boot manager using sbctl.  It auto-detects progress and can be re-run after each reboot to continue through the enrollment process._
