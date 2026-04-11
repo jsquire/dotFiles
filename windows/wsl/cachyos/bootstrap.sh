@@ -248,6 +248,35 @@ sudo pacman -S --needed --noconfirm azure-cli
 wget -qO- https://gh.io/copilot-install | bash
 
 
+###############################################
+# Secret Service (secretsd headless keychain)
+###############################################
+
+sudo pacman -S --needed --noconfirm \
+    libsecret \
+    python-cryptography \
+    python-dbus \
+    python-gobject \
+    python-xdg
+
+if [ ! -d "$HOME/.local/lib/secretsd" ]; then
+    git clone https://github.com/grawity/secretsd.git "$HOME/.local/lib/secretsd"
+fi
+
+mkdir -p "$HOME/.local/bin" "$HOME/.local/share/nullroute.lt/secretsd"
+ln -sf "$HOME/.local/lib/secretsd/secretsd.py" "$HOME/.local/bin/secretsd"
+chmod +x "$HOME/.local/bin/secretsd"
+
+mkdir -p "$HOME/.config/systemd/user" "$HOME/.local/share/dbus-1/services"
+cp "$HOME/.local/lib/secretsd/systemd/secretsd.service" "$HOME/.config/systemd/user/"
+cp "$HOME/.local/lib/secretsd/dbus/org.freedesktop.secrets.service" "$HOME/.local/share/dbus-1/services/"
+
+if [ "$(ps -p 1 -o comm=)" = "systemd" ]; then
+    systemctl --user daemon-reload
+    systemctl --user enable --now secretsd
+fi
+
+
 ############################################
 # Install PowerShell (AUR)
 ############################################
