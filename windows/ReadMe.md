@@ -10,12 +10,18 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
 
 * **cli**  
   _Authored over a period of time starting in the mid-2000s, herein are a collection of utilities and small scripts intended to be called as by the Windows command line as part of the path.  (It is quite likely that some of these are stale and/or should be pruned.)_
- 
+
+* **configuration**  
+  _Authored in 2026, these are PowerShell scripts that enforce system configuration policies, such as preventing Windows Update from rebooting without explicit user approval.  Scripts are idempotent and safe to re-run as needed._
+
 * **git-bash**  
   _Authored over a period of time starting in roughly 2012, these are the $HOME items for the bash profile associated with the Git for Windows environment._
   
 * **settings**  
   _Authored over a long period of time, starting in the mid-2000s, these are a collection of miscellaneous settings and configuration-related assets._  
-  
+
+* **utility**  
+  _Authored in 2026, these are PowerShell utility scripts for system maintenance tasks, such as deep-cleaning temp files, caches, and logs that Windows Disk Cleanup misses._
+
 * **wsl**  
   _Originally authored in 2016, and revised over time, this is a container for the assets associated with building and configuring Windows Subsystem for Linux environments, targeting CachyOS and Ubuntu distributions._
