@@ -331,6 +331,189 @@ if ! command -v kopia &>/dev/null; then
     yay -S --needed --noconfirm kopia-bin
 fi
 
+# Non-interactive server backup configuration.
+# Repo lives on the external-backups drive; sources are home, /etc, /boot, /virtualization.
+
+KOPIA_REPO="/mnt/external-backups"
+KOPIA_BACKUP_SCRIPT="/usr/local/bin/nightly-backup.sh"
+KOPIA_MANIFEST_DIR="$HOME/.local/share/system-backup/manifests"
+KOPIA_SCHEDULE="02:00:00"
+KOPIA_SOURCES=( "$HOME" "/etc" "/boot" "/virtualization" )
+
+# Connect to repository if not already connected
+if sudo test -f /root/.config/kopia/repository.config; then
+    echo "Kopia repository already connected."
+else
+    if [ -d "$KOPIA_REPO" ]; then
+        # Create the repository if it doesn't exist, otherwise connect
+        if sudo kopia repository connect filesystem --path="$KOPIA_REPO" 2>/dev/null; then
+            echo "Connected to existing Kopia repository at $KOPIA_REPO"
+        else
+            sudo kopia repository create filesystem --path="$KOPIA_REPO"
+            echo "Created new Kopia repository at $KOPIA_REPO"
+        fi
+    else
+        echo "WARNING: Kopia repo path $KOPIA_REPO not mounted. Skipping repository setup."
+        echo "  Mount the external drive and re-run bootstrap to complete Kopia setup."
+    fi
+fi
+
+# Configure policies (idempotent — kopia overwrites existing policies)
+if sudo kopia repository status &>/dev/null; then
+    sudo kopia policy set --global --compression=zstd
+
+    for src in "${KOPIA_SOURCES[@]}"; do
+        sudo kopia policy set "$src" \
+            --keep-daily=7 \
+            --keep-weekly=4 \
+            --keep-monthly=3
+    done
+
+    sudo kopia maintenance set --full-interval=720h
+fi
+
+# Create .kopiaignore for home directory (server-appropriate exclusions)
+cat > "$HOME/.kopiaignore" << 'KOPIAIGNORE'
+.cache/
+.var/app/*/cache/
+.vscode/extensions/
+.config/Code/Cache/
+.config/Code/CachedData/
+.config/Code/CachedExtensionVSIXs/
+.config/Code/CachedProfilesData/
+.config/Code/CachedConfigurations/
+.rustup/
+.nvm/versions/
+.npm/
+.cargo/registry/
+.cargo/git/
+.copilot/
+.local/share/Trash/
+KOPIAIGNORE
+
+# Create manifest staging directory
+mkdir -p "$KOPIA_MANIFEST_DIR"
+
+# Create nightly backup script
+sudo tee "$KOPIA_BACKUP_SCRIPT" > /dev/null << BACKUPSCRIPT
+#!/bin/bash
+set -euo pipefail
+
+export HOME=/root
+
+BACKUP_HOME="$HOME"
+MANIFEST_DIR="$KOPIA_MANIFEST_DIR"
+REPO_PATH="$KOPIA_REPO"
+
+echo "\$(date '+%Y-%m-%d %H:%M:%S') ── Nightly backup started ──"
+
+# Ensure repository is connected
+if ! kopia repository status &>/dev/null; then
+    echo "Repository not connected. Reconnecting to \${REPO_PATH}..."
+    kopia repository connect filesystem --path="\${REPO_PATH}"
+fi
+
+# Capture system manifests
+echo "Capturing system manifests..."
+mkdir -p "\${MANIFEST_DIR}"
+
+pacman -Qe --quiet > "\${MANIFEST_DIR}/pkglist-explicit.txt.tmp" \\
+    && mv "\${MANIFEST_DIR}/pkglist-explicit.txt.tmp" "\${MANIFEST_DIR}/pkglist-explicit.txt" \\
+    || echo "WARNING: Failed to capture explicit package list"
+
+pacman -Qm --quiet > "\${MANIFEST_DIR}/pkglist-aur.txt.tmp" \\
+    && mv "\${MANIFEST_DIR}/pkglist-aur.txt.tmp" "\${MANIFEST_DIR}/pkglist-aur.txt" \\
+    || echo "WARNING: Failed to capture AUR package list"
+
+systemctl list-unit-files --state=enabled --no-pager > "\${MANIFEST_DIR}/enabled-services.txt.tmp" \\
+    && mv "\${MANIFEST_DIR}/enabled-services.txt.tmp" "\${MANIFEST_DIR}/enabled-services.txt" \\
+    || echo "WARNING: Failed to capture enabled services"
+
+cp /etc/fstab "\${MANIFEST_DIR}/fstab.txt" || echo "WARNING: Failed to copy fstab"
+
+zpool status > "\${MANIFEST_DIR}/zpool-status.txt.tmp" \\
+    && mv "\${MANIFEST_DIR}/zpool-status.txt.tmp" "\${MANIFEST_DIR}/zpool-status.txt" \\
+    || echo "WARNING: Failed to capture zpool status"
+
+zfs list -o name,mountpoint,compression,atime > "\${MANIFEST_DIR}/zfs-datasets.txt.tmp" \\
+    && mv "\${MANIFEST_DIR}/zfs-datasets.txt.tmp" "\${MANIFEST_DIR}/zfs-datasets.txt" \\
+    || echo "WARNING: Failed to capture ZFS dataset list"
+
+echo "Manifests written to \${MANIFEST_DIR}"
+
+# Create snapshots
+echo "Creating snapshots..."
+kopia snapshot create "\${BACKUP_HOME}"
+kopia snapshot create /etc
+kopia snapshot create /boot
+kopia snapshot create /virtualization
+
+# Repository maintenance
+echo "Running repository maintenance..."
+kopia maintenance run || echo "WARNING: Maintenance failed (snapshots were saved successfully)"
+
+echo "\$(date '+%Y-%m-%d %H:%M:%S') ── Nightly backup complete ──"
+BACKUPSCRIPT
+
+sudo chmod 755 "$KOPIA_BACKUP_SCRIPT"
+
+# Systemd units for scheduled backup
+KOPIA_MOUNT_POINT=$(findmnt -n -o TARGET --target "$KOPIA_REPO" 2>/dev/null || echo "/mnt/external-backups")
+
+backup_service="[Unit]
+Description=Nightly Kopia Backup
+Wants=network-online.target
+After=network-online.target
+ConditionPathIsMountPoint=${KOPIA_MOUNT_POINT}
+
+[Service]
+Type=oneshot
+ExecStart=${KOPIA_BACKUP_SCRIPT}
+TimeoutStartSec=10800
+StandardOutput=append:/var/log/nightly-backup.log
+StandardError=append:/var/log/nightly-backup.log
+"
+
+backup_timer="[Unit]
+Description=Nightly Kopia Backup Timer
+
+[Timer]
+OnCalendar=*-*-* ${KOPIA_SCHEDULE}
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
+"
+
+daemon_reload_needed=0
+
+if install_file_if_changed /etc/systemd/system/nightly-backup.service "$backup_service"; then
+    daemon_reload_needed=1
+fi
+
+if install_file_if_changed /etc/systemd/system/nightly-backup.timer "$backup_timer"; then
+    daemon_reload_needed=1
+fi
+
+if [ "$daemon_reload_needed" -eq 1 ]; then
+    sudo systemctl daemon-reload
+fi
+
+service_enable_now nightly-backup.timer
+
+# Log rotation
+sudo tee /etc/logrotate.d/nightly-backup > /dev/null << 'LOGROTATE'
+/var/log/nightly-backup.log {
+    size 5M
+    rotate 1
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
+LOGROTATE
+
 
 ############################################
 # SSH

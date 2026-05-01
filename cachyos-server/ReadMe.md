@@ -12,9 +12,6 @@ These resources from the base `cachyos/` directory are directly compatible with 
 
 | Resource | Purpose | Notes |
 |----------|---------|-------|
-| `cachyos/backups/kopia-backup.sh` | Nightly backup setup | Prompts for paths; add `/virtualization` as source |
-| `cachyos/backups/kopia-restore.sh` | Selective file restore | Works as-is |
-| `cachyos/backups/kopia-restore-full.sh` | Disaster recovery | Works as-is |
 | `cachyos/secureboot.sh` | Secure Boot setup | Only if hardware is UEFI + Limine |
 
 ### Structure
@@ -39,7 +36,7 @@ These resources from the base `cachyos/` directory are directly compatible with 
 ### Post-Install Manual Steps
 
 1. Create Samba user passwords: `sudo smbpasswd -a jesse`, etc.
-2. Configure Kopia backups: run `../cachyos/backups/kopia-backup.sh`
+2. If external backup drive wasn't mounted during bootstrap, mount it and re-run `bootstrap.sh` to complete Kopia setup
 3. First container start (if not using `--full`): `cd /virtualization/container-services && ./start-services.sh` (generates `.env` with secrets)
 
 ### Execution Order
