@@ -34,23 +34,28 @@ These resources from the base `cachyos/` directory are directly compatible with 
 ### Items
 
 * **bootstrap.sh**  
-  _Authored in 2026, this is an idempotent full server setup script covering packages, ZSH, KDE Plasma + xrdp, ZFS, Samba, Docker, firewall configuration, Python/uv, and Node/NVM._
-
-* **install-media-server.sh**  
-  _Authored in 2026, this script deploys the Plex media server containers, ramdisk transcoding, and related systemd management._
+  _Authored in 2026, this is an idempotent server setup script covering packages, ZSH, KDE Plasma + xrdp, ZFS, Samba, Docker, firewall configuration, Python/uv, and Node/NVM.  Pass `--full` to also recover ZFS pools and deploy container services end-to-end._
 
 ### Post-Install Manual Steps
 
-1. Import or create ZFS pools (see `zfs/create-pools.sh`); if pools already exist on disk, use `sudo zfs/recover-pools.sh`
-2. Create Samba user passwords: `sudo smbpasswd -a jesse`, etc.
-3. Configure Kopia backups: run `../cachyos/backups/kopia-backup.sh`
-4. First container start: `cd /virtualization/container-services && ./start-services.sh` (generates `.env` with secrets)
+1. Create Samba user passwords: `sudo smbpasswd -a jesse`, etc.
+2. Configure Kopia backups: run `../cachyos/backups/kopia-backup.sh`
+3. First container start (if not using `--full`): `cd /virtualization/container-services && ./start-services.sh` (generates `.env` with secrets)
 
 ### Execution Order
+
+**Minimal install** (base system, no containers):
 
 1. Install CachyOS (KDE Plasma edition)
 2. (Optional) Run `../cachyos/secureboot.sh` if UEFI
 3. Run `bootstrap.sh`
 4. Import/create ZFS pools (`sudo zfs/recover-pools.sh` or manual `zfs/create-pools.sh`)
-5. Run `install-media-server.sh`
+5. Deploy containers manually via `container-services/install-services.sh`
 6. Manual steps above
+
+**Full install** (end-to-end):
+
+1. Install CachyOS (KDE Plasma edition)
+2. (Optional) Run `../cachyos/secureboot.sh` if UEFI
+3. Run `bootstrap.sh --full`
+4. Manual steps above
