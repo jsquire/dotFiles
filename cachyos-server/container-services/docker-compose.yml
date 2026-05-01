@@ -1,0 +1,141 @@
+
+services:
+  cloudflared:
+    container_name: cloudflared
+    domainname: ${LOCAL_DOMAIN}
+    hostname: cloudflared
+    restart: unless-stopped
+    image: cloudflare/cloudflared
+    command: proxy-dns --address 0.0.0.0 --port 5053 --upstream https://1.1.1.1/dns-query --upstream https://1.0.0.1/dns-query
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    env_file:
+      - .env
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
+    cap_add:
+      - NET_ADMIN
+    networks:
+      pihole_net:
+        ipv4_address: 10.0.0.2
+
+  cloudflared-2:
+    container_name: cloudflared-2
+    domainname: ${LOCAL_DOMAIN}
+    hostname: cloudflared-2
+    restart: unless-stopped
+    image: cloudflare/cloudflared
+    command: proxy-dns --address 0.0.0.0 --port 5053 --upstream https://1.1.1.1/dns-query --upstream https://1.0.0.1/dns-query
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    env_file:
+      - .env
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
+    cap_add:
+      - NET_ADMIN
+    networks:
+      pihole_net:
+        ipv4_address: 10.0.0.3
+
+    # The script "install-cloudflared.sh" makes direct assumptions
+    # about the upstream DNS servers and port in use, as does the
+    # Cloudflared dockerfile.  These all must be kept in sync if
+    # changing the ports.
+
+  pihole:
+    image: pihole/pihole
+    container_name: pihole
+    domainname: ${LOCAL_DOMAIN}
+    hostname: pihole
+    restart: unless-stopped
+    links:
+      - cloudflared
+      - cloudflared-2
+    ports:
+      - '53:53/tcp'
+      - '53:53/udp'
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ${PIHOLE_BASE}/root:/etc/pihole
+      - ${PIHOLE_BASE}/log/pihole.log:/var/log/pihole.log
+      - ${PIHOLE_BASE}/root/dnsmasq.d:/etc/dnsmasq.d
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    env_file:
+      - .env
+    cap_add:
+      - NET_ADMIN
+      - NET_BIND_SERVICE
+    dns:
+      - 127.0.0.1
+      - 192.168.1.1
+      - 1.1.1.1
+      - 1.0.0.1
+    environment:
+      - ServerIP=${SERVER_IP}
+      - WEBPASSWORD=${PIHOLE_ADMIN_PASS}
+      - IPv6=false
+      - DNSMASQ_LISTENING=all
+      - DNS1=10.0.0.2#5053
+      - DNS2=10.0.0.3#5053
+    networks:
+      pihole_net:
+        ipv4_address: 10.0.0.4
+
+      # Defer setting up IP v6 for now; I've not yet been able
+      # to get the IP v6 address to work correctly in pi-hole.
+      # --------------------------------------------------------
+      #- ServerIPv6=${SERVER_IP_V6}
+      #- DNS3=2606:4700:4700::1111
+      #- DNS4=2606:4700:4700::1001
+
+  plex:
+    container_name: plex
+    image: plexinc/pms-docker
+    hostname: ${PLEX_HOSTNAME}
+    restart: unless-stopped
+    domainname: ${LOCAL_DOMAIN}
+    ports:
+      - '8080:32400/tcp'
+      - '32400:32400/tcp'
+      - '3005:3005/tcp'
+      - '8324:8324/tcp'
+      - '32469:32469/tcp'
+      - '1900:1900/udp'
+      - '32410:32410/udp'
+      - '32412:32412/udp'
+      - '32413:32413/udp'
+      - '32414:32414/udp'
+    volumes:
+      - ${PLEX_BASE}/data:/config
+      - ${PLEX_TRANSCODE}:/transcode
+      - ${PLEX_MEDIA}:/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    env_file:
+      - .env
+    dns:
+      - ${SERVER_IP}
+      - 192.168.1.1
+      - 1.1.1.1
+      - 1.0.0.1
+    environment:
+      - ADVERTISE_IP=http://${SERVER_IP}:32400/
+      - PLEX_HOSTNAME=${PLEX_HOSTNAME}
+      - PLEX_CLAIM=${PLEX_CLAIM}
+    networks:
+      pihole_net:
+        ipv4_address: 10.0.0.5
+
+networks:
+  pihole_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/29

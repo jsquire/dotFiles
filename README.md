@@ -13,6 +13,15 @@ Included are projects, documents, and presentations that were either created as 
 * **root**  
   _The root contains the overall repository configuration files, license, and general structure._
 
+* **cachyos**  
+  _The container for items used for building and configuring a CachyOS or compatible Arch-flavored distribution for use as a workstation._  
+
+* **cachyos-server**  
+  _The container for items used for building and configuring a CachyOS-based multi-purpose home server for file sharing, media serving, DNS ad-blocking, and containerized services._  
+
+* **mac**  
+  _The container for items used for configuring a macOS machine._  
+
 * **ubuntu-server**  
   _The container for items used for building and configuring a multi-purpose linux server used for home-related services._  
 
