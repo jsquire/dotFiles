@@ -121,6 +121,50 @@ fi
 verify_mounts
 refresh_cache_and_services
 
+
+############################################
+# L2ARC cache guidance
+############################################
+
+check_l2arc() {
+    echo
+    echo "=== L2ARC Cache Status ==="
+
+    local missing_cache=0
+
+    for pool in "${KNOWN_POOLS[@]}"; do
+        if ! zpool list -H -o name "$pool" &>/dev/null; then
+            continue
+        fi
+
+        if zpool status "$pool" | grep -q "cache"; then
+            echo "  ✓ $pool has L2ARC cache attached"
+        else
+            echo "  ⚠ $pool has no L2ARC cache device"
+            missing_cache=1
+        fi
+    done
+
+    if [[ $missing_cache -eq 1 ]]; then
+        echo
+        echo "  L2ARC improves read performance for frequently accessed data."
+        echo "  To re-add cache devices, partition the NVMe and attach:"
+        echo
+        echo "    # Identify available NVMe partitions"
+        echo "    lsblk /dev/nvme0n1"
+        echo
+        echo "    # Add cache to each pool (use by-id paths for stability)"
+        echo "    zpool add storage-pool cache /dev/disk/by-id/<NVME_PARTITION_1>"
+        echo "    zpool add virt-pool cache /dev/disk/by-id/<NVME_PARTITION_2>"
+        echo
+        echo "  Original layout: nvme0n1p3 (250G) → storage-pool, nvme0n1p4 (108.7G) → virt-pool"
+        echo "  Pools function normally without cache — this is a performance optimization."
+    fi
+}
+
+check_l2arc
+
+
 echo
 echo "=== Pool status ==="
 zpool status -x

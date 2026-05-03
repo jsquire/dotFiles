@@ -77,3 +77,35 @@ zpool import -d /dev/disk/by-id
 
 # After importing existing pools, re-apply documented properties and datasets
 # with ./zfs-properties.sh if needed.
+
+# -----------------------------------------------------------------------------
+# L2ARC (Read Cache)
+# -----------------------------------------------------------------------------
+#
+# L2ARC uses fast NVMe storage to cache frequently read data from the HDDs.
+# Recommended for this workload (Plex media streaming, Samba file shares,
+# container I/O).  Pools function normally without cache — this is a
+# performance optimization, not a data requirement.
+#
+# Original layout:
+#   storage-pool cache:  nvme0n1p3 (250G)
+#   virt-pool cache:     nvme0n1p4 (108.7G)
+#
+# After OS install or hardware migration, NVMe partitions may not exist.
+# Create them first, then attach:
+#
+#   # Identify free space on NVMe (root + swap use p1 and p2)
+#   lsblk /dev/nvme0n1
+#
+#   # Create partitions if needed (adjust sizes to match available space)
+#   # sudo fdisk /dev/nvme0n1
+#   #   p3: 250G  (storage-pool cache)
+#   #   p4: remaining  (virt-pool cache)
+#
+#   # Attach using stable by-id paths
+#   zpool add storage-pool cache /dev/disk/by-id/<NVME_P3_BY_ID>
+#   zpool add virt-pool cache /dev/disk/by-id/<NVME_P4_BY_ID>
+#
+#   # Verify
+#   zpool status storage-pool | grep cache
+#   zpool status virt-pool | grep cache

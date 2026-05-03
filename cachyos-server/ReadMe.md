@@ -33,6 +33,18 @@ These resources from the base `cachyos/` directory are directly compatible with 
 * **bootstrap.sh**  
   _Authored in 2026, this is an idempotent server setup script covering packages, ZSH, KDE Plasma + xrdp, ZFS, Samba, Docker, firewall configuration, Python/uv, and Node/NVM.  Pass `--full` to also recover ZFS pools and deploy container services end-to-end._
 
+* **pre-migration-backup.sh**  
+  _Captures identity and configuration before an OS migration (~2 MB).  See `migration.md` for full context._
+
+* **post-migration-restore.sh**  
+  _Restores identity and configuration on the new CachyOS install after `bootstrap.sh --full`._
+
+* **migration.md**  
+  _Step-by-step guide for the in-place Ubuntu → CachyOS server migration, including risk assessment and rollback notes._
+
+* **upgrade-migrate.md**  
+  _Guide for restoring the server environment on new hardware by moving the ZFS pool drives to a fresh CachyOS install._
+
 ### Post-Install Manual Steps
 
 1. Create Samba user passwords: `sudo smbpasswd -a jesse`, etc.
