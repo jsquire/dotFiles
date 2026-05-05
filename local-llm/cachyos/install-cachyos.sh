@@ -602,7 +602,7 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
     if command_exists uv || [[ -x "${HOME}/.local/bin/uv" ]]; then
         UV_BIN="$(command -v uv || true)"
         [[ -z "$UV_BIN" ]] && UV_BIN="${HOME}/.local/bin/uv"
-        if "$UV_BIN" python install 3.12; then
+        if "$UV_BIN" python install 3.12 --default; then
             success "Python 3.12 installed via uv."
         else
             add_failure "uv could not install Python 3.12."

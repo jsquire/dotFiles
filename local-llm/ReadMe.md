@@ -146,6 +146,7 @@ cd local-llm/cachyos
 - **Benchmarks:** See `benchmarks/ReadMe.md` for the bake-off evaluation framework
 - **MCP Servers:** See `mcp/office-mcp-setup.md` for Office document creation setup
 - **Config Override:** Place a customized `config/ollama-models.txt` to override built-in model profiles
+- **Copilot CLI alternative:** Ollama also works with GitHub Copilot CLI — run `ollama launch copilot` or set `COPILOT_PROVIDER_BASE_URL=http://localhost:11434/v1` to test your local models through Copilot instead of Crush
 
 ---
 

@@ -414,17 +414,17 @@ if ($ShouldInstallSoftware) {
     # ── Step: Python 3.12 via uv ────────────────────────────────────────
 
     Write-Step "Install Python 3.12 via uv"
-    Write-Info "This installs Python 3.12 under uv's managed directory — no system-wide Python."
+    Write-Info "This installs Python 3.12 via uv and adds 'python' to PATH (--default)."
 
     if (Test-CommandExists "uv") {
-        uv python install 3.12
+        uv python install 3.12 --default
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Python 3.12 installed via uv."
         } else {
             Write-Warn "Python 3.12 install returned exit code $LASTEXITCODE. Check output above."
         }
     } else {
-        Write-Warn "Skipping — uv not available. Restart your terminal and run: uv python install 3.12"
+        Write-Warn "Skipping — uv not available. Restart your terminal and run: uv python install 3.12 --default"
     }
 
     if ($IsFullMode) {
