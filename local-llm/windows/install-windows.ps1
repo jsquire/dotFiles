@@ -99,7 +99,7 @@ $LocalAppData   = $env:LOCALAPPDATA
 $UserProfile    = $env:USERPROFILE
 $AiToolsDir     = Join-Path $LocalAppData "ai-tools"
 $CrushDir       = Join-Path $UserProfile ".crush"
-$CustomModelListPath = Join-Path $PSScriptRoot "config\ollama-models.txt"
+$CustomModelListPath = Join-Path $PSScriptRoot "..\config\ollama-models.txt"
 $DefaultModelRoot = Join-Path $UserProfile ".ollama\models"
 $script:Warnings = @()
 
@@ -294,6 +294,11 @@ function Get-EffectiveModelConfig {
             if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) {
                 continue
             }
+            # Strip inline comments (everything after first #)
+            if ($trimmed.Contains("#")) {
+                $trimmed = $trimmed.Substring(0, $trimmed.IndexOf("#")).Trim()
+            }
+            if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
             if (-not $customModels.Contains($trimmed)) {
                 $description = if ($KnownModelDescriptions.ContainsKey($trimmed)) {
                     $KnownModelDescriptions[$trimmed]
@@ -304,12 +309,16 @@ function Get-EffectiveModelConfig {
             }
         }
 
-        return @{
-            Models = $customModels
-            RequiredGB = $builtIn.RequiredGB
-            Label = "custom"
-            Message = "Using custom model list from config\ollama-models.txt."
-            IsCustom = $true
+        if ($customModels.Count -eq 0) {
+            Write-Warn "Custom model list at $CustomModelListPath is empty after stripping comments. Falling back to $ModelProfile profile."
+        } else {
+            return @{
+                Models = $customModels
+                RequiredGB = $builtIn.RequiredGB
+                Label = "custom"
+                Message = "Using custom model list from config\ollama-models.txt."
+                IsCustom = $true
+            }
         }
     }
 
