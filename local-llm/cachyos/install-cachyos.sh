@@ -15,6 +15,7 @@ MODEL_PATH=""
 SKIP_MODELS=false
 MODELS_ONLY=false
 ENABLE_LAN=false
+LAN_CIDR=""
 IS_SERVER_MODE=false
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -56,6 +57,8 @@ Options:
                                Model profile for full/server mode (default: standard)
   --ollama-host <url>          Remote Ollama URL (required for client mode)
   --model-path <path>          Custom Ollama model directory (sets OLLAMA_MODELS)
+  --lan-cidr <cidr>            Override LAN CIDR for firewall (auto-detected if omitted)
+                               Examples: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
   --skip-models                Skip model pulls
   --models-only                Only pull models; skip software installation
   --help                       Show this help text
@@ -63,6 +66,7 @@ Options:
 Examples:
   ./install-cachyos.sh                                                  # Full local (localhost)
   ./install-cachyos.sh --mode server                                    # Full + LAN exposure
+  ./install-cachyos.sh --mode server --lan-cidr 10.0.0.0/8              # Server on 10.x LAN
   ./install-cachyos.sh --mode server --model-profile high               # Server with Q5 models
   ./install-cachyos.sh --mode client --ollama-host http://192.168.1.50:11434
   ./install-cachyos.sh --models-only
@@ -116,6 +120,21 @@ ensure_local_bin_on_path() {
 
 trim_line() {
     printf '%s' "$1" | xargs
+}
+
+detect_lan_cidr() {
+    local ip
+    ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '/src/{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')"
+    if [[ -z "$ip" ]]; then
+        printf '%s' "192.168.0.0/16"
+        return
+    fi
+    case "$ip" in
+        10.*)         printf '%s' "10.0.0.0/8" ;;
+        172.1[6-9].*|172.2[0-9].*|172.3[0-1].*) printf '%s' "172.16.0.0/12" ;;
+        192.168.*)    printf '%s' "192.168.0.0/16" ;;
+        *)            printf '%s' "${ip%.*}.0/24" ;;
+    esac
 }
 
 model_description() {
@@ -349,6 +368,11 @@ parse_args() {
                 MODEL_PATH="$2"
                 shift 2
                 ;;
+            --lan-cidr)
+                [[ $# -lt 2 ]] && { fail "--lan-cidr requires a CIDR value (e.g. 10.0.0.0/8)."; usage; exit 1; }
+                LAN_CIDR="$2"
+                shift 2
+                ;;
             --skip-models)
                 SKIP_MODELS=true
                 shift
@@ -433,6 +457,13 @@ if [[ "$MODE" == "server" ]]; then
     SHOULD_PULL_MODELS=true
     [[ "$MODELS_ONLY" == true ]] && SHOULD_INSTALL_SOFTWARE=false
     [[ "$SKIP_MODELS" == true ]] && SHOULD_PULL_MODELS=false
+    # Resolve LAN CIDR: use --lan-cidr if provided, otherwise auto-detect
+    if [[ -z "$LAN_CIDR" ]]; then
+        LAN_CIDR="$(detect_lan_cidr)"
+        info "Auto-detected LAN CIDR: $LAN_CIDR"
+    else
+        info "Using user-specified LAN CIDR: $LAN_CIDR"
+    fi
     load_effective_model_config
 elif [[ "$MODE" == "full" ]]; then
     IS_FULL_MODE=true
@@ -562,11 +593,11 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
         if command_exists ufw; then
             if [[ "$ENABLE_LAN" == true ]]; then
                 ufw_status="$(run_privileged ufw status 2>/dev/null || true)"
-                if grep -Fq '192.168.0.0/16' <<<"$ufw_status" && grep -Fq '11434' <<<"$ufw_status"; then
+                if grep -Fq "$LAN_CIDR" <<<"$ufw_status" && grep -Fq '11434' <<<"$ufw_status"; then
                     info "ufw already has a LAN rule for port 11434."
                 else
-                    if run_privileged ufw allow from 192.168.0.0/16 to any port 11434 proto tcp comment 'Ollama LAN' >/dev/null; then
-                        success "Added ufw allow rule for 192.168.0.0/16 -> 11434/tcp"
+                    if run_privileged ufw allow from "$LAN_CIDR" to any port 11434 proto tcp comment 'Ollama LAN' >/dev/null; then
+                        success "Added ufw allow rule for $LAN_CIDR -> 11434/tcp"
                     else
                         add_warning "Could not add ufw allow rule for port 11434."
                     fi
@@ -619,6 +650,24 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
     mkdir -p "${AI_TOOLS_DIR}/mcp-office" "${AI_TOOLS_DIR}/mcp-word" "${AI_TOOLS_DIR}/mcp-pptx" "$CRUSH_HOME_DIR" "$CRUSH_CONFIG_DIR"
     success "Created MCP directories under ${AI_TOOLS_DIR}"
     success "Prepared Crush config directories: ${CRUSH_HOME_DIR} and ${CRUSH_CONFIG_DIR}"
+
+    # ── Deploy Crush configuration ───────────────────────────────────────
+    step "Deploy Crush configuration"
+    local crush_config_source="${SCRIPT_DIR}/../config/crush.json"
+    local crush_config_dest="${CRUSH_CONFIG_DIR}/crush.json"
+
+    if [[ -f "$crush_config_source" ]]; then
+        if [[ -f "$crush_config_dest" ]]; then
+            info "Crush config already exists at $crush_config_dest — skipping (won't overwrite)."
+        else
+            cp "$crush_config_source" "$crush_config_dest"
+            success "Deployed crush.json to $crush_config_dest"
+            info "Local Ollama is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+            info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
+        fi
+    else
+        warn "Config template not found at $crush_config_source — skipping Crush config."
+    fi
 fi
 
 if [[ "$SHOULD_PULL_MODELS" == true ]]; then
@@ -709,6 +758,7 @@ elif [[ "$IS_SERVER_MODE" == true ]]; then
     printf '%b\n' "${COLOR_CYAN}── Client Access ──────────────────────────────────────────────${COLOR_RESET}"
     printf '%b\n' ""
     printf '%b\n' "  Ollama API:  http://${local_ip}:11434"
+    printf '%b\n' "  Firewall:    ufw allow from ${LAN_CIDR} to port 11434/tcp"
     printf '%b\n' ""
     printf '%b\n' "  Verify from any LAN machine:"
     printf '%b\n' "    curl http://${local_ip}:11434/api/tags"

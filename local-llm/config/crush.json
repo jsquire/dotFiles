@@ -1,29 +1,154 @@
 {
-    "$schema": "https://crush.charm.sh/schema/config.json",
-    "_comment": [
-        "Crush configuration template.",
-        "Copy to %USERPROFILE%\\.crush\\crush.json and edit as needed.",
-        "API keys should be stored in Windows Credential Manager, not here."
-    ],
-    "providers": {
-        "ollama": {
-            "type": "ollama",
-            "endpoint": "http://localhost:11434",
-            "_comment_client": "For client mode, change endpoint to your server: http://server-ip:11434"
+  "default_provider": "ollama",
+  "providers": {
+    "ollama": {
+      "name": "Ollama (Local)",
+      "base_url": "http://localhost:11434/v1/",
+      "type": "openai",
+      "models": [
+        {
+          "name": "Qwen3 30B",
+          "id": "qwen3:30b",
+          "context_window": 16384,
+          "default_max_tokens": 8000,
+          "can_reason": true
         },
-        "openrouter": {
-            "type": "openai-compatible",
-            "endpoint": "https://openrouter.ai/api/v1",
-            "api_key_env": "OPENROUTER_API_KEY",
-            "_comment": "Pay-per-token cloud fallback.  Set up at https://openrouter.ai/"
+        {
+          "name": "Qwen3 8B",
+          "id": "qwen3:8b",
+          "context_window": 32768,
+          "default_max_tokens": 8000,
+          "can_reason": true
+        },
+        {
+          "name": "DeepSeek R1 14B",
+          "id": "deepseek-r1:14b",
+          "context_window": 32768,
+          "default_max_tokens": 8000,
+          "can_reason": true
+        },
+        {
+          "name": "Llama 3.1 8B",
+          "id": "llama3.1:8b",
+          "context_window": 32768,
+          "default_max_tokens": 8000,
+          "can_reason": false
         }
+      ]
     },
-    "default_provider": "ollama",
-    "models": {
-        "code": "qwen3:30b",
-        "fast": "qwen3:8b",
-        "reason": "deepseek-r1:14b",
-        "general": "llama3.1:8b"
+    "mistral": {
+      "name": "Mistral AI (Free Tier)",
+      "base_url": "https://api.mistral.ai/v1/",
+      "type": "openai",
+      "api_key": "$MISTRAL_API_KEY",
+      "models": [
+        {
+          "name": "Codestral",
+          "id": "codestral-latest",
+          "context_window": 32768,
+          "default_max_tokens": 8000,
+          "can_reason": true
+        },
+        {
+          "name": "Mistral Large",
+          "id": "mistral-large-latest",
+          "context_window": 128000,
+          "default_max_tokens": 16000,
+          "can_reason": true
+        },
+        {
+          "name": "Mistral Small",
+          "id": "mistral-small-latest",
+          "context_window": 128000,
+          "default_max_tokens": 8000,
+          "can_reason": false
+        }
+      ]
     },
-    "default_model": "code"
+    "google": {
+      "name": "Google AI Studio (Free Tier)",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+      "type": "openai",
+      "api_key": "$GEMINI_API_KEY",
+      "models": [
+        {
+          "name": "Gemini 2.5 Flash",
+          "id": "gemini-2.5-flash",
+          "context_window": 1000000,
+          "default_max_tokens": 16000,
+          "can_reason": true
+        },
+        {
+          "name": "Gemini 2.5 Pro",
+          "id": "gemini-2.5-pro",
+          "context_window": 1000000,
+          "default_max_tokens": 16000,
+          "can_reason": true
+        }
+      ]
+    },
+    "groq": {
+      "name": "Groq (Free Tier)",
+      "base_url": "https://api.groq.com/openai/v1/",
+      "type": "openai",
+      "api_key": "$GROQ_API_KEY",
+      "models": [
+        {
+          "name": "Llama 3.3 70B",
+          "id": "llama-3.3-70b-versatile",
+          "context_window": 131072,
+          "default_max_tokens": 16000,
+          "can_reason": true
+        },
+        {
+          "name": "GPT-OSS 120B",
+          "id": "openai/gpt-oss-120b",
+          "context_window": 131072,
+          "default_max_tokens": 16000,
+          "can_reason": true
+        }
+      ]
+    },
+    "openrouter": {
+      "name": "OpenRouter (Pay-per-token)",
+      "base_url": "https://openrouter.ai/api/v1/",
+      "type": "openai",
+      "api_key": "$OPENROUTER_API_KEY",
+      "models": [
+        {
+          "name": "Claude Sonnet 4",
+          "id": "anthropic/claude-sonnet-4",
+          "context_window": 200000,
+          "default_max_tokens": 16000,
+          "can_reason": true
+        },
+        {
+          "name": "GPT-4.1",
+          "id": "openai/gpt-4.1",
+          "context_window": 1000000,
+          "default_max_tokens": 32000,
+          "can_reason": true
+        },
+        {
+          "name": "DeepSeek V3",
+          "id": "deepseek/deepseek-chat-v3-0324",
+          "context_window": 128000,
+          "default_max_tokens": 16000,
+          "can_reason": true
+        }
+      ]
+    }
+  },
+  "models": {
+    "large": {
+      "model": "qwen3:30b",
+      "provider": "ollama",
+      "max_tokens": 8000
+    },
+    "small": {
+      "model": "qwen3:8b",
+      "provider": "ollama",
+      "max_tokens": 8000
+    }
+  }
 }
