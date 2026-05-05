@@ -374,8 +374,8 @@ parse_args "$@"
 
 printf '%b\n' ""
 printf '%b\n' "${COLOR_MAGENTA}╔══════════════════════════════════════════════════════════════╗${COLOR_RESET}"
-printf '%b\n' "${COLOR_MAGENTA}║   CachyOS Server — Local LLM Stack Installer                ║${COLOR_RESET}"
-printf '%b\n' "${COLOR_MAGENTA}║   Ollama · Crush · uv · MCP Servers                         ║${COLOR_RESET}"
+printf '%b\n' "${COLOR_MAGENTA}║   CachyOS Server — Local LLM Stack Installer                 ║${COLOR_RESET}"
+printf '%b\n' "${COLOR_MAGENTA}║   Ollama · Crush · uv · MCP Servers                          ║${COLOR_RESET}"
 printf '%b\n' "${COLOR_MAGENTA}╚══════════════════════════════════════════════════════════════╝${COLOR_RESET}"
 printf '%b\n' ""
 
@@ -672,11 +672,11 @@ fi
 echo
 if (( ${#FAILURES[@]} > 0 )) || (( ${#WARNINGS[@]} > 0 )); then
     printf '%b\n' "${COLOR_YELLOW}╔══════════════════════════════════════════════════════════════╗${COLOR_RESET}"
-    printf '%b\n' "${COLOR_YELLOW}║   Installation Completed with Warnings                      ║${COLOR_RESET}"
+    printf '%b\n' "${COLOR_YELLOW}║   Installation Completed with Warnings                       ║${COLOR_RESET}"
     printf '%b\n' "${COLOR_YELLOW}╚══════════════════════════════════════════════════════════════╝${COLOR_RESET}"
 else
     printf '%b\n' "${COLOR_GREEN}╔══════════════════════════════════════════════════════════════╗${COLOR_RESET}"
-    printf '%b\n' "${COLOR_GREEN}║   Installation Complete                                     ║${COLOR_RESET}"
+    printf '%b\n' "${COLOR_GREEN}║   Installation Complete                                      ║${COLOR_RESET}"
     printf '%b\n' "${COLOR_GREEN}╚══════════════════════════════════════════════════════════════╝${COLOR_RESET}"
 fi
 

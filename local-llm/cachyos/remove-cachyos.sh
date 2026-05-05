@@ -204,7 +204,7 @@ esac
 
 printf '%b\n' ""
 printf '%b\n' "${COLOR_RED}╔══════════════════════════════════════════════════════════════╗${COLOR_RESET}"
-printf '%b\n' "${COLOR_RED}║   CachyOS Server — Local LLM Stack Removal                  ║${COLOR_RESET}"
+printf '%b\n' "${COLOR_RED}║   CachyOS Server — Local LLM Stack Removal                   ║${COLOR_RESET}"
 printf '%b\n' "${COLOR_RED}╚══════════════════════════════════════════════════════════════╝${COLOR_RESET}"
 printf '%b\n' ""
 
@@ -339,11 +339,11 @@ fi
 echo
 if (( ${#FAILURES[@]} > 0 )) || (( ${#WARNINGS[@]} > 0 )); then
     printf '%b\n' "${COLOR_YELLOW}╔══════════════════════════════════════════════════════════════╗${COLOR_RESET}"
-    printf '%b\n' "${COLOR_YELLOW}║   Removal Completed with Warnings                           ║${COLOR_RESET}"
+    printf '%b\n' "${COLOR_YELLOW}║   Removal Completed with Warnings                            ║${COLOR_RESET}"
     printf '%b\n' "${COLOR_YELLOW}╚══════════════════════════════════════════════════════════════╝${COLOR_RESET}"
 else
     printf '%b\n' "${COLOR_GREEN}╔══════════════════════════════════════════════════════════════╗${COLOR_RESET}"
-    printf '%b\n' "${COLOR_GREEN}║   Removal Complete                                          ║${COLOR_RESET}"
+    printf '%b\n' "${COLOR_GREEN}║   Removal Complete                                           ║${COLOR_RESET}"
     printf '%b\n' "${COLOR_GREEN}╚══════════════════════════════════════════════════════════════╝${COLOR_RESET}"
 fi
 
