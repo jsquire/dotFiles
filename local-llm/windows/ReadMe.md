@@ -75,10 +75,10 @@ llama3.1:8b          # General
 Full mode:                              Client mode:
 %LOCALAPPDATA%\                         %LOCALAPPDATA%\
 ├── Microsoft\WinGet\                   ├── Microsoft\WinGet\
-│   ├── Packages\  (crush, uv)         │   ├── Packages\  (crush, uv)
-│   └── Links\     (symlinks)          │   └── Links\     (symlinks)
+│   ├── Packages\  (crush, uv)          │   ├── Packages\  (crush, uv)
+│   └── Links\     (symlinks)           │   └── Links\     (symlinks)
 ├── uv\            (Python + cache)     ├── uv\            (Python + cache)
-└── ai-tools\      (MCP venvs)         └── ai-tools\      (MCP venvs)
+└── ai-tools\      (MCP venvs)          └── ai-tools\      (MCP venvs)
 
 %USERPROFILE%\                          %USERPROFILE%\
 ├── .ollama\models\  (~38+ GB)          └── .crush\
