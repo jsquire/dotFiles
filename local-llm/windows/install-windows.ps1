@@ -326,8 +326,8 @@ function Get-EffectiveModelConfig {
 
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Magenta
-Write-Host "║   Self-Hosted AI Coding Assistant — Windows Installer       ║" -ForegroundColor Magenta
-Write-Host "║   Ollama · Crush · uv · MCP Servers                        ║" -ForegroundColor Magenta
+Write-Host "║   Self-Hosted AI Coding Assistant — Windows Installer        ║" -ForegroundColor Magenta
+Write-Host "║   Ollama · Crush · uv · MCP Servers                          ║" -ForegroundColor Magenta
 Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Magenta
 
 if (-not (Test-CommandExists "winget")) {

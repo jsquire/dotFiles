@@ -153,7 +153,7 @@ function Confirm-Action {
 
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Red
-Write-Host "║   Self-Hosted AI Coding Assistant — Windows Removal         ║" -ForegroundColor Red
+Write-Host "║   Self-Hosted AI Coding Assistant — Windows Removal          ║" -ForegroundColor Red
 Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Red
 Write-Host ""
 
@@ -370,7 +370,7 @@ Write-Host ""
 
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "║   Removal Complete                                          ║" -ForegroundColor Green
+Write-Host "║   Removal Complete                                           ║" -ForegroundColor Green
 Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Mode: $Mode" -ForegroundColor White
