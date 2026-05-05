@@ -11,7 +11,7 @@
       Layer 1 (System):   Ollama only (GPU access, runs as service)
       Layer 2 (User-local): uv + Crush via winget (portable packages)
       Layer 3 (Isolated):  Python 3.12 via uv, MCP server venvs
-      Layer 4 (Config):    %USERPROFILE%\.ollama and %USERPROFILE%\.crush
+      Layer 4 (Config):    %USERPROFILE%\.ollama and %USERPROFILE%\.config\crush
 
     Full mode installs the complete local stack. Client mode installs only the
     client tooling and points Crush at a remote Ollama endpoint.
@@ -98,7 +98,7 @@ $ErrorActionPreference = "Stop"
 $LocalAppData   = $env:LOCALAPPDATA
 $UserProfile    = $env:USERPROFILE
 $AiToolsDir     = Join-Path $LocalAppData "ai-tools"
-$CrushDir       = Join-Path $UserProfile ".crush"
+$CrushDir       = Join-Path $UserProfile ".config\crush"
 $CustomModelListPath = Join-Path $PSScriptRoot "..\config\ollama-models.txt"
 $DefaultModelRoot = Join-Path $UserProfile ".ollama\models"
 $script:Warnings = @()
@@ -528,6 +528,25 @@ if ($ShouldInstallSoftware) {
     if (-not (Test-Path $CrushDir)) {
         New-Item -ItemType Directory -Path $CrushDir -Force | Out-Null
         Write-Success "Created $CrushDir"
+    }
+
+    # ── Step: Deploy Crush configuration ─────────────────────────────────
+
+    Write-Step "Deploy Crush configuration"
+    $crushConfigSource = Join-Path $PSScriptRoot "..\config\crush.json"
+    $crushConfigDest = Join-Path $CrushDir "crush.json"
+
+    if (Test-Path $crushConfigSource) {
+        if (Test-Path $crushConfigDest) {
+            Write-Info "Crush config already exists at $crushConfigDest — skipping (won't overwrite)."
+        } else {
+            Copy-Item -Path $crushConfigSource -Destination $crushConfigDest -Force
+            Write-Success "Deployed crush.json to $crushConfigDest"
+            Write-Info "Local Ollama is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+            Write-Info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
+        }
+    } else {
+        Write-Warn "Config template not found at $crushConfigSource — skipping Crush config."
     }
 
     Write-Info "MCP server venvs will be set up during Phase 2 (MCP Integration)."

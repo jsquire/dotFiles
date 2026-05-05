@@ -650,6 +650,24 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
     mkdir -p "${AI_TOOLS_DIR}/mcp-office" "${AI_TOOLS_DIR}/mcp-word" "${AI_TOOLS_DIR}/mcp-pptx" "$CRUSH_HOME_DIR" "$CRUSH_CONFIG_DIR"
     success "Created MCP directories under ${AI_TOOLS_DIR}"
     success "Prepared Crush config directories: ${CRUSH_HOME_DIR} and ${CRUSH_CONFIG_DIR}"
+
+    # ── Deploy Crush configuration ───────────────────────────────────────
+    step "Deploy Crush configuration"
+    local crush_config_source="${SCRIPT_DIR}/../config/crush.json"
+    local crush_config_dest="${CRUSH_CONFIG_DIR}/crush.json"
+
+    if [[ -f "$crush_config_source" ]]; then
+        if [[ -f "$crush_config_dest" ]]; then
+            info "Crush config already exists at $crush_config_dest — skipping (won't overwrite)."
+        else
+            cp "$crush_config_source" "$crush_config_dest"
+            success "Deployed crush.json to $crush_config_dest"
+            info "Local Ollama is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+            info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
+        fi
+    else
+        warn "Config template not found at $crush_config_source — skipping Crush config."
+    fi
 fi
 
 if [[ "$SHOULD_PULL_MODELS" == true ]]; then
