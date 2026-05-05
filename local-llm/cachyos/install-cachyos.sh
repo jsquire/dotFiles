@@ -597,18 +597,18 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
     info "uv manages Python versions and isolated environments without touching system Python."
     install_uv || true
 
-    step "Install Python 3.12 via uv"
+    step "Install Python via uv"
     ensure_local_bin_on_path
     if command_exists uv || [[ -x "${HOME}/.local/bin/uv" ]]; then
         UV_BIN="$(command -v uv || true)"
         [[ -z "$UV_BIN" ]] && UV_BIN="${HOME}/.local/bin/uv"
-        if "$UV_BIN" python install 3.12 --default; then
-            success "Python 3.12 installed via uv."
+        if "$UV_BIN" python install --default; then
+            success "Python installed via uv."
         else
-            add_failure "uv could not install Python 3.12."
+            add_failure "uv could not install Python."
         fi
     else
-        add_failure "uv is not available, so Python 3.12 could not be installed."
+        add_failure "uv is not available, so Python could not be installed."
     fi
 
     step "Install Crush"
@@ -689,7 +689,7 @@ if [[ "$SHOULD_INSTALL_SOFTWARE" == true ]]; then
     printf '%b\n' 'Installed / prepared:'
     [[ "$IS_FULL_MODE" == true ]] && printf '%b\n' '  • NVIDIA drivers + CUDA (system)'
     [[ "$IS_FULL_MODE" == true ]] && printf '%b\n' '  • Ollama (system service)'
-    printf '%b\n' '  • uv + Python 3.12 (user-local / uv-managed)'
+    printf '%b\n' '  • uv + Python (user-local / uv-managed)'
     printf '%b\n' '  • Crush (CLI agent)'
     printf '%b\n' "  • ${AI_TOOLS_DIR}/mcp-*"
     printf '%b\n' "  • ${CRUSH_HOME_DIR} and ${CRUSH_CONFIG_DIR}"
