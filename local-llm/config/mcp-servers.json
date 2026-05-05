@@ -1,0 +1,29 @@
+{
+    "$schema": "https://crush.charm.sh/schema/mcp-servers.json",
+    "_comment": [
+        "MCP server definitions for Crush.",
+        "Copy to %USERPROFILE%\\.crush\\mcp-servers.json and edit paths.",
+        "Each server runs in its own isolated uv venv under %LOCALAPPDATA%\\ai-tools\\."
+    ],
+    "servers": {
+        "office-mcp": {
+            "command": "uv",
+            "args": ["run", "--directory", "%LOCALAPPDATA%\\ai-tools\\mcp-office", "office-mcp"],
+            "description": "Microsoft Office document creation (Word, PowerPoint)",
+            "enabled": false,
+            "_comment": "Enable after running Phase 2 MCP setup"
+        },
+        "word-mcp": {
+            "command": "uv",
+            "args": ["run", "--directory", "%LOCALAPPDATA%\\ai-tools\\mcp-word", "python-docx-mcp"],
+            "description": "Word document creation via python-docx",
+            "enabled": false
+        },
+        "pptx-mcp": {
+            "command": "uv",
+            "args": ["run", "--directory", "%LOCALAPPDATA%\\ai-tools\\mcp-pptx", "python-pptx-mcp"],
+            "description": "PowerPoint creation via python-pptx",
+            "enabled": false
+        }
+    }
+}

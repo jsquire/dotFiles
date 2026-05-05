@@ -1,0 +1,24 @@
+# Ollama Model Pull List
+#
+# One model tag per line.  If this file exists in the config/ directory,
+# the install script uses it INSTEAD of the built-in model profile.
+#
+# To use a built-in profile instead, delete or rename this file and pass
+# -ModelProfile Standard|High|Ultra to the install script.
+#
+# Tags correspond to Ollama library entries: https://ollama.com/library
+# You can pull additional quantizations of the same model — they coexist.
+
+# ── Primary Coder (27B) ─────────────────────────────────────────────────────
+# Choose ONE based on your GPU VRAM:
+#   24 GB GPU (RTX 4090):  qwen3:30b           Q4_K_M  ~18 GB
+#   32 GB GPU (RTX 5090):  qwen3:30b-q5_K_M    Q5_K_M  ~21 GB
+#   32 GB GPU, IDEs closed: qwen3:30b-q6_K     Q6_K    ~24 GB
+
+qwen3:30b                # Default: Q4_K_M — fits 24 GB GPUs with IDEs open
+
+# ── Supporting Models ────────────────────────────────────────────────────────
+
+qwen3:8b                 # Fast tasks — commit messages, quick questions (~5 GB)
+deepseek-r1:14b          # Hard reasoning — complex debugging, architecture (~9 GB)
+llama3.1:8b              # General-purpose / sysadmin tasks (~5 GB)

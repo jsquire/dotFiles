@@ -1,0 +1,29 @@
+{
+    "$schema": "https://crush.charm.sh/schema/config.json",
+    "_comment": [
+        "Crush configuration template.",
+        "Copy to %USERPROFILE%\\.crush\\crush.json and edit as needed.",
+        "API keys should be stored in Windows Credential Manager, not here."
+    ],
+    "providers": {
+        "ollama": {
+            "type": "ollama",
+            "endpoint": "http://localhost:11434",
+            "_comment_client": "For client mode, change endpoint to your server: http://server-ip:11434"
+        },
+        "openrouter": {
+            "type": "openai-compatible",
+            "endpoint": "https://openrouter.ai/api/v1",
+            "api_key_env": "OPENROUTER_API_KEY",
+            "_comment": "Pay-per-token cloud fallback.  Set up at https://openrouter.ai/"
+        }
+    },
+    "default_provider": "ollama",
+    "models": {
+        "code": "qwen3:30b",
+        "fast": "qwen3:8b",
+        "reason": "deepseek-r1:14b",
+        "general": "llama3.1:8b"
+    },
+    "default_model": "code"
+}

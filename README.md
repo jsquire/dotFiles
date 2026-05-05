@@ -14,22 +14,25 @@ Included are projects, documents, and presentations that were either created as 
   _The root contains the overall repository configuration files, license, and general structure._
 
 * **cachyos**  
-  _The container for items used for building and configuring a CachyOS or compatible Arch-flavored distribution for use as a workstation._  
+  _The container for items used for building and configuring a CachyOS (Arch-based) desktop or workstation._  
 
 * **cachyos-server**  
-  _The container for items used for building and configuring a CachyOS-based multi-purpose home server for file sharing, media serving, DNS ad-blocking, and containerized services._  
+  _The container for items used for building and configuring a CachyOS (Arch-based) server for home services and AI inference._  
+
+* **local-llm**  
+  _Cross-platform scripts and configuration for a self-hosted AI stack, with a focus on coding assistants.  Supports full local install or client-only mode connecting to a remote server._  
 
 * **mac**  
-  _The container for items used for configuring a macOS machine._  
+  _The container for items used for configuring and operating a macOS machine._  
+
+* **ubuntu**  
+  _The container for items used for building and configuring the baseline image of an Ubuntu-flavored distribution for use as a workstation or server._  
 
 * **ubuntu-server**  
   _The container for items used for building and configuring a multi-purpose linux server used for home-related services._  
 
-* **ubuntu**  
-  _The container for items used for used for building and configuring the baseline image of an Ubuntu-flavored distribution for use as a workstation or server._  
-
 * **windows**  
-  _The container for items used for used for configuring and operating a Windows desktop machine for general, development, and gaming use._  
+  _The container for items used for configuring and operating a Windows desktop machine for general, development, and gaming use._  
 
 ### Licensing
 
