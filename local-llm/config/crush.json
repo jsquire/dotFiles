@@ -150,5 +150,17 @@
       "provider": "ollama",
       "max_tokens": 8000
     }
+  },
+  "mcp": {
+    "word-mcp": {
+      "type": "stdio",
+      "command": "{{LOCALAPPDATA}}/ai-tools/mcp-word/.venv/{{VENV_BIN}}/word_mcp_server{{EXE}}",
+      "args": []
+    },
+    "pptx-mcp": {
+      "type": "stdio",
+      "command": "{{LOCALAPPDATA}}/ai-tools/mcp-pptx/.venv/{{VENV_BIN}}/ppt_mcp_server{{EXE}}",
+      "args": []
+    }
   }
 }

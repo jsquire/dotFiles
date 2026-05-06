@@ -647,7 +647,7 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
     install_crush || true
 
     step "Create MCP directories"
-    mkdir -p "${AI_TOOLS_DIR}/mcp-office" "${AI_TOOLS_DIR}/mcp-word" "${AI_TOOLS_DIR}/mcp-pptx" "$CRUSH_HOME_DIR" "$CRUSH_CONFIG_DIR"
+    mkdir -p "${AI_TOOLS_DIR}/mcp-word" "${AI_TOOLS_DIR}/mcp-pptx" "$CRUSH_HOME_DIR" "$CRUSH_CONFIG_DIR"
     success "Created MCP directories under ${AI_TOOLS_DIR}"
     success "Prepared Crush config directories: ${CRUSH_HOME_DIR} and ${CRUSH_CONFIG_DIR}"
 
@@ -660,10 +660,16 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
         if [[ -f "$crush_config_dest" ]]; then
             info "Crush config already exists at $crush_config_dest — skipping (won't overwrite)."
         else
-            cp "$crush_config_source" "$crush_config_dest"
+            # Expand template placeholders for Linux
+            local linux_app_data="${HOME}/.local/share"
+            sed -e "s|{{LOCALAPPDATA}}|${linux_app_data}|g" \
+                -e "s|{{VENV_BIN}}|bin|g" \
+                -e "s|{{EXE}}||g" \
+                "$crush_config_source" > "$crush_config_dest"
             success "Deployed crush.json to $crush_config_dest"
             info "Local Ollama is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
             info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
+            info "MCP servers (Word, PowerPoint) are enabled. Run setup-mcp-venvs.sh to install them."
         fi
     else
         warn "Config template not found at $crush_config_source — skipping Crush config."

@@ -432,6 +432,36 @@ if ($ShouldInstallSoftware) {
         } else {
             Write-Warn "Python install returned exit code $LASTEXITCODE. Check output above."
         }
+
+        # Ensure uv's shim directory is on user PATH
+        $uvShimDir = Join-Path $UserProfile ".local\bin"
+        $currentUserPath = [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::User)
+        if ($currentUserPath -notlike "*$uvShimDir*") {
+            [Environment]::SetEnvironmentVariable("Path", "$uvShimDir;$currentUserPath", [EnvironmentVariableTarget]::User)
+            Write-Success "Added $uvShimDir to user PATH."
+        } else {
+            Write-Info "$uvShimDir is already on user PATH."
+        }
+        # Also add to current session so subsequent steps can find python
+        if ($env:PATH -notlike "*$uvShimDir*") {
+            $env:PATH = "$uvShimDir;$env:PATH"
+        }
+
+        # Disable Windows Store python.exe / python3.exe App Execution Aliases
+        # These stubs open the Microsoft Store and intercept the real python on PATH.
+        $windowsApps = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps"
+        $storeStubs = @("python.exe", "python3.exe")
+        foreach ($stub in $storeStubs) {
+            $stubPath = Join-Path $windowsApps $stub
+            if (Test-Path $stubPath) {
+                try {
+                    Remove-Item $stubPath -Force -ErrorAction Stop
+                    Write-Success "Removed Store alias: $stub"
+                } catch {
+                    Add-NonFatalWarning "Could not remove Store alias $stub. Disable manually: Settings > Apps > App Execution Aliases."
+                }
+            }
+        }
     } else {
         Write-Warn "Skipping — uv not available. Restart your terminal and run: uv python install --default"
     }
@@ -511,9 +541,8 @@ if ($ShouldInstallSoftware) {
     Write-Info "MCP servers will live in isolated uv venvs under $AiToolsDir."
 
     $mcpDirs = @(
-        (Join-Path $AiToolsDir "mcp-office")
-        (Join-Path $AiToolsDir "mcp-pptx")
         (Join-Path $AiToolsDir "mcp-word")
+        (Join-Path $AiToolsDir "mcp-pptx")
     )
 
     foreach ($dir in $mcpDirs) {
@@ -540,17 +569,21 @@ if ($ShouldInstallSoftware) {
         if (Test-Path $crushConfigDest) {
             Write-Info "Crush config already exists at $crushConfigDest — skipping (won't overwrite)."
         } else {
-            Copy-Item -Path $crushConfigSource -Destination $crushConfigDest -Force
+            # Expand template placeholders for this platform
+            $crushContent = Get-Content $crushConfigSource -Raw
+            $expandedLocalAppData = $LocalAppData -replace '\\', '\\\\'
+            $crushContent = $crushContent -replace '\{\{LOCALAPPDATA\}\}', $expandedLocalAppData
+            $crushContent = $crushContent -replace '\{\{VENV_BIN\}\}', 'Scripts'
+            $crushContent = $crushContent -replace '\{\{EXE\}\}', '.exe'
+            Set-Content -Path $crushConfigDest -Value $crushContent -Encoding UTF8
             Write-Success "Deployed crush.json to $crushConfigDest"
             Write-Info "Local Ollama is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
             Write-Info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
+            Write-Info "MCP servers (Word, PowerPoint) are enabled. Run setup-mcp-venvs.ps1 to install them."
         }
     } else {
         Write-Warn "Config template not found at $crushConfigSource — skipping Crush config."
     }
-
-    Write-Info "MCP server venvs will be set up during Phase 2 (MCP Integration)."
-    Write-Info "See README.md for instructions on installing OfficeMCP."
 
 } # end if ($ShouldInstallSoftware)
 

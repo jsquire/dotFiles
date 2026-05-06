@@ -13,9 +13,8 @@ $ErrorActionPreference = "Stop"
 $AiToolsRoot = Join-Path $env:LOCALAPPDATA "ai-tools"
 
 $McpServers = @(
-    @{ Name = "mcp-office";  Package = "office-mcp";       Description = "OfficeMCP — Word, PowerPoint, Excel" }
-    @{ Name = "mcp-word";    Package = "python-docx-mcp";  Description = "Word MCP via python-docx" }
-    @{ Name = "mcp-pptx";    Package = "python-pptx-mcp";  Description = "PowerPoint MCP via python-pptx" }
+    @{ Name = "mcp-word";    Package = "office-word-mcp-server";        Description = "Word document creation and automation" }
+    @{ Name = "mcp-pptx";    Package = "office-powerpoint-mcp-server";  Description = "PowerPoint presentation creation" }
 )
 
 foreach ($server in $McpServers) {
