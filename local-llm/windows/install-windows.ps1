@@ -569,35 +569,20 @@ if ($ShouldInstallSoftware) {
         if (Test-Path $crushConfigDest) {
             Write-Info "Crush config already exists at $crushConfigDest — skipping (won't overwrite)."
         } else {
-            Copy-Item -Path $crushConfigSource -Destination $crushConfigDest -Force
+            # Expand template placeholders for this platform
+            $crushContent = Get-Content $crushConfigSource -Raw
+            $expandedLocalAppData = $LocalAppData -replace '\\', '\\\\'
+            $crushContent = $crushContent -replace '\{\{LOCALAPPDATA\}\}', $expandedLocalAppData
+            $crushContent = $crushContent -replace '\{\{VENV_BIN\}\}', 'Scripts'
+            $crushContent = $crushContent -replace '\{\{EXE\}\}', '.exe'
+            Set-Content -Path $crushConfigDest -Value $crushContent -Encoding UTF8
             Write-Success "Deployed crush.json to $crushConfigDest"
             Write-Info "Local Ollama is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
             Write-Info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
+            Write-Info "MCP servers (Word, PowerPoint) are enabled. Run setup-mcp-venvs.ps1 to install them."
         }
     } else {
         Write-Warn "Config template not found at $crushConfigSource — skipping Crush config."
-    }
-
-    # ── Step: Deploy MCP server definitions ──────────────────────────────
-
-    Write-Step "Deploy MCP server definitions"
-    $mcpConfigSource = Join-Path $PSScriptRoot "..\config\mcp-servers.json"
-    $mcpConfigDest = Join-Path $CrushDir "mcp-servers.json"
-
-    if (Test-Path $mcpConfigSource) {
-        if (Test-Path $mcpConfigDest) {
-            Write-Info "MCP config already exists at $mcpConfigDest — skipping (won't overwrite)."
-        } else {
-            # Expand {{LOCALAPPDATA}} placeholder to actual path (with forward slashes for JSON)
-            $mcpContent = Get-Content $mcpConfigSource -Raw
-            $expandedLocalAppData = $LocalAppData -replace '\\', '/'
-            $mcpContent = $mcpContent -replace '\{\{LOCALAPPDATA\}\}', $expandedLocalAppData
-            Set-Content -Path $mcpConfigDest -Value $mcpContent -Encoding UTF8
-            Write-Success "Deployed mcp-servers.json to $mcpConfigDest"
-            Write-Info "MCP servers enabled. Run setup-mcp-venvs.ps1 to install the server packages."
-        }
-    } else {
-        Write-Warn "MCP config template not found at $mcpConfigSource — skipping."
     }
 
 } # end if ($ShouldInstallSoftware)

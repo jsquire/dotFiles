@@ -660,32 +660,19 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
         if [[ -f "$crush_config_dest" ]]; then
             info "Crush config already exists at $crush_config_dest — skipping (won't overwrite)."
         else
-            cp "$crush_config_source" "$crush_config_dest"
+            # Expand template placeholders for Linux
+            local linux_app_data="${HOME}/.local/share"
+            sed -e "s|{{LOCALAPPDATA}}|${linux_app_data}|g" \
+                -e "s|{{VENV_BIN}}|bin|g" \
+                -e "s|{{EXE}}||g" \
+                "$crush_config_source" > "$crush_config_dest"
             success "Deployed crush.json to $crush_config_dest"
             info "Local Ollama is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
             info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
+            info "MCP servers (Word, PowerPoint) are enabled. Run setup-mcp-venvs.sh to install them."
         fi
     else
         warn "Config template not found at $crush_config_source — skipping Crush config."
-    fi
-
-    # ── Deploy MCP server definitions ─────────────────────────────────────
-    step "Deploy MCP server definitions"
-    local mcp_config_source="${SCRIPT_DIR}/../config/mcp-servers.json"
-    local mcp_config_dest="${CRUSH_CONFIG_DIR}/mcp-servers.json"
-
-    if [[ -f "$mcp_config_source" ]]; then
-        if [[ -f "$mcp_config_dest" ]]; then
-            info "MCP config already exists at $mcp_config_dest — skipping (won't overwrite)."
-        else
-            # Expand {{LOCALAPPDATA}} to ~/.local/share (XDG equivalent on Linux)
-            local linux_app_data="${HOME}/.local/share"
-            sed "s|{{LOCALAPPDATA}}|${linux_app_data}|g" "$mcp_config_source" > "$mcp_config_dest"
-            success "Deployed mcp-servers.json to $mcp_config_dest"
-            info "MCP servers enabled. Run setup-mcp-venvs.sh to install the server packages."
-        fi
-    else
-        warn "MCP config template not found at $mcp_config_source — skipping."
     fi
 fi
 
