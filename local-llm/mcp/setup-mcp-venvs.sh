@@ -13,9 +13,8 @@ set -euo pipefail
 AI_TOOLS_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/ai-tools"
 
 declare -A MCP_SERVERS=(
-    ["mcp-office"]="office-mcp"
-    ["mcp-word"]="python-docx-mcp"
-    ["mcp-pptx"]="python-pptx-mcp"
+    ["mcp-word"]="office-word-mcp-server"
+    ["mcp-pptx"]="office-powerpoint-mcp-server"
 )
 
 for name in "${!MCP_SERVERS[@]}"; do

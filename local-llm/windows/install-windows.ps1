@@ -432,6 +432,36 @@ if ($ShouldInstallSoftware) {
         } else {
             Write-Warn "Python install returned exit code $LASTEXITCODE. Check output above."
         }
+
+        # Ensure uv's shim directory is on user PATH
+        $uvShimDir = Join-Path $UserProfile ".local\bin"
+        $currentUserPath = [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::User)
+        if ($currentUserPath -notlike "*$uvShimDir*") {
+            [Environment]::SetEnvironmentVariable("Path", "$uvShimDir;$currentUserPath", [EnvironmentVariableTarget]::User)
+            Write-Success "Added $uvShimDir to user PATH."
+        } else {
+            Write-Info "$uvShimDir is already on user PATH."
+        }
+        # Also add to current session so subsequent steps can find python
+        if ($env:PATH -notlike "*$uvShimDir*") {
+            $env:PATH = "$uvShimDir;$env:PATH"
+        }
+
+        # Disable Windows Store python.exe / python3.exe App Execution Aliases
+        # These stubs open the Microsoft Store and intercept the real python on PATH.
+        $windowsApps = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps"
+        $storeStubs = @("python.exe", "python3.exe")
+        foreach ($stub in $storeStubs) {
+            $stubPath = Join-Path $windowsApps $stub
+            if (Test-Path $stubPath) {
+                try {
+                    Remove-Item $stubPath -Force -ErrorAction Stop
+                    Write-Success "Removed Store alias: $stub"
+                } catch {
+                    Add-NonFatalWarning "Could not remove Store alias $stub. Disable manually: Settings > Apps > App Execution Aliases."
+                }
+            }
+        }
     } else {
         Write-Warn "Skipping — uv not available. Restart your terminal and run: uv python install --default"
     }
@@ -511,9 +541,8 @@ if ($ShouldInstallSoftware) {
     Write-Info "MCP servers will live in isolated uv venvs under $AiToolsDir."
 
     $mcpDirs = @(
-        (Join-Path $AiToolsDir "mcp-office")
-        (Join-Path $AiToolsDir "mcp-pptx")
         (Join-Path $AiToolsDir "mcp-word")
+        (Join-Path $AiToolsDir "mcp-pptx")
     )
 
     foreach ($dir in $mcpDirs) {
@@ -549,8 +578,27 @@ if ($ShouldInstallSoftware) {
         Write-Warn "Config template not found at $crushConfigSource — skipping Crush config."
     }
 
-    Write-Info "MCP server venvs will be set up during Phase 2 (MCP Integration)."
-    Write-Info "See README.md for instructions on installing OfficeMCP."
+    # ── Step: Deploy MCP server definitions ──────────────────────────────
+
+    Write-Step "Deploy MCP server definitions"
+    $mcpConfigSource = Join-Path $PSScriptRoot "..\config\mcp-servers.json"
+    $mcpConfigDest = Join-Path $CrushDir "mcp-servers.json"
+
+    if (Test-Path $mcpConfigSource) {
+        if (Test-Path $mcpConfigDest) {
+            Write-Info "MCP config already exists at $mcpConfigDest — skipping (won't overwrite)."
+        } else {
+            # Expand {{LOCALAPPDATA}} placeholder to actual path (with forward slashes for JSON)
+            $mcpContent = Get-Content $mcpConfigSource -Raw
+            $expandedLocalAppData = $LocalAppData -replace '\\', '/'
+            $mcpContent = $mcpContent -replace '\{\{LOCALAPPDATA\}\}', $expandedLocalAppData
+            Set-Content -Path $mcpConfigDest -Value $mcpContent -Encoding UTF8
+            Write-Success "Deployed mcp-servers.json to $mcpConfigDest"
+            Write-Info "MCP servers enabled. Run setup-mcp-venvs.ps1 to install the server packages."
+        }
+    } else {
+        Write-Warn "MCP config template not found at $mcpConfigSource — skipping."
+    }
 
 } # end if ($ShouldInstallSoftware)
 

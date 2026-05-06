@@ -647,7 +647,7 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
     install_crush || true
 
     step "Create MCP directories"
-    mkdir -p "${AI_TOOLS_DIR}/mcp-office" "${AI_TOOLS_DIR}/mcp-word" "${AI_TOOLS_DIR}/mcp-pptx" "$CRUSH_HOME_DIR" "$CRUSH_CONFIG_DIR"
+    mkdir -p "${AI_TOOLS_DIR}/mcp-word" "${AI_TOOLS_DIR}/mcp-pptx" "$CRUSH_HOME_DIR" "$CRUSH_CONFIG_DIR"
     success "Created MCP directories under ${AI_TOOLS_DIR}"
     success "Prepared Crush config directories: ${CRUSH_HOME_DIR} and ${CRUSH_CONFIG_DIR}"
 
@@ -667,6 +667,25 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
         fi
     else
         warn "Config template not found at $crush_config_source — skipping Crush config."
+    fi
+
+    # ── Deploy MCP server definitions ─────────────────────────────────────
+    step "Deploy MCP server definitions"
+    local mcp_config_source="${SCRIPT_DIR}/../config/mcp-servers.json"
+    local mcp_config_dest="${CRUSH_CONFIG_DIR}/mcp-servers.json"
+
+    if [[ -f "$mcp_config_source" ]]; then
+        if [[ -f "$mcp_config_dest" ]]; then
+            info "MCP config already exists at $mcp_config_dest — skipping (won't overwrite)."
+        else
+            # Expand {{LOCALAPPDATA}} to ~/.local/share (XDG equivalent on Linux)
+            local linux_app_data="${HOME}/.local/share"
+            sed "s|{{LOCALAPPDATA}}|${linux_app_data}|g" "$mcp_config_source" > "$mcp_config_dest"
+            success "Deployed mcp-servers.json to $mcp_config_dest"
+            info "MCP servers enabled. Run setup-mcp-venvs.sh to install the server packages."
+        fi
+    else
+        warn "MCP config template not found at $mcp_config_source — skipping."
     fi
 fi
 
