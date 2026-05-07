@@ -1,0 +1,14 @@
+Windows Registry Editor Version 5.00
+
+; Disable OneDrive Known Folder Move (KFM) / "Folder Backup"
+; Sets KFMBlockOptIn=1 which grays out "Manage backup" in OneDrive Settings
+; OneDrive continues to work for manual file sync
+; Source: https://learn.microsoft.com/en-us/sharepoint/use-group-policy
+;
+; PREREQUISITE: If folders are already backed up to OneDrive, disable that
+; first in OneDrive > Settings > Sync and backup > Manage backup
+;
+; To apply: Right-click this file > "Run as administrator" (or double-click and confirm UAC prompt)
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\OneDrive]
+"KFMBlockOptIn"=dword:00000001

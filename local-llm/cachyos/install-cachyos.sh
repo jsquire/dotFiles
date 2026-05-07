@@ -2,14 +2,14 @@
 # install-cachyos.sh — CachyOS Server Bootstrap
 #
 # Installs the local LLM stack on a CachyOS (Arch-based) machine.
-#   client — Crush + uv + MCP only, connects to a remote Ollama endpoint.
-#   full   — local Ollama + NVIDIA + models + Crush + uv + MCP (localhost only).
-#   server — full + exposes Ollama on the LAN via firewall and prints client access info.
+#   client — Crush + uv + MCP only, connects to a remote vLLM/Ollama endpoint.
+#   full   — local Ollama + NVIDIA + models + Crush + uv + MCP (localhost only, single-user).
+#   server — vLLM (multi-user) + NVIDIA + HuggingFace models + Crush + uv + MCP + LAN firewall.
 
 set -euo pipefail
 
 MODE="full"
-MODEL_PROFILE="standard"
+MODEL_PROFILE="server"
 OLLAMA_HOST_ARG=""
 MODEL_PATH=""
 SKIP_MODELS=false
@@ -24,14 +24,16 @@ AI_TOOLS_DIR="${HOME}/.local/share/ai-tools"
 CRUSH_HOME_DIR="${HOME}/.crush"
 CRUSH_CONFIG_DIR="${HOME}/.config/crush"
 DEFAULT_MODEL_ROOT="${HOME}/.ollama/models"
+VLLM_PORT=8000
+VLLM_DEFAULT_MODEL="Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4"
 
 STEP_NUMBER=0
 FAILURES=()
 WARNINGS=()
 SELECTED_MODELS=()
-MODEL_PROFILE_LABEL="standard"
+MODEL_PROFILE_LABEL="server"
 MODEL_SOURCE_MESSAGE=""
-EFFECTIVE_MODEL_REQUIRED_GB=38
+EFFECTIVE_MODEL_REQUIRED_GB=62
 
 COLOR_RESET='\033[0m'
 COLOR_MAGENTA='\033[1;35m'
@@ -53,22 +55,23 @@ Options:
                                client — no Ollama, points at remote host
                                full   — local Ollama on localhost only
                                server — full + LAN firewall + client instructions
-  --model-profile standard|high|ultra
-                               Model profile for full/server mode (default: standard)
-  --ollama-host <url>          Remote Ollama URL (required for client mode)
-  --model-path <path>          Custom Ollama model directory (sets OLLAMA_MODELS)
+  --model-profile desktop|server
+                               GPU profile: desktop (5090, 32GB) or server (4090, 24GB dedicated)
+                               Default: server
+  --ollama-host <url>          Remote endpoint URL (required for client mode)
+                               Can be Ollama (http://host:11434) or vLLM (http://host:8000/v1)
+  --model-path <path>          Custom Ollama model directory (sets OLLAMA_MODELS; full mode only)
   --lan-cidr <cidr>            Override LAN CIDR for firewall (auto-detected if omitted)
                                Examples: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
-  --skip-models                Skip model pulls
-  --models-only                Only pull models; skip software installation
+  --skip-models                Skip model downloads
+  --models-only                Only download models; skip software installation
   --help                       Show this help text
 
 Examples:
-  ./install-cachyos.sh                                                  # Full local (localhost)
-  ./install-cachyos.sh --mode server                                    # Full + LAN exposure
-  ./install-cachyos.sh --mode server --lan-cidr 10.0.0.0/8              # Server on 10.x LAN
-  ./install-cachyos.sh --mode server --model-profile high               # Server with Q5 models
-  ./install-cachyos.sh --mode client --ollama-host http://192.168.1.50:11434
+  ./install-cachyos.sh                                                  # Full local (Ollama, localhost)
+  ./install-cachyos.sh --mode server                                    # vLLM server + LAN exposure
+  ./install-cachyos.sh --mode server --lan-cidr 10.0.0.0/8              # vLLM server on 10.x LAN
+  ./install-cachyos.sh --mode client --ollama-host http://192.168.1.50:8000/v1
   ./install-cachyos.sh --models-only
 EOF
 }
@@ -139,13 +142,21 @@ detect_lan_cidr() {
 
 model_description() {
     case "$1" in
-        qwen3:30b) printf '%s' 'Qwen 3 30B (Q4_K_M) — primary coder, ~18 GB' ;;
-        qwen3:30b-q5_K_M) printf '%s' 'Qwen 3 30B (Q5_K_M) — primary coder, ~21 GB' ;;
-        qwen3:30b-q6_K) printf '%s' 'Qwen 3 30B (Q6_K) — primary coder, ~24 GB' ;;
-        qwen3:8b) printf '%s' 'Qwen 3 8B — fast tasks, ~5 GB' ;;
-        deepseek-r1:14b) printf '%s' 'DeepSeek R1 14B — hard reasoning, ~9 GB' ;;
-        llama3.1:8b) printf '%s' 'Llama 3.1 8B — general/sysadmin, ~5 GB' ;;
-        *) printf '%s' 'Custom model from config/ollama-models.txt' ;;
+        qwen2.5-coder:32b) printf '%s' 'Qwen2.5-Coder 32B — heavy coding, ~19 GB' ;;
+        qwen2.5-coder:14b) printf '%s' 'Qwen2.5-Coder 14B — light coding, ~9 GB' ;;
+        deepseek-r1:32b) printf '%s' 'DeepSeek R1 32B — code review/reasoning, ~19 GB' ;;
+        mistral-small3.2:24b) printf '%s' 'Mistral Small 3.2 — docs/creative/office, ~15 GB' ;;
+        gemma4:31b) printf '%s' 'Gemma 4 31B — heavy coding (256k ctx), ~20 GB' ;;
+        qwen3:14b) printf '%s' 'Qwen3 14B — light coding (40k ctx), ~9 GB' ;;
+        gemma3:27b) printf '%s' 'Gemma 3 27B — tech docs (128k ctx), ~16 GB' ;;
+        llama3.3:70b-instruct-q2_K) printf '%s' 'Llama 3.3 70B Q2 — creative writing, ~26 GB' ;;
+        qwen3-coder:30b) printf '%s' 'Qwen3-Coder 30B MoE — office docs (256k ctx), ~19 GB' ;;
+        # HuggingFace model IDs (vLLM server mode)
+        Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4) printf '%s' 'Qwen2.5-Coder 32B GPTQ — heavy coding, ~18 GB' ;;
+        Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4) printf '%s' 'Qwen2.5-Coder 14B GPTQ — light coding, ~8 GB' ;;
+        deepseek-ai/DeepSeek-R1-Distill-Qwen-32B-GPTQ-Int4) printf '%s' 'DeepSeek R1 Distill 32B GPTQ — code review, ~18 GB' ;;
+        mistralai/Mistral-Small-3.2-24B-Instruct-2503-GPTQ-Int4) printf '%s' 'Mistral Small 3.2 GPTQ — docs/creative/office, ~13 GB' ;;
+        *) printf '%s' 'Custom model' ;;
     esac
 }
 
@@ -205,17 +216,25 @@ load_effective_model_config() {
     SELECTED_MODELS=()
 
     case "$MODEL_PROFILE" in
-        standard)
-            EFFECTIVE_MODEL_REQUIRED_GB=38
-            SELECTED_MODELS=("qwen3:30b" "qwen3:8b" "deepseek-r1:14b" "llama3.1:8b")
+        desktop)
+            EFFECTIVE_MODEL_REQUIRED_GB=90
+            SELECTED_MODELS=("gemma4:31b" "qwen3:14b" "deepseek-r1:32b" "gemma3:27b" "llama3.3:70b-instruct-q2_K" "qwen3-coder:30b")
             ;;
-        high)
-            EFFECTIVE_MODEL_REQUIRED_GB=41
-            SELECTED_MODELS=("qwen3:30b-q5_K_M" "qwen3:8b" "deepseek-r1:14b" "llama3.1:8b")
-            ;;
-        ultra)
-            EFFECTIVE_MODEL_REQUIRED_GB=44
-            SELECTED_MODELS=("qwen3:30b-q6_K" "qwen3:8b" "deepseek-r1:14b" "llama3.1:8b")
+        server)
+            EFFECTIVE_MODEL_REQUIRED_GB=62
+            if [[ "$IS_SERVER_MODE" == true ]]; then
+                # vLLM uses HuggingFace model IDs (GPTQ quantized)
+                SELECTED_MODELS=(
+                    "Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4"
+                    "Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4"
+                    "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B-GPTQ-Int4"
+                    "mistralai/Mistral-Small-3.2-24B-Instruct-2503-GPTQ-Int4"
+                )
+                EFFECTIVE_MODEL_REQUIRED_GB=57
+            else
+                # Ollama (full mode, single-user) uses Ollama tags
+                SELECTED_MODELS=("qwen2.5-coder:32b" "qwen2.5-coder:14b" "deepseek-r1:32b" "mistral-small3.2:24b")
+            fi
             ;;
     esac
 
@@ -409,8 +428,8 @@ case "$MODE" in
 esac
 
 case "$MODEL_PROFILE" in
-    standard|high|ultra) ;;
-    *) fail "--model-profile must be standard, high, or ultra."; exit 1 ;;
+    desktop|server) ;;
+    *) fail "--model-profile must be 'desktop' or 'server'."; exit 1 ;;
 esac
 
 if [[ "$MODE" == "client" && -z "$OLLAMA_HOST_ARG" ]]; then
@@ -550,74 +569,154 @@ if [[ "$SHOULD_INSTALL_SOFTWARE" == true ]]; then
             add_failure "Failed to install NVIDIA drivers and CUDA packages."
         fi
 
-        step "Install Ollama"
-        info "Using the official Ollama installer script."
-        if command_exists ollama; then
-            info "Ollama is already installed: $(ollama --version 2>/dev/null || true)"
-        elif curl -fsSL https://ollama.com/install.sh | sh; then
-            success "Ollama installed."
-        else
-            add_failure "Ollama installation failed."
-        fi
+        if [[ "$IS_SERVER_MODE" == true ]]; then
+            # ── vLLM Server Mode ──────────────────────────────────────────────
+            step "Install vLLM (multi-user inference server)"
+            if command_exists vllm; then
+                info "vLLM is already installed: $(pip show vllm 2>/dev/null | grep Version || true)"
+            else
+                info "Installing vLLM via pip. This requires Python 3.10+ and CUDA 12.1+."
+                ensure_local_bin_on_path
+                UV_BIN="$(command -v uv || echo "${HOME}/.local/bin/uv")"
+                if [[ ! -x "$UV_BIN" ]]; then
+                    info "Installing uv first (needed for Python management)..."
+                    curl -LsSf https://astral.sh/uv/install.sh | sh
+                    ensure_local_bin_on_path
+                    UV_BIN="${HOME}/.local/bin/uv"
+                fi
+                # Create a dedicated venv for vLLM
+                VLLM_VENV="${HOME}/.local/share/vllm-env"
+                if [[ ! -d "$VLLM_VENV" ]]; then
+                    "$UV_BIN" venv "$VLLM_VENV" --python 3.12
+                fi
+                if "$UV_BIN" pip install --python "$VLLM_VENV/bin/python" vllm; then
+                    success "vLLM installed in $VLLM_VENV"
+                else
+                    add_failure "vLLM installation failed. Check CUDA version (needs 12.1+)."
+                fi
+            fi
 
-        step "Configure Ollama systemd service"
-        if (( ${#FAILURES[@]} == 0 )); then
-            local_override_dir="/etc/systemd/system/ollama.service.d"
-            local_override_path="${local_override_dir}/override.conf"
-            local_override_content="[Service]
+            step "Install huggingface-cli (model downloader)"
+            VLLM_VENV="${HOME}/.local/share/vllm-env"
+            if [[ -x "$VLLM_VENV/bin/huggingface-cli" ]]; then
+                info "huggingface-cli already available in vLLM venv."
+            else
+                "$UV_BIN" pip install --python "$VLLM_VENV/bin/python" huggingface_hub[cli] || add_warning "huggingface-cli install failed."
+            fi
+
+            step "Configure vLLM systemd service"
+            VLLM_VENV="${HOME}/.local/share/vllm-env"
+            local_vllm_service="/etc/systemd/system/vllm.service"
+            local_vllm_override_dir="/etc/systemd/system/vllm.service.d"
+            local_vllm_override="${local_vllm_override_dir}/override.conf"
+
+            # Create the base service unit
+            local vllm_service_content="[Unit]
+Description=vLLM Inference Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$(whoami)
+ExecStart=${VLLM_VENV}/bin/python -m vllm.entrypoints.openai.api_server \\
+    --model \${VLLM_MODEL} \\
+    --host \${VLLM_HOST} \\
+    --port \${VLLM_PORT} \\
+    --max-model-len \${VLLM_MAX_MODEL_LEN} \\
+    --gpu-memory-utilization \${VLLM_GPU_MEMORY_UTILIZATION} \\
+    --quantization gptq
+Environment=\"VLLM_MODEL=${VLLM_DEFAULT_MODEL}\"
+Environment=\"VLLM_HOST=0.0.0.0\"
+Environment=\"VLLM_PORT=${VLLM_PORT}\"
+Environment=\"VLLM_MAX_MODEL_LEN=32768\"
+Environment=\"VLLM_GPU_MEMORY_UTILIZATION=0.90\"
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+"
+            if printf '%s' "$vllm_service_content" | run_privileged tee "$local_vllm_service" >/dev/null; then
+                run_privileged systemctl daemon-reload
+                success "Created vLLM service at $local_vllm_service"
+                info "Default model: ${VLLM_DEFAULT_MODEL}"
+                info "Listening on: 0.0.0.0:${VLLM_PORT}"
+                info "To change model: sudo systemctl edit vllm → set VLLM_MODEL"
+            else
+                add_failure "Failed to create vLLM systemd service."
+            fi
+
+            step "Configure firewall (vLLM port ${VLLM_PORT})"
+            if command_exists ufw; then
+                ufw_status="$(run_privileged ufw status 2>/dev/null || true)"
+                if grep -Fq "$LAN_CIDR" <<<"$ufw_status" && grep -Fq "${VLLM_PORT}" <<<"$ufw_status"; then
+                    info "ufw already has a LAN rule for port ${VLLM_PORT}."
+                else
+                    if run_privileged ufw allow from "$LAN_CIDR" to any port "${VLLM_PORT}" proto tcp comment 'vLLM LAN' >/dev/null; then
+                        success "Added ufw allow rule for $LAN_CIDR -> ${VLLM_PORT}/tcp"
+                    else
+                        add_warning "Could not add ufw allow rule for port ${VLLM_PORT}."
+                    fi
+                fi
+                # Deny non-LAN access
+                if ! grep -Fq "${VLLM_PORT}/tcp" <<<"$ufw_status" || ! grep -Fq 'DENY' <<<"$ufw_status"; then
+                    if run_privileged ufw deny "${VLLM_PORT}/tcp" comment 'Block non-LAN vLLM' >/dev/null; then
+                        success "Added ufw deny rule for non-LAN access to ${VLLM_PORT}/tcp"
+                    else
+                        add_warning "Could not add ufw deny rule for port ${VLLM_PORT}."
+                    fi
+                fi
+            else
+                info "ufw is not installed — skipping firewall configuration."
+            fi
+        else
+            # ── Ollama (full mode, single-user, localhost only) ────────────────
+            step "Install Ollama"
+            info "Using the official Ollama installer script."
+            if command_exists ollama; then
+                info "Ollama is already installed: $(ollama --version 2>/dev/null || true)"
+            elif curl -fsSL https://ollama.com/install.sh | sh; then
+                success "Ollama installed."
+            else
+                add_failure "Ollama installation failed."
+            fi
+
+            step "Configure Ollama systemd service"
+            if (( ${#FAILURES[@]} == 0 )); then
+                local_override_dir="/etc/systemd/system/ollama.service.d"
+                local_override_path="${local_override_dir}/override.conf"
+                local_override_content="[Service]
 Environment=\"OLLAMA_HOST=${OLLAMA_BIND_HOST}\"
 Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
 
-            if [[ -n "$MODEL_PATH" ]]; then
-                if mkdir -p "$MODEL_PATH" 2>/dev/null || run_privileged mkdir -p "$MODEL_PATH"; then
-                    success "Ensured model path exists: $MODEL_PATH"
-                else
-                    add_warning "Could not create $MODEL_PATH automatically. Ensure it exists and is writable by Ollama."
-                fi
-                local_override_content+="Environment=\"OLLAMA_MODELS=${MODEL_PATH}\"\n"
-            fi
-
-            if run_privileged install -d -m 0755 "$local_override_dir" && printf '%b' "$local_override_content" | run_privileged tee "$local_override_path" >/dev/null; then
-                run_privileged systemctl daemon-reload
-                run_privileged systemctl enable --now ollama
-                success "Configured Ollama override at $local_override_path"
-                info "OLLAMA_HOST=${OLLAMA_BIND_HOST}"
-                info "OLLAMA_KEEP_ALIVE=5m"
-                [[ -n "$MODEL_PATH" ]] && info "OLLAMA_MODELS=${MODEL_PATH}"
-            else
-                add_failure "Failed to create the Ollama systemd override."
-            fi
-        fi
-
-        step "Configure firewall"
-        if command_exists ufw; then
-            if [[ "$ENABLE_LAN" == true ]]; then
-                ufw_status="$(run_privileged ufw status 2>/dev/null || true)"
-                if grep -Fq "$LAN_CIDR" <<<"$ufw_status" && grep -Fq '11434' <<<"$ufw_status"; then
-                    info "ufw already has a LAN rule for port 11434."
-                else
-                    if run_privileged ufw allow from "$LAN_CIDR" to any port 11434 proto tcp comment 'Ollama LAN' >/dev/null; then
-                        success "Added ufw allow rule for $LAN_CIDR -> 11434/tcp"
+                if [[ -n "$MODEL_PATH" ]]; then
+                    if mkdir -p "$MODEL_PATH" 2>/dev/null || run_privileged mkdir -p "$MODEL_PATH"; then
+                        success "Ensured model path exists: $MODEL_PATH"
                     else
-                        add_warning "Could not add ufw allow rule for port 11434."
+                        add_warning "Could not create $MODEL_PATH automatically. Ensure it exists and is writable by Ollama."
                     fi
+                    local_override_content+="Environment=\"OLLAMA_MODELS=${MODEL_PATH}\"\n"
                 fi
 
-                ufw_status="$(run_privileged ufw status 2>/dev/null || true)"
-                if grep -Fq '11434/tcp' <<<"$ufw_status" && grep -Fq 'DENY' <<<"$ufw_status"; then
-                    info "ufw already has a deny rule for port 11434."
+                if run_privileged install -d -m 0755 "$local_override_dir" && printf '%b' "$local_override_content" | run_privileged tee "$local_override_path" >/dev/null; then
+                    run_privileged systemctl daemon-reload
+                    run_privileged systemctl enable --now ollama
+                    success "Configured Ollama override at $local_override_path"
+                    info "OLLAMA_HOST=${OLLAMA_BIND_HOST}"
+                    info "OLLAMA_KEEP_ALIVE=5m"
+                    [[ -n "$MODEL_PATH" ]] && info "OLLAMA_MODELS=${MODEL_PATH}"
                 else
-                    if run_privileged ufw deny 11434/tcp comment 'Block non-LAN Ollama' >/dev/null; then
-                        success "Added ufw deny rule for non-LAN access to 11434/tcp"
-                    else
-                        add_warning "Could not add ufw deny rule for port 11434. Ensure the service is not exposed beyond your LAN."
-                    fi
+                    add_failure "Failed to create the Ollama systemd override."
                 fi
-            else
-                info "ufw is installed, but Ollama is bound to localhost only — no LAN rule needed."
             fi
-        else
-            info "ufw is not installed — skipping firewall configuration."
+
+            step "Configure firewall"
+            if command_exists ufw; then
+                info "Ollama is bound to localhost only — no LAN rule needed."
+            else
+                info "ufw is not installed — skipping firewall configuration."
+            fi
         fi
     else
         step "Validate remote Ollama endpoint"
@@ -662,60 +761,135 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
         else
             # Expand template placeholders for Linux
             local linux_app_data="${HOME}/.local/share"
+            # Determine vLLM server IP for the placeholder
+            local vllm_ip="127.0.0.1"
+            if [[ "$IS_SERVER_MODE" == true ]]; then
+                vllm_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' || echo '127.0.0.1')"
+            elif [[ "$IS_CLIENT_MODE" == true && -n "$OLLAMA_HOST_ARG" ]]; then
+                # Extract host from the provided URL
+                vllm_ip="$(echo "$OLLAMA_HOST_ARG" | sed -E 's|https?://||;s|:[0-9]+.*||')"
+            fi
             sed -e "s|{{LOCALAPPDATA}}|${linux_app_data}|g" \
                 -e "s|{{VENV_BIN}}|bin|g" \
                 -e "s|{{EXE}}||g" \
+                -e "s|{{VLLM_SERVER_IP}}|${vllm_ip}|g" \
                 "$crush_config_source" > "$crush_config_dest"
             success "Deployed crush.json to $crush_config_dest"
-            info "Local Ollama is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+            if [[ "$IS_SERVER_MODE" == true ]]; then
+                info "vLLM server provider configured at http://${vllm_ip}:${VLLM_PORT}/v1"
+            fi
+            info "Local Ollama is the default provider. vLLM server, Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
             info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
             info "MCP servers (Word, PowerPoint) are enabled. Run setup-mcp-venvs.sh to install them."
         fi
     else
         warn "Config template not found at $crush_config_source — skipping Crush config."
     fi
+
+    # ── Install ComfyUI (image generation) ────────────────────────────────
+    if [[ "$MODE" != "client" ]]; then
+        step "Install ComfyUI (image generation)"
+        if command_exists comfyui || [[ -d "${HOME}/.local/share/ComfyUI" ]]; then
+            info "ComfyUI appears to be installed already."
+        else
+            info "ComfyUI provides local image generation (FLUX, SD3.5, Z-Image)."
+            info "On Linux (headless server), ComfyUI is best installed manually."
+            info "  Desktop: https://www.comfy.org/download"
+            info "  Manual:  git clone https://github.com/comfyanonymous/ComfyUI && pip install -r requirements.txt"
+            info "Skipping automatic install — see above for instructions."
+        fi
+    fi
+
+    # ── Deploy copilot-local launcher ─────────────────────────────────────
+    step "Deploy copilot-local launcher"
+    local launcher_source="${SCRIPT_DIR}/../scripts/copilot-local.sh"
+    local launcher_dest="${HOME}/.local/bin/copilot-local"
+
+    if [[ -f "$launcher_source" ]]; then
+        mkdir -p "${HOME}/.local/bin"
+        install -m 0755 "$launcher_source" "$launcher_dest"
+        success "Deployed copilot-local to $launcher_dest"
+
+        # Set profile env var in shell profile
+        local profile_name="${MODEL_PROFILE^}"  # capitalize first letter
+        local shell_rc="${HOME}/.bashrc"
+        [[ -f "${HOME}/.zshrc" ]] && shell_rc="${HOME}/.zshrc"
+        if ! grep -q "COPILOT_LOCAL_PROFILE" "$shell_rc" 2>/dev/null; then
+            printf '\nexport COPILOT_LOCAL_PROFILE="%s"\n' "$profile_name" >> "$shell_rc"
+            success "Set COPILOT_LOCAL_PROFILE=$profile_name in $shell_rc"
+        fi
+        info "Usage: copilot-local (from any directory)"
+    else
+        warn "Launcher script not found at $launcher_source — skipping."
+    fi
 fi
 
 if [[ "$SHOULD_PULL_MODELS" == true ]]; then
-    step "Pull Ollama models"
-    info "$MODEL_SOURCE_MESSAGE"
-    info "This will download about ${EFFECTIVE_MODEL_REQUIRED_GB} GB. Each pull is resumable."
+    if [[ "$IS_SERVER_MODE" == true ]]; then
+        # ── vLLM: Download models from HuggingFace ──────────────────────
+        step "Download HuggingFace models for vLLM"
+        info "$MODEL_SOURCE_MESSAGE"
+        info "This will download about ${EFFECTIVE_MODEL_REQUIRED_GB} GB. Downloads are resumable."
 
-    if ! command_exists ollama && [[ ! -x /usr/local/bin/ollama ]]; then
-        add_failure "Ollama is not installed, so models cannot be pulled."
-    else
-        api_ready=false
-        if wait_for_ollama 45; then
-            api_ready=true
+        VLLM_VENV="${HOME}/.local/share/vllm-env"
+        HF_CLI="${VLLM_VENV}/bin/huggingface-cli"
+
+        if [[ ! -x "$HF_CLI" ]]; then
+            add_failure "huggingface-cli not found at $HF_CLI — install vLLM first."
         else
-            warn "Trying to start Ollama before pulling models."
-            if command_exists systemctl; then
-                run_privileged systemctl restart ollama >/dev/null 2>&1 || true
-            fi
-            if wait_for_ollama 30; then
+            for model_id in "${SELECTED_MODELS[@]}"; do
+                echo
+                printf '%b\n' "${COLOR_GRAY}  Downloading ${model_id}${COLOR_RESET}"
+                info "$(model_description "$model_id")"
+                if "$HF_CLI" download "$model_id" --quiet; then
+                    success "$model_id ready."
+                else
+                    add_failure "Model download failed: $model_id"
+                fi
+            done
+        fi
+    else
+        # ── Ollama: Pull GGUF models ────────────────────────────────────
+        step "Pull Ollama models"
+        info "$MODEL_SOURCE_MESSAGE"
+        info "This will download about ${EFFECTIVE_MODEL_REQUIRED_GB} GB. Each pull is resumable."
+
+        if ! command_exists ollama && [[ ! -x /usr/local/bin/ollama ]]; then
+            add_failure "Ollama is not installed, so models cannot be pulled."
+        else
+            api_ready=false
+            if wait_for_ollama 45; then
                 api_ready=true
             else
-                add_failure "Could not connect to Ollama. Re-run with --models-only after the service is healthy."
+                warn "Trying to start Ollama before pulling models."
+                if command_exists systemctl; then
+                    run_privileged systemctl restart ollama >/dev/null 2>&1 || true
+                fi
+                if wait_for_ollama 30; then
+                    api_ready=true
+                else
+                    add_failure "Could not connect to Ollama. Re-run with --models-only after the service is healthy."
+                fi
             fi
-        fi
 
-        if [[ "$api_ready" == true ]]; then
-            OLLAMA_BIN="$(command -v ollama || true)"
-            [[ -z "$OLLAMA_BIN" && -x /usr/local/bin/ollama ]] && OLLAMA_BIN="/usr/local/bin/ollama"
+            if [[ "$api_ready" == true ]]; then
+                OLLAMA_BIN="$(command -v ollama || true)"
+                [[ -z "$OLLAMA_BIN" && -x /usr/local/bin/ollama ]] && OLLAMA_BIN="/usr/local/bin/ollama"
 
-            if [[ -n "$OLLAMA_BIN" ]]; then
-                for tag in "${SELECTED_MODELS[@]}"; do
-                    echo
-                    printf '%b\n' "${COLOR_GRAY}  Pulling ${tag}${COLOR_RESET}"
-                    info "$(model_description "$tag")"
-                    if "$OLLAMA_BIN" pull "$tag"; then
-                        success "$tag ready."
-                    else
-                        add_failure "Model pull failed: $tag"
-                    fi
-                done
-            else
-                add_failure "Ollama binary was not found after the API became ready."
+                if [[ -n "$OLLAMA_BIN" ]]; then
+                    for tag in "${SELECTED_MODELS[@]}"; do
+                        echo
+                        printf '%b\n' "${COLOR_GRAY}  Pulling ${tag}${COLOR_RESET}"
+                        info "$(model_description "$tag")"
+                        if "$OLLAMA_BIN" pull "$tag"; then
+                            success "$tag ready."
+                        else
+                            add_failure "Model pull failed: $tag"
+                        fi
+                    done
+                else
+                    add_failure "Ollama binary was not found after the API became ready."
+                fi
             fi
         fi
     fi
@@ -755,33 +929,37 @@ if [[ "$IS_CLIENT_MODE" == true ]]; then
     echo
     printf '%b\n' 'Next steps:'
     printf '%b\n' "  1. Launch Crush and point it at ${OLLAMA_HOST_ARG}"
-    printf '%b\n' '  2. Verify remote Ollama: curl http://server:11434/api/tags'
+    printf '%b\n' '  2. Verify remote endpoint: curl http://server:8000/v1/models (vLLM) or :11434/api/tags (Ollama)'
     printf '%b\n' '  3. Create MCP venvs under ~/.local/share/ai-tools as needed'
 elif [[ "$IS_SERVER_MODE" == true ]]; then
     # Detect LAN IP for client connection instructions
     local_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' || hostname -I 2>/dev/null | awk '{print $1}' || echo '<this-server-ip>')"
     echo
-    printf '%b\n' "${COLOR_CYAN}── Client Access ──────────────────────────────────────────────${COLOR_RESET}"
+    printf '%b\n' "${COLOR_CYAN}── Client Access (vLLM) ───────────────────────────────────────${COLOR_RESET}"
     printf '%b\n' ""
-    printf '%b\n' "  Ollama API:  http://${local_ip}:11434"
-    printf '%b\n' "  Firewall:    ufw allow from ${LAN_CIDR} to port 11434/tcp"
+    printf '%b\n' "  vLLM API:    http://${local_ip}:${VLLM_PORT}/v1"
+    printf '%b\n' "  Firewall:    ufw allow from ${LAN_CIDR} to port ${VLLM_PORT}/tcp"
     printf '%b\n' ""
     printf '%b\n' "  Verify from any LAN machine:"
-    printf '%b\n' "    curl http://${local_ip}:11434/api/tags"
+    printf '%b\n' "    curl http://${local_ip}:${VLLM_PORT}/v1/models"
     printf '%b\n' ""
     printf '%b\n' "  Windows client install:"
-    printf '%b\n' "    .\\install-windows.ps1 -Mode Client -OllamaHost http://${local_ip}:11434"
+    printf '%b\n' "    .\\install-windows.ps1 -Mode Client -OllamaHost http://${local_ip}:${VLLM_PORT}/v1"
     printf '%b\n' ""
     printf '%b\n' "  CachyOS client install:"
-    printf '%b\n' "    ./install-cachyos.sh --mode client --ollama-host http://${local_ip}:11434"
+    printf '%b\n' "    ./install-cachyos.sh --mode client --ollama-host http://${local_ip}:${VLLM_PORT}/v1"
+    printf '%b\n' ""
+    printf '%b\n' "  Switch model:"
+    printf '%b\n' "    sudo systemctl edit vllm  →  set VLLM_MODEL=<model-id>"
+    printf '%b\n' "    sudo systemctl restart vllm"
     printf '%b\n' ""
     printf '%b\n' "${COLOR_CYAN}──────────────────────────────────────────────────────────────${COLOR_RESET}"
     echo
     printf '%b\n' 'Next steps:'
-    printf '%b\n' '  1. Check service status: sudo systemctl status ollama'
-    printf '%b\n' "  2. Verify API locally: curl http://127.0.0.1:11434/api/tags"
-    printf '%b\n' "  3. Verify from LAN: curl http://${local_ip}:11434/api/tags"
-    printf '%b\n' '  4. Launch Crush and select your preferred model'
+    printf '%b\n' "  1. Start service: sudo systemctl enable --now vllm"
+    printf '%b\n' "  2. Verify API locally: curl http://127.0.0.1:${VLLM_PORT}/v1/models"
+    printf '%b\n' "  3. Verify from LAN: curl http://${local_ip}:${VLLM_PORT}/v1/models"
+    printf '%b\n' '  4. Launch Crush and select vllm-server provider'
 else
     echo
     printf '%b\n' 'Next steps:'
