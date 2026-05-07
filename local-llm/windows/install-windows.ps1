@@ -21,8 +21,11 @@
     skips all Ollama installation and model steps, and requires -OllamaHost.
 
 .PARAMETER ModelProfile
-    Controls which 30B Qwen quantization is pulled in Full mode. Standard uses
-    qwen3:30b, High uses qwen3:30b-q5_K_M, and Ultra uses qwen3:30b-q6_K.
+    GPU/environment profile that determines which models to pull:
+      Desktop — RTX 5090 (32GB). Pulls gemma4:31b, qwen3:14b, deepseek-r1:32b,
+               gemma3:27b, llama3.3:70b-instruct-q2_K, qwen3-coder:30b (~90 GB).
+      Server  — RTX 4090 (24GB dedicated). Pulls qwen2.5-coder:32b, qwen2.5-coder:14b,
+               deepseek-r1:32b, mistral-small3.2:24b (~62 GB).
     Ignored in Client mode.
 
 .PARAMETER OllamaHost
@@ -51,8 +54,12 @@
     Full installation with Standard profile model pulls.
 
 .EXAMPLE
-    .\install-windows.ps1 -ModelProfile High
-    Full install with the High profile primary model.
+    .\install-windows.ps1 -ModelProfile Desktop
+    Full install for RTX 5090 gaming desktop (pulls larger/better models).
+
+.EXAMPLE
+    .\install-windows.ps1 -ModelProfile Server
+    Full install for dedicated 4090 inference server.
 
 .EXAMPLE
     .\install-windows.ps1 -Mode Client -OllamaHost http://192.168.1.100:11434
@@ -80,15 +87,82 @@ param(
     [ValidateSet("Full", "Client")]
     [string]$Mode = "Full",
 
-    [ValidateSet("Standard", "High", "Ultra")]
-    [string]$ModelProfile = "Standard",
+    [ValidateSet("Desktop", "Server")]
+    [string]$ModelProfile = "Desktop",
 
     [string]$OllamaHost,
     [string]$ModelPath,
     [switch]$SkipModels,
     [switch]$ModelsOnly,
-    [switch]$EnableLAN
+    [switch]$EnableLAN,
+    [switch]$Help
 )
+
+if ($Help) {
+    Write-Host @"
+
+  LOCAL LLM INSTALLER — Windows
+  ══════════════════════════════════════════════════════════════
+
+  USAGE:
+    .\install-windows.ps1 [OPTIONS]
+
+  MODES:
+    -Mode Full      (default) Install Ollama, models, Crush, Copilot CLI, uv, MCP, ComfyUI
+    -Mode Client    Install client tools only (Crush, Copilot CLI, uv, MCP). Requires -OllamaHost.
+
+  GPU PROFILES:
+    -ModelProfile Desktop   RTX 5090 (32GB) — 6 task-optimized models, ~90 GB total:
+                              gemma4:31b          Heavy coding (256k context)
+                              qwen3:14b           Light coding
+                              deepseek-r1:32b     Code review / reasoning
+                              gemma3:27b          Technical documentation
+                              llama3.3:70b-q2_K   Creative writing
+                              qwen3-coder:30b     Office documents (256k context)
+
+    -ModelProfile Server    RTX 4090 (24GB dedicated) — 4 models, ~62 GB total:
+                              qwen2.5-coder:32b   Heavy coding
+                              qwen2.5-coder:14b   Light coding
+                              deepseek-r1:32b     Code review / reasoning
+                              mistral-small3.2:24b Docs / creative / office
+
+  OPTIONS:
+    -OllamaHost <url>    Remote Ollama endpoint (required for Client mode)
+                         Example: http://192.168.1.100:11434
+    -ModelPath <path>    Custom model storage directory (sets OLLAMA_MODELS env var)
+    -SkipModels          Install software only; pull models later with: ollama pull <tag>
+    -ModelsOnly          Skip software installation; only pull/update models
+    -EnableLAN           Set OLLAMA_HOST=0.0.0.0 so other machines can connect
+    -Help                Show this help text
+
+  EXAMPLES:
+    .\install-windows.ps1                                    # Desktop profile, full install
+    .\install-windows.ps1 -ModelProfile Server -EnableLAN    # Server profile, LAN exposed
+    .\install-windows.ps1 -Mode Client -OllamaHost http://server:11434
+    .\install-windows.ps1 -SkipModels                        # Software only, models later
+    .\install-windows.ps1 -ModelsOnly                        # Resume interrupted model pull
+    .\install-windows.ps1 -ModelPath D:\OllamaModels         # Custom storage location
+
+  WHAT GETS INSTALLED:
+    Component        Location                              Requires Admin
+    ─────────        ────────                              ──────────────
+    Ollama           System service (winget)               Yes
+    ComfyUI Desktop  winget (Comfy.ComfyUI-Desktop)        Yes (NSIS)
+    Crush            winget portable                       No
+    uv + Python      %USERPROFILE%\.local\bin              No
+    MCP venvs        %LOCALAPPDATA%\ai-tools\mcp-*        No
+    copilot-local    %USERPROFILE%\Documents\CLI           No
+    Config           %USERPROFILE%\.config\crush           No
+
+  AFTER INSTALL:
+    copilot-local      Launch Copilot CLI with task picker
+    crush              Launch Crush (MCP-enabled agent)
+    ollama list        Check installed models
+    ollama ps          Check loaded models + VRAM usage
+
+"@
+    exit 0
+}
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -105,40 +179,38 @@ $script:Warnings = @()
 
 # Known model descriptions for progress display
 $KnownModelDescriptions = @{
-    "qwen3:30b"           = "Qwen 3.6-27B (Q4_K_M) — primary coder, ~18 GB"
-    "qwen3:30b-q5_K_M"    = "Qwen 3.6-27B (Q5_K_M) — primary coder, ~21 GB"
-    "qwen3:30b-q6_K"      = "Qwen 3.6-27B (Q6_K) — primary coder, ~24 GB"
-    "qwen3:8b"            = "Qwen 3.6-8B — fast tasks, ~5 GB"
-    "deepseek-r1:14b"     = "DeepSeek R1 14B — hard reasoning, ~9 GB"
-    "llama3.1:8b"         = "Llama 3.1-8B — general/sysadmin, ~5 GB"
+    "qwen2.5-coder:32b"              = "Qwen2.5-Coder 32B — heavy coding, ~19 GB"
+    "qwen2.5-coder:14b"              = "Qwen2.5-Coder 14B — light coding, ~9 GB"
+    "deepseek-r1:32b"                = "DeepSeek R1 32B — code review/reasoning, ~19 GB"
+    "mistral-small3.2:24b"           = "Mistral Small 3.2 — docs/creative/office, ~15 GB"
+    "gemma4:31b"                     = "Gemma 4 31B — heavy coding (256k ctx), ~20 GB"
+    "qwen3:14b"                      = "Qwen3 14B — light coding (40k ctx), ~9 GB"
+    "gemma3:27b"                     = "Gemma 3 27B — tech docs (128k ctx), ~16 GB"
+    "llama3.3:70b-instruct-q2_K"     = "Llama 3.3 70B Q2 — creative writing, ~26 GB"
+    "qwen3-coder:30b"                = "Qwen3-Coder 30B MoE — office docs (256k ctx), ~19 GB"
 }
 
 $ProfileDefinitions = @{
-    "Standard" = @{
-        RequiredGB = 38
+    "Desktop" = @{
+        Description = "RTX 5090 (32GB) — gaming desktop with IDEs open (~25-27 GB available)"
+        RequiredGB = 90
         Models = [ordered]@{
-            "qwen3:30b"       = $KnownModelDescriptions["qwen3:30b"]
-            "qwen3:8b"        = $KnownModelDescriptions["qwen3:8b"]
-            "deepseek-r1:14b" = $KnownModelDescriptions["deepseek-r1:14b"]
-            "llama3.1:8b"     = $KnownModelDescriptions["llama3.1:8b"]
+            "gemma4:31b"                 = $KnownModelDescriptions["gemma4:31b"]
+            "qwen3:14b"                  = $KnownModelDescriptions["qwen3:14b"]
+            "deepseek-r1:32b"            = $KnownModelDescriptions["deepseek-r1:32b"]
+            "gemma3:27b"                 = $KnownModelDescriptions["gemma3:27b"]
+            "llama3.3:70b-instruct-q2_K" = $KnownModelDescriptions["llama3.3:70b-instruct-q2_K"]
+            "qwen3-coder:30b"            = $KnownModelDescriptions["qwen3-coder:30b"]
         }
     }
-    "High" = @{
-        RequiredGB = 41
+    "Server" = @{
+        Description = "RTX 4090 (24GB) — dedicated server, full VRAM (containers use 0 GPU)"
+        RequiredGB = 62
         Models = [ordered]@{
-            "qwen3:30b-q5_K_M" = $KnownModelDescriptions["qwen3:30b-q5_K_M"]
-            "qwen3:8b"         = $KnownModelDescriptions["qwen3:8b"]
-            "deepseek-r1:14b"  = $KnownModelDescriptions["deepseek-r1:14b"]
-            "llama3.1:8b"      = $KnownModelDescriptions["llama3.1:8b"]
-        }
-    }
-    "Ultra" = @{
-        RequiredGB = 44
-        Models = [ordered]@{
-            "qwen3:30b-q6_K"  = $KnownModelDescriptions["qwen3:30b-q6_K"]
-            "qwen3:8b"        = $KnownModelDescriptions["qwen3:8b"]
-            "deepseek-r1:14b" = $KnownModelDescriptions["deepseek-r1:14b"]
-            "llama3.1:8b"     = $KnownModelDescriptions["llama3.1:8b"]
+            "qwen2.5-coder:32b"    = $KnownModelDescriptions["qwen2.5-coder:32b"]
+            "qwen2.5-coder:14b"    = $KnownModelDescriptions["qwen2.5-coder:14b"]
+            "deepseek-r1:32b"      = $KnownModelDescriptions["deepseek-r1:32b"]
+            "mistral-small3.2:24b" = $KnownModelDescriptions["mistral-small3.2:24b"]
         }
     }
 }
@@ -366,7 +438,7 @@ if ($IsClientMode) {
     if ($SkipModels) {
         Add-NonFatalWarning "SkipModels is irrelevant in client mode because no local models are pulled."
     }
-    if ($ModelProfile -ne "Standard") {
+    if ($ModelProfile -ne "Desktop") {
         Add-NonFatalWarning "ModelProfile is ignored in client mode because no local models are pulled."
     }
     if ($EnableLAN) {
@@ -583,6 +655,57 @@ if ($ShouldInstallSoftware) {
         }
     } else {
         Write-Warn "Config template not found at $crushConfigSource — skipping Crush config."
+    }
+
+    # ── Step: Install ComfyUI Desktop (image generation) ─────────────────
+
+    if ($IsFullMode) {
+        Write-Step "Install ComfyUI Desktop (image generation)"
+        $comfyExe = "$env:LOCALAPPDATA\Programs\ComfyUI\ComfyUI.exe"
+
+        if (Test-Path $comfyExe) {
+            Write-Info "ComfyUI Desktop is already installed."
+        } else {
+            Write-Info "ComfyUI Desktop provides local image generation (FLUX, SD3.5, Z-Image)."
+            Install-WinGetPackage -Id "Comfy.ComfyUI-Desktop" -Name "ComfyUI Desktop" -Critical:$false
+            Write-Info "On first launch, ComfyUI will download a default image model (~12 GB)."
+        }
+    }
+
+    # ── Step: Deploy copilot-local launcher ───────────────────────────────
+
+    Write-Step "Deploy copilot-local launcher"
+    $launcherSource = Join-Path $PSScriptRoot "..\scripts\copilot-local.cmd"
+    $launcherDest = Join-Path $UserProfile "Documents\CLI\copilot-local.cmd"
+
+    if (Test-Path $launcherSource) {
+        $cliDir = Split-Path $launcherDest
+        if (-not (Test-Path $cliDir)) {
+            New-Item -ItemType Directory -Path $cliDir -Force | Out-Null
+        }
+        Copy-Item -Path $launcherSource -Destination $launcherDest -Force
+        Write-Success "Deployed copilot-local.cmd to $launcherDest"
+
+        # Set profile environment variable so launcher shows correct models
+        $currentProfile = [Environment]::GetEnvironmentVariable("COPILOT_LOCAL_PROFILE", "User")
+        if ($currentProfile -ne $ModelProfile) {
+            [Environment]::SetEnvironmentVariable("COPILOT_LOCAL_PROFILE", $ModelProfile, "User")
+            $env:COPILOT_LOCAL_PROFILE = $ModelProfile
+            Write-Success "Set COPILOT_LOCAL_PROFILE=$ModelProfile"
+        }
+
+        # Ensure Documents\CLI is on PATH
+        $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+        if ($userPath -notlike "*$cliDir*") {
+            [Environment]::SetEnvironmentVariable("Path", "$userPath;$cliDir", "User")
+            $env:PATH = "$env:PATH;$cliDir"
+            Write-Success "Added $cliDir to user PATH."
+        } else {
+            Write-Info "$cliDir is already on PATH."
+        }
+        Write-Info "Usage: copilot-local (from any directory)"
+    } else {
+        Write-Warn "Launcher script not found at $launcherSource — skipping."
     }
 
 } # end if ($ShouldInstallSoftware)

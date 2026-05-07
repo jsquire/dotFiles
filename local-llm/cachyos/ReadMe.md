@@ -1,600 +1,285 @@
-# Self-Hosted AI Coding Assistant — CachyOS Server Setup
+# Local LLM Stack — CachyOS Server
 
-A dedicated CachyOS (Arch-based Linux) host for running **Ollama** as an always-on LAN inference endpoint, with **Crush** as the terminal agent, **uv** for Python tooling, and isolated MCP server environments under `~/.local/share/ai-tools`.
+Multi-user AI inference server on CachyOS (Arch-based Linux) with vLLM, Crush, and MCP.
 
-This is the Linux counterpart to the Windows setup in `windows\`. Use it when you want one GPU-heavy machine to serve models for the rest of your workstation fleet.
+**Hardware:** RTX 4090 (24GB dedicated VRAM)
+**Inference engine:** vLLM (multi-user, continuous batching, PagedAttention)
 
----
+## Why vLLM (not Ollama)
 
-## Overview
+This server hosts multiple users simultaneously. vLLM provides:
 
-The CachyOS server fills the **Scenario B** role:
+| Feature | Benefit |
+|---------|---------|
+| **Continuous batching** | 2-4 concurrent users at near-single-user speed |
+| **PagedAttention** | Efficient KV-cache sharing — more users per GB of VRAM |
+| **Prefix caching** | Shared system prompts stored once (e.g., Crush's coding prompt) |
+| **OpenAI-compatible API** | Crush/Copilot clients connect identically to Ollama |
+| **HuggingFace models** | Direct safetensors/GPTQ/AWQ — no GGUF conversion |
 
-- **Always-on Ollama** for desktop and laptop clients
-- **Dedicated NVIDIA GPU VRAM** with no IDE / desktop contention
-- **Systemd-managed service** that comes up automatically on boot
-- **User-local tooling** for Crush, uv, and MCP environments
-- **Clean layering** so system packages, user tools, isolated venvs, and config stay separable
+Clients connect via `http://server-ip:8000/v1` — same OpenAI API as Ollama.
 
-### Installation Modes
+## What Gets Installed
 
-| Mode | Command | What it does |
-|------|---------|--------------|
-| **Full** _(default)_ | `./install-cachyos.sh` | Installs the complete stack locally: NVIDIA drivers + CUDA, Ollama (localhost only), systemd override, uv, Python 3.12, Crush, MCP directories, and model pulls. |
-| **Server** | `./install-cachyos.sh --mode server` | Everything in Full, plus binds Ollama to `0.0.0.0`, configures ufw firewall rules for LAN access, and prints client connection instructions. |
-| **Client** | `./install-cachyos.sh --mode client --ollama-host http://server:11434` | Installs only the client-side tooling: uv, Python 3.12, Crush, and MCP directories. No GPU requirement, no Ollama install, no model storage. |
+| Component | Purpose | Install Method |
+|-----------|---------|---------------|
+| **NVIDIA drivers + CUDA** | GPU acceleration | pacman |
+| **vLLM** | Multi-user inference server | pip (Python package) |
+| **Crush** | Terminal AI agent with MCP | pacman or user-local |
+| **uv** | Python toolchain (MCP venvs) | Official installer |
+| **copilot-local** | Task picker launcher | `~/.local/bin/` |
+| **MCP servers** | Office document editing | Isolated Python venvs |
 
-> Use **Server** on the dedicated LAN inference machine.  Use **Full** if you want local-only Ollama with no LAN exposure.  Use **Client** on machines that talk to a remote Ollama endpoint.
+### Models (HuggingFace GPTQ-Int4, ~57 GB disk)
 
----
+| Model | HuggingFace ID | Size | Task |
+|-------|---------------|------|------|
+| Qwen2.5-Coder 32B | `Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4` | ~18 GB | Heavy coding |
+| Qwen2.5-Coder 14B | `Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4` | ~8 GB | Light coding |
+| DeepSeek-R1 32B | `deepseek-ai/DeepSeek-R1-Distill-Qwen-32B-GPTQ-Int4` | ~18 GB | Code review, reasoning |
+| Mistral Small 3.2 | `mistralai/Mistral-Small-3.2-24B-Instruct-2503-GPTQ-Int4` | ~13 GB | Tech docs, creative, Office |
 
-## Prerequisites
-
-### Full Mode
-
-- **CachyOS minimal/server install** (systemd + pacman expected)
-- **NVIDIA GPU** visible in `lspci`
-- **Internet access** for package downloads and model pulls
-- **~40-50 GB free disk space** for model storage
-- **sudo or root access**
-
-### Server Mode
-
-All Full mode prerequisites, plus:
-- **LAN connectivity** so remote clients can reach port 11434
-- **ufw installed** (recommended — the script configures LAN-only rules)
-
-### Client Mode
-
-- CachyOS / Arch-based system
-- Reachable Ollama server such as `http://192.168.1.50:11434`
-- Internet access for installing uv and Crush
-- No GPU required
-- No model storage required
-
----
-
-## Quick Start
-
-### Full Install (local only)
-
-```bash
-cd ~/dotFiles/local-llm/cachyos
-chmod +x install-cachyos.sh remove-cachyos.sh
-
-# Default full install (Standard profile, localhost only)
-./install-cachyos.sh
-
-# Higher-quality primary model for 32 GB GPUs
-./install-cachyos.sh --model-profile high
-
-# Store models on another filesystem
-./install-cachyos.sh --model-path /srv/ollama-models
-
-# Install software now, pull models later
-./install-cachyos.sh --skip-models
-
-# Resume / add model downloads later
-./install-cachyos.sh --models-only
-```
-
-### Server Install (LAN-accessible)
-
-```bash
-# Full stack + LAN firewall + prints client connection info
-./install-cachyos.sh --mode server
-
-# Server with High profile models
-./install-cachyos.sh --mode server --model-profile high
-```
-
-### Client Install
+## Install
 
 ```bash
 cd ~/dotFiles/local-llm/cachyos
 chmod +x install-cachyos.sh
 
-./install-cachyos.sh --mode client --ollama-host http://192.168.1.50:11434
+# Server install (default for CachyOS)
+./install-cachyos.sh --mode server
+
+# Skip model downloads (install software first)
+./install-cachyos.sh --mode server --skip-models
+
+# Custom model storage path
+./install-cachyos.sh --mode server --model-path /srv/models
 ```
 
-### Removal
+### Install Options
+
+| Flag | Effect |
+|------|--------|
+| `--mode server` | Full vLLM server (default on CachyOS) |
+| `--mode client` | Client-only (Crush + MCP, no inference) |
+| `--skip-models` | Install software only |
+| `--models-only` | Download models only |
+| `--model-path /path` | Custom HuggingFace cache location |
+| `--ollama-host URL` | Remote endpoint (client mode) |
+
+## Configure
+
+### vLLM Server
+
+The installer creates a systemd service. Configuration via environment in the override file:
 
 ```bash
-# Remove the full server stack
-./remove-cachyos.sh
-
-# Keep downloaded models for a future reinstall
-./remove-cachyos.sh --keep-models
-
-# Remove only client-side tooling
-./remove-cachyos.sh --mode client
-
-# Non-interactive removal
-./remove-cachyos.sh --force
-```
-
----
-
-## What Gets Installed Where
-
-The scripts follow the same 4-layer architecture as the Windows setup, adapted for Linux.
-
-### Layer Diagram
-
-```text
-Layer 1 — System
-  /usr/local/bin/ollama
-  /etc/systemd/system/ollama.service.d/override.conf
-  pacman packages: nvidia-dkms, nvidia-utils, cuda
-
-Layer 2 — User-local
-  ~/.local/bin/uv
-  ~/.local/bin/uvx
-  ~/.local/bin/crush
-
-Layer 3 — Isolated
-  ~/.local/share/uv/
-  ~/.local/share/ai-tools/mcp-office/
-  ~/.local/share/ai-tools/mcp-word/
-  ~/.local/share/ai-tools/mcp-pptx/
-  uv-managed Python 3.12 environments
-
-Layer 4 — Config
-  ~/.ollama/
-  ~/.crush/
-  ~/.config/crush/
-```
-
-### Installed Components
-
-| Component | Install Method | Scope | Purpose |
-|-----------|----------------|-------|---------|
-| **NVIDIA drivers + CUDA** | `pacman` | System | GPU acceleration for Ollama |
-| **Ollama** | Official install script | System | Model server |
-| **Ollama service override** | systemd drop-in | System | Sets `OLLAMA_HOST`, `OLLAMA_KEEP_ALIVE`, optional `OLLAMA_MODELS` |
-| **uv** | Official install script | User-local | Python toolchain manager |
-| **Python 3.12** | `uv python install 3.12` | uv-managed | Python runtime for MCP servers |
-| **Crush** | pacman or user-local installer | User-local | CLI agent |
-| **MCP directories** | `mkdir -p` | User-local / isolated | Future MCP venv locations |
-
----
-
-## Model Profiles
-
-The `--model-profile` switch controls the primary 30B Qwen quantization in **Full** mode.
-
-| Profile | Primary Model | Quant | Approx. Download | Best for |
-|---------|---------------|-------|------------------|----------|
-| **Standard** _(default)_ | `qwen3:30b` | Q4_K_M ~18 GB | ~38 GB total | 24 GB GPU, best balance |
-| **High** | `qwen3:30b-q5_K_M` | Q5_K_M ~21 GB | ~41 GB total | 32 GB GPU, slightly better quality |
-| **Ultra** | `qwen3:30b-q6_K` | Q6_K ~24 GB | ~44 GB total | 32 GB GPU, max local quality |
-
-All built-in profiles also pull:
-
-- `qwen3:8b` — fast tasks
-- `deepseek-r1:14b` — hard reasoning
-- `llama3.1:8b` — general/sysadmin
-
-### Custom Model List Override
-
-If `config/ollama-models.txt` exists relative to the repo root, the installer uses that file **instead of** the built-in profile list.
-
-Path resolved by the script:
-
-```text
-$SCRIPT_DIR/../config/ollama-models.txt
-```
-
-Format:
-
-```text
-# One model per line
-qwen3:30b
-qwen3:8b
-# comments and blank lines are ignored
-```
-
-Inline comments are allowed, so this also works:
-
-```text
-qwen3:30b           # Primary coder
-qwen3:8b            # Fast tasks
-```
-
----
-
-## Full Mode Walkthrough
-
-The installer performs these steps:
-
-1. **Pre-flight checks**
-   - verifies `pacman`
-   - checks for sudo/root access
-   - verifies an NVIDIA GPU via `lspci | grep -i nvidia`
-2. **Install NVIDIA drivers**
-   - `sudo pacman -S --needed nvidia-dkms nvidia-utils cuda`
-3. **Install Ollama**
-   - `curl -fsSL https://ollama.com/install.sh | sh`
-4. **Configure systemd override**
-   - writes `/etc/systemd/system/ollama.service.d/override.conf`
-   - sets `OLLAMA_HOST`
-   - sets `OLLAMA_KEEP_ALIVE=5m`
-   - optionally sets `OLLAMA_MODELS`
-5. **Firewall** _(server mode only)_
-   - if `ufw` is installed, allows `192.168.0.0/16` to port `11434` and denies other access
-   - in full mode, Ollama binds to `127.0.0.1` — no firewall changes needed
-6. **Install uv**
-   - `curl -LsSf https://astral.sh/uv/install.sh | sh`
-7. **Install Python 3.12**
-   - `uv python install 3.12`
-8. **Install Crush**
-   - pacman if available, otherwise user-local installer / release fallback
-9. **Create MCP directories**
-   - `~/.local/share/ai-tools/mcp-{office,word,pptx}`
-10. **Pull models**
-    - waits for the Ollama API, then runs `ollama pull` for each selected tag
-
-### Server Mode Walkthrough
-
-Server mode runs the same steps as full mode, with two additions:
-
-1. **Ollama binds to `0.0.0.0`** instead of `127.0.0.1` — accessible from the LAN
-2. **Firewall rules** — if `ufw` is installed, allows `192.168.0.0/16` → `11434/tcp` and denies external access
-3. **Client connection instructions** — at the end, prints the server's LAN IP and exact commands to run on Windows and CachyOS clients
-
-### Client Mode Walkthrough
-
-Client mode skips:
-
-- NVIDIA drivers
-- Ollama install
-- systemd service changes
-- firewall rules
-- model pulls
-
-It installs only:
-
-- uv
-- Python 3.12
-- Crush
-- MCP directories
-
-You must supply:
-
-```bash
-./install-cachyos.sh --mode client --ollama-host http://server:11434
-```
-
----
-
-## Systemd Service Management
-
-The server install configures Ollama as a systemd service and adds a drop-in override.
-
-### Common Commands
-
-```bash
-sudo systemctl start ollama
-sudo systemctl stop ollama
-sudo systemctl restart ollama
-sudo systemctl status ollama
-```
-
-### View Logs
-
-```bash
-journalctl -u ollama -n 100 --no-pager
-journalctl -u ollama -f
-```
-
-### Override Location
-
-```text
-/etc/systemd/system/ollama.service.d/override.conf
-```
-
-Typical contents:
-
-```ini
+# /etc/systemd/system/vllm.service.d/override.conf
 [Service]
-Environment="OLLAMA_HOST=127.0.0.1"
-Environment="OLLAMA_KEEP_ALIVE=5m"
-# Optional:
-# Environment="OLLAMA_MODELS=/srv/ollama-models"
+Environment="VLLM_MODEL=Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4"
+Environment="VLLM_HOST=0.0.0.0"
+Environment="VLLM_PORT=8000"
+Environment="VLLM_MAX_MODEL_LEN=32768"
+Environment="VLLM_GPU_MEMORY_UTILIZATION=0.90"
 ```
 
-If you used `--mode server`, the host becomes `0.0.0.0` instead.
-
----
-
-## Firewall Notes
-
-In **server** mode, if `ufw` is installed, the script configures Ollama to be LAN-accessible:
-
-- allow `192.168.0.0/16` to TCP `11434`
-- deny other access to TCP `11434`
-
-In **full** mode, the service binds to `127.0.0.1`, so remote clients cannot connect even if the firewall is permissive. No firewall rules are added.
-
-Check rules with:
-
+Switch the active model:
 ```bash
-sudo ufw status numbered
+# Edit the override
+sudo systemctl edit vllm
+# Change VLLM_MODEL to the desired model
+# Then restart
+sudo systemctl restart vllm
 ```
 
-> **Important:** Ollama's API is unauthenticated by default. Server mode restricts access to the LAN subnet. Do not expose port `11434` to the public internet.
+### Crush (agent on this server)
 
----
-
-## How to Test
-
-Open a new shell after install, then verify each layer.
-
-### Full Mode Verification
-
-#### 1. Check the service
-
-```bash
-sudo systemctl status ollama
+Config: `~/.config/crush/crush.json`
+```json
+{
+  "providers": {
+    "local": {
+      "kind": "openai",
+      "baseURL": "http://localhost:8000/v1",
+      "apiKey": "unused"
+    }
+  }
+}
 ```
 
-#### 2. Check the API
+### Firewall
+
+The installer configures ufw to allow LAN access only:
+- Allow `192.168.0.0/16` → TCP 8000
+- Deny external access to TCP 8000
+
+## Test the Installation
 
 ```bash
-curl http://127.0.0.1:11434/api/tags
-```
+# 1. vLLM service is running
+sudo systemctl status vllm
 
-If server mode was used, also test from another machine:
+# 2. API responds
+curl http://localhost:8000/v1/models
+# Expected: JSON listing the loaded model
 
-```bash
-curl http://server-ip:11434/api/tags
-```
+# 3. Inference works
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4","messages":[{"role":"user","content":"Say hello"}]}'
+# Expected: JSON with a greeting
 
-#### 3. List models
+# 4. Remote access (from another machine)
+curl http://server-ip:8000/v1/models
+# Expected: same model list
 
-```bash
-ollama list
-```
+# 5. Crush connects
+crush run "Say hello"
 
-#### 4. Run a quick inference test
-
-```bash
-ollama run qwen3:8b "What is the capital of France? Reply in one sentence."
-```
-
-#### 5. Verify GPU usage
-
-```bash
+# 6. GPU is being used
 nvidia-smi
+# Expected: vLLM using ~20 GB VRAM when model loaded
 ```
 
-You should see Ollama using VRAM after a model loads.
+## Usage
 
-### Client Mode Verification
-
-#### 1. Verify remote Ollama reachability
+### Service Management
 
 ```bash
-curl http://your-server:11434/api/tags
+sudo systemctl start vllm       # Start the server
+sudo systemctl stop vllm        # Stop (frees VRAM)
+sudo systemctl restart vllm     # Restart (reload model)
+sudo systemctl status vllm      # Check status
+journalctl -u vllm -f           # Live logs
 ```
 
-#### 2. Verify uv and Python
+### Switching Models
+
+vLLM loads one model at a time (unlike Ollama's hot-swap). To switch:
 
 ```bash
-uv --version
-uv python list
+# Edit the service to use a different model
+sudo systemctl edit vllm
+# Change: Environment="VLLM_MODEL=Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4"
+sudo systemctl restart vllm
 ```
 
-#### 3. Launch Crush
+For faster switching, you can run multiple vLLM instances on different ports (if VRAM allows):
+```bash
+# Small model on port 8001 (uses ~10 GB VRAM)
+vllm serve Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4 \
+  --host 0.0.0.0 --port 8001 --gpu-memory-utilization 0.4
+```
+
+### Client Connection
+
+Any machine on the LAN can connect using OpenAI-compatible clients:
+
+**Crush (on Windows desktop or laptop):**
+```json
+{
+  "providers": {
+    "server": {
+      "kind": "openai",
+      "baseURL": "http://server-ip:8000/v1",
+      "apiKey": "unused"
+    }
+  }
+}
+```
+
+**Copilot CLI:**
+```bash
+COPILOT_PROVIDER_BASE_URL=http://server-ip:8000/v1 copilot-local
+```
+
+**Python:**
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://server-ip:8000/v1", api_key="unused")
+response = client.chat.completions.create(
+    model="Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4",
+    messages=[{"role": "user", "content": "Hello"}]
+)
+```
+
+### Monitoring
 
 ```bash
-crush
+nvidia-smi                       # GPU VRAM usage
+nvidia-smi -l 1                  # Continuous monitoring
+curl http://localhost:8000/metrics # vLLM Prometheus metrics
+journalctl -u vllm -f            # Live server logs
 ```
 
-On first launch, point Crush to the remote Ollama endpoint.
+### Multi-User Capacity (RTX 4090, 24GB)
 
----
+| Model | Concurrent Users | Context per User |
+|-------|-----------------|-----------------|
+| Qwen2.5-Coder 32B | 2-3 | ~8k tokens each |
+| Qwen2.5-Coder 14B | 4-6 | ~16k tokens each |
+| Mistral Small 3.2 | 3-4 | ~12k tokens each |
 
-## Model Switching
+PagedAttention dynamically allocates VRAM — actual capacity depends on conversation length.
 
-Switch models inside Crush with `/model <tag>`, or test directly via Ollama.
+## Docker Containers (Coexistence)
 
-### Suggested Usage
+Existing containers (Pi-hole, Cloudflared, Plex, Samba) have **zero impact** on AI inference:
 
-| Task Type | Model | Command |
-|-----------|-------|---------|
-| Complex coding | `qwen3:30b`, `qwen3:30b-q5_K_M`, or `qwen3:30b-q6_K` | `/model <tag>` |
-| Quick tasks | `qwen3:8b` | `/model qwen3:8b` |
-| Hard reasoning | `deepseek-r1:14b` | `/model deepseek-r1:14b` |
-| Sysadmin / general | `llama3.1:8b` | `/model llama3.1:8b` |
+| Resource | Containers | vLLM | Conflict? |
+|----------|-----------|------|-----------|
+| GPU VRAM | 0 GB | 14-22 GB | ❌ None |
+| System RAM | ~4-10 GB of 64 GB | Minimal | ❌ Ample |
+| CPU | Negligible | Negligible (GPU-bound) | ❌ None |
 
-### Pull Another Model Later
+Plex hardware transcoding uses NVENC (dedicated silicon) — runs simultaneously with inference.
+
+## Uninstall
 
 ```bash
-ollama pull qwen3:30b-q5_K_M
-ollama pull llama3.1:8b
+./remove-cachyos.sh               # Full removal
+./remove-cachyos.sh --keep-models # Keep HuggingFace model cache
+./remove-cachyos.sh --mode client # Client-only removal
 ```
-
-### Re-run the Script for Models Only
-
-```bash
-./install-cachyos.sh --models-only --model-profile high
-```
-
-If `config/ollama-models.txt` exists, it overrides the profile again.
-
----
-
-## Client Mode Details
-
-Client mode is for non-server CachyOS systems that should reuse the dedicated Ollama box.
-
-### What Client Mode Installs
-
-- `~/.local/bin/uv`
-- `~/.local/bin/uvx`
-- uv-managed Python 3.12
-- `~/.local/bin/crush`
-- `~/.local/share/ai-tools/mcp-*`
-- `~/.crush`
-- `~/.config/crush`
-
-### What Client Mode Does **Not** Install
-
-- NVIDIA drivers
-- CUDA
-- Ollama
-- local models
-- systemd service changes
-- firewall rules
-
-### Typical Flow
-
-1. Install the full stack on the server with `--mode server`
-2. Note the client connection URL printed at the end
-3. On the client machine, run:
-   ```bash
-   ./install-cachyos.sh --mode client --ollama-host http://server-ip:11434
-   ```
-4. Configure Crush to use the remote Ollama endpoint
-
----
-
-## Removal Options
-
-### Full / Server Removal
-
-```bash
-./remove-cachyos.sh                    # or --mode server (same behavior)
-./remove-cachyos.sh --keep-models
-./remove-cachyos.sh --keep-config
-./remove-cachyos.sh --force
-```
-
-Full and server removal are identical — both remove the complete stack including firewall rules.
-
-### Client Removal
-
-```bash
-./remove-cachyos.sh --mode client
-./remove-cachyos.sh --mode client --keep-config
-./remove-cachyos.sh --mode client --force
-```
-
-### What Gets Removed — Full Mode
-
-| Component | Location |
-|-----------|----------|
-| Ollama binary | `/usr/local/bin/ollama` |
-| Ollama service + override | `/etc/systemd/system/ollama.service*` |
-| Ollama data | `~/.ollama/` |
-| Firewall rules | ufw rules for port 11434 |
-| Crush | `~/.local/bin/crush` or pacman package |
-| uv / uvx | `~/.local/bin/uv`, `~/.local/bin/uvx` |
-| uv data | `~/.local/share/uv/` |
-| MCP dirs | `~/.local/share/ai-tools/` |
-| Crush config | `~/.crush/`, `~/.config/crush/` |
-
-### What Gets Removed — Client Mode
-
-| Component | Location |
-|-----------|----------|
-| Crush | `~/.local/bin/crush` |
-| uv / uvx | `~/.local/bin/uv`, `~/.local/bin/uvx` |
-| uv data | `~/.local/share/uv/` |
-| MCP dirs | `~/.local/share/ai-tools/` |
-| Crush config | `~/.crush/`, `~/.config/crush/` |
-
-Client mode removal preserves all Ollama-related system configuration and model storage.
-
----
 
 ## Troubleshooting
 
-### Ollama service will not start
+### vLLM won't start
 
 ```bash
-sudo systemctl status ollama
-journalctl -u ollama -n 100 --no-pager
+sudo systemctl status vllm
+journalctl -u vllm -n 50 --no-pager
 nvidia-smi
-```
-
-Things to check:
-
-- NVIDIA driver installed correctly
-- `cuda` package present
-- service override syntax in `/etc/systemd/system/ollama.service.d/override.conf`
-- custom `OLLAMA_MODELS` path exists and is writable
-
-### `curl http://127.0.0.1:11434/api/tags` fails
-
-```bash
-sudo systemctl restart ollama
-journalctl -u ollama -f
-```
-
-If you are only resuming downloads, re-run:
-
-```bash
-./install-cachyos.sh --models-only
-```
-
-### Remote clients cannot connect
-
-Check all of the following:
-
-```bash
-sudo systemctl status ollama
-sudo ufw status numbered
-curl http://127.0.0.1:11434/api/tags
 ```
 
 Common causes:
+- CUDA version mismatch (need CUDA 12.1+)
+- Model not downloaded (`huggingface-cli download` first)
+- Insufficient VRAM for the selected model
 
-- server was installed with `--mode full` instead of `--mode server`
-- firewall rule missing for `11434/tcp`
-- wrong server IP or hostname on the client
-- client and server are not on the same routed network
-
-### `uv` or `crush` not found after install
-
-The installers place binaries in `~/.local/bin`. Ensure that directory is on `PATH`:
+### Out of VRAM
 
 ```bash
-echo "$PATH"
-```
-
-If needed, add this to your shell profile:
-
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-Then start a new shell.
-
-### Out of VRAM or slow model loads
-
-```bash
+# Check usage
 nvidia-smi
-ollama list
+
+# Switch to smaller model
+sudo systemctl edit vllm
+# VLLM_MODEL=Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4
+sudo systemctl restart vllm
+
+# Or reduce context length
+# VLLM_MAX_MODEL_LEN=16384
 ```
 
-Mitigations:
+### Remote clients can't connect
 
-- use `standard` profile instead of `high` / `ultra`
-- switch to `qwen3:8b` for lighter tasks
-- move to a custom `config/ollama-models.txt`
-- stop unused sessions so `OLLAMA_KEEP_ALIVE=5m` can unload models
+```bash
+sudo systemctl status vllm       # Is it running?
+sudo ufw status                  # Is port 8000 allowed?
+curl http://localhost:8000/v1/models  # Works locally?
+```
 
----
-
-## Suggested Operating Pattern
-
-- Run **Server mode** on the CachyOS inference box
-- Run **Client mode** on desktop / laptop endpoints
-- Run **Full mode** if you want local Ollama with no LAN exposure
-- Use `qwen3:30b` or its higher quants for main coding
-- Switch to `qwen3:8b` for fast tasks
-- Keep `deepseek-r1:14b` available for architecture/debugging spikes
-
-That gives you a dedicated, always-on local inference endpoint with the same architecture as the Windows setup, but optimized for a Linux server role.
+Common causes:
+- vLLM bound to `127.0.0.1` instead of `0.0.0.0`
+- Firewall blocking port 8000
+- Wrong IP/port on client side
