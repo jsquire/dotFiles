@@ -22,10 +22,9 @@
 
 .PARAMETER ModelProfile
     GPU/environment profile that determines which models to pull:
-      Desktop — RTX 5090 (32GB). Pulls gemma4:31b, qwen3:14b, deepseek-r1:32b,
-               gemma3:27b, llama3.3:70b-instruct-q2_K, qwen3-coder:30b (~90 GB).
-      Server  — RTX 4090 (24GB dedicated). Pulls qwen2.5-coder:32b, qwen2.5-coder:14b,
-               deepseek-r1:32b, mistral-small3.2:24b (~62 GB).
+      Desktop — RTX 5090 (32GB). Pulls glm-4.7-flash, qwen3:14b, deepseek-r1:32b (~46 GB).
+      Server  — RTX 4090 (24GB dedicated). Pulls glm-4.7-flash, qwen2.5-coder:14b,
+               deepseek-r1:32b (~45 GB).
     Ignored in Client mode.
 
 .PARAMETER OllamaHost
@@ -108,23 +107,19 @@ if ($Help) {
     .\install-windows.ps1 [OPTIONS]
 
   MODES:
-    -Mode Full      (default) Install Ollama, models, Crush, Copilot CLI, uv, MCP, ComfyUI
+    -Mode Full      (default) Install Ollama, models, Crush, Copilot CLI, uv, MCP, Image Gen
     -Mode Client    Install client tools only (Crush, Copilot CLI, uv, MCP). Requires -OllamaHost.
 
   GPU PROFILES:
-    -ModelProfile Desktop   RTX 5090 (32GB) — 6 task-optimized models, ~90 GB total:
-                              gemma4:31b          Heavy coding (256k context)
+    -ModelProfile Desktop   RTX 5090 (32GB) — 3 task-optimized models, ~46 GB total:
+                              glm-4.7-flash       Heavy coding / docs / creative / office (202k ctx)
                               qwen3:14b           Light coding
                               deepseek-r1:32b     Code review / reasoning
-                              gemma3:27b          Technical documentation
-                              llama3.3:70b-q2_K   Creative writing
-                              qwen3-coder:30b     Office documents (256k context)
 
-    -ModelProfile Server    RTX 4090 (24GB dedicated) — 4 models, ~62 GB total:
-                              qwen2.5-coder:32b   Heavy coding
-                              qwen2.5-coder:14b   Light coding
-                              deepseek-r1:32b     Code review / reasoning
-                              mistral-small3.2:24b Docs / creative / office
+    -ModelProfile Server    RTX 4090 (24GB dedicated) — 3 models, ~45 GB total:
+                              glm-4.7-flash        Heavy coding / docs / creative / office (202k ctx)
+                              qwen2.5-coder:14b    Light coding
+                              deepseek-r1:32b      Code review / reasoning
 
   OPTIONS:
     -OllamaHost <url>    Remote Ollama endpoint (required for Client mode)
@@ -147,7 +142,8 @@ if ($Help) {
     Component        Location                              Requires Admin
     ─────────        ────────                              ──────────────
     Ollama           System service (winget)               Yes
-    ComfyUI Desktop  winget (Comfy.ComfyUI-Desktop)        Yes (NSIS)
+    ComfyUI Desktop  (removed — replaced by diffusers+FastAPI image gen service)
+    Image Gen        %LOCALAPPDATA%\ai-tools\imagegen       No
     Crush            winget portable                       No
     uv + Python      %USERPROFILE%\.local\bin              No
     MCP venvs        %LOCALAPPDATA%\ai-tools\mcp-*        No
@@ -179,38 +175,29 @@ $script:Warnings = @()
 
 # Known model descriptions for progress display
 $KnownModelDescriptions = @{
-    "qwen2.5-coder:32b"              = "Qwen2.5-Coder 32B — heavy coding, ~19 GB"
+    "glm-4.7-flash"                  = "GLM-4.7-Flash 30B MoE — heavy coding/docs/creative/office (202k ctx), ~17 GB"
     "qwen2.5-coder:14b"              = "Qwen2.5-Coder 14B — light coding, ~9 GB"
     "deepseek-r1:32b"                = "DeepSeek R1 32B — code review/reasoning, ~19 GB"
-    "mistral-small3.2:24b"           = "Mistral Small 3.2 — docs/creative/office, ~15 GB"
-    "gemma4:31b"                     = "Gemma 4 31B — heavy coding (256k ctx), ~20 GB"
     "qwen3:14b"                      = "Qwen3 14B — light coding (40k ctx), ~9 GB"
-    "gemma3:27b"                     = "Gemma 3 27B — tech docs (128k ctx), ~16 GB"
-    "llama3.3:70b-instruct-q2_K"     = "Llama 3.3 70B Q2 — creative writing, ~26 GB"
-    "qwen3-coder:30b"                = "Qwen3-Coder 30B MoE — office docs (256k ctx), ~19 GB"
 }
 
 $ProfileDefinitions = @{
     "Desktop" = @{
         Description = "RTX 5090 (32GB) — gaming desktop with IDEs open (~25-27 GB available)"
-        RequiredGB = 90
+        RequiredGB = 46
         Models = [ordered]@{
-            "gemma4:31b"                 = $KnownModelDescriptions["gemma4:31b"]
+            "glm-4.7-flash"              = $KnownModelDescriptions["glm-4.7-flash"]
             "qwen3:14b"                  = $KnownModelDescriptions["qwen3:14b"]
             "deepseek-r1:32b"            = $KnownModelDescriptions["deepseek-r1:32b"]
-            "gemma3:27b"                 = $KnownModelDescriptions["gemma3:27b"]
-            "llama3.3:70b-instruct-q2_K" = $KnownModelDescriptions["llama3.3:70b-instruct-q2_K"]
-            "qwen3-coder:30b"            = $KnownModelDescriptions["qwen3-coder:30b"]
         }
     }
     "Server" = @{
         Description = "RTX 4090 (24GB) — dedicated server, full VRAM (containers use 0 GPU)"
-        RequiredGB = 62
+        RequiredGB = 45
         Models = [ordered]@{
-            "qwen2.5-coder:32b"    = $KnownModelDescriptions["qwen2.5-coder:32b"]
+            "glm-4.7-flash"        = $KnownModelDescriptions["glm-4.7-flash"]
             "qwen2.5-coder:14b"    = $KnownModelDescriptions["qwen2.5-coder:14b"]
             "deepseek-r1:32b"      = $KnownModelDescriptions["deepseek-r1:32b"]
-            "mistral-small3.2:24b" = $KnownModelDescriptions["mistral-small3.2:24b"]
         }
     }
 }
@@ -643,10 +630,11 @@ if ($ShouldInstallSoftware) {
         } else {
             # Expand template placeholders for this platform
             $crushContent = Get-Content $crushConfigSource -Raw
-            $expandedLocalAppData = $LocalAppData -replace '\\', '\\\\'
-            $crushContent = $crushContent -replace '\{\{LOCALAPPDATA\}\}', $expandedLocalAppData
-            $crushContent = $crushContent -replace '\{\{VENV_BIN\}\}', 'Scripts'
-            $crushContent = $crushContent -replace '\{\{EXE\}\}', '.exe'
+            $expandedLocalAppData = ($LocalAppData -replace '\\', '/') # forward slashes for JSON
+            $crushContent = $crushContent -replace '__LOCALAPPDATA__', $expandedLocalAppData
+            $crushContent = $crushContent -replace '__VENV_BIN__', '.venv/Scripts'
+            $crushContent = $crushContent -replace '__EXE__', '.exe'
+            $crushContent = $crushContent -replace '__IMAGEGEN_HOST__', '127.0.0.1'
             Set-Content -Path $crushConfigDest -Value $crushContent -Encoding UTF8
             Write-Success "Deployed crush.json to $crushConfigDest"
             Write-Info "Local Ollama is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
@@ -657,19 +645,58 @@ if ($ShouldInstallSoftware) {
         Write-Warn "Config template not found at $crushConfigSource — skipping Crush config."
     }
 
-    # ── Step: Install ComfyUI Desktop (image generation) ─────────────────
+    # ── Step: Deploy Copilot CLI MCP configuration ────────────────────
+
+    Write-Step "Deploy Copilot CLI MCP configuration"
+    $copilotMcpSource = Join-Path $PSScriptRoot "..\config\copilot-mcp-config.json"
+    $copilotDir = Join-Path $env:USERPROFILE ".copilot"
+    $copilotMcpDest = Join-Path $copilotDir "mcp-config.json"
+
+    if (Test-Path $copilotMcpSource) {
+        if (-not (Test-Path $copilotDir)) { New-Item -ItemType Directory -Path $copilotDir -Force | Out-Null }
+        if (Test-Path $copilotMcpDest) {
+            Write-Info "Copilot MCP config already exists at $copilotMcpDest — skipping (won't overwrite)."
+        } else {
+            $mcpContent = Get-Content $copilotMcpSource -Raw
+            $expandedLocalAppData = ($LocalAppData -replace '\\', '/')
+            $mcpContent = $mcpContent -replace '__LOCALAPPDATA__', $expandedLocalAppData
+            $mcpContent = $mcpContent -replace '__VENV_BIN__', '.venv/Scripts'
+            $mcpContent = $mcpContent -replace '__EXE__', '.exe'
+            $mcpContent = $mcpContent -replace '__IMAGEGEN_HOST__', '127.0.0.1'
+            Set-Content -Path $copilotMcpDest -Value $mcpContent -Encoding UTF8
+            Write-Success "Deployed mcp-config.json to $copilotMcpDest"
+        }
+    } else {
+        Write-Warn "Copilot MCP config template not found — skipping."
+    }
+
+    # ── Step: Set up Image Generation service (diffusers + FastAPI) ─────
 
     if ($IsFullMode) {
-        Write-Step "Install ComfyUI Desktop (image generation)"
-        $comfyExe = "$env:LOCALAPPDATA\Programs\ComfyUI\ComfyUI.exe"
+        Write-Step "Set up Image Generation service (FLUX.1-schnell)"
+        $imagegenVenv = "$env:LOCALAPPDATA\ai-tools\imagegen\.venv"
+        $imagegenScript = "$PSScriptRoot\imagegen-server.py"
+        $imagegenStart = "$PSScriptRoot\imagegen-start.cmd"
 
-        if (Test-Path $comfyExe) {
-            Write-Info "ComfyUI Desktop is already installed."
+        if (Test-Path "$imagegenVenv\Scripts\python.exe") {
+            Write-Info "Image generation venv already exists."
         } else {
-            Write-Info "ComfyUI Desktop provides local image generation (FLUX, SD3.5, Z-Image)."
-            Install-WinGetPackage -Id "Comfy.ComfyUI-Desktop" -Name "ComfyUI Desktop" -Critical:$false
-            Write-Info "On first launch, ComfyUI will download a default image model (~12 GB)."
+            Write-Info "Creating isolated venv for image generation..."
+            & uv venv $imagegenVenv --python 3.12 --quiet
+            Write-Info "Installing PyTorch (CUDA) + diffusers + FastAPI..."
+            $env:VIRTUAL_ENV = $imagegenVenv
+            & uv pip install --quiet torch --index-url https://download.pytorch.org/whl/cu128
+            & uv pip install --quiet `
+                "diffusers[torch]" transformers fastapi uvicorn accelerate pydantic sentencepiece protobuf bitsandbytes
+            Write-Info "Image generation venv created. FLUX.1-schnell model downloads on first use (~24GB)."
         }
+
+        # Copy server script and start script to ai-tools directory
+        $imagegenDir = "$env:LOCALAPPDATA\ai-tools\imagegen"
+        Copy-Item $imagegenScript "$imagegenDir\imagegen-server.py" -Force -ErrorAction SilentlyContinue
+        Copy-Item $imagegenStart "$imagegenDir\imagegen-start.cmd" -Force -ErrorAction SilentlyContinue
+        Write-Info "Start with: copilot-local (option 7) or imagegen-start.cmd"
+        Write-Info "API: POST http://localhost:8001/v1/images/generations"
     }
 
     # ── Step: Deploy copilot-local launcher ───────────────────────────────

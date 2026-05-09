@@ -7,9 +7,9 @@
       "type": "openai",
       "models": [
         {
-          "name": "Qwen2.5-Coder 32B (Heavy coding)",
-          "id": "qwen2.5-coder:32b",
-          "context_window": 32768,
+          "name": "GLM-4.7-Flash (Heavy coding / Docs / Creative / Office)",
+          "id": "glm-4.7-flash",
+          "context_window": 202752,
           "default_max_tokens": 8000,
           "can_reason": true
         },
@@ -26,26 +26,19 @@
           "context_window": 131072,
           "default_max_tokens": 8000,
           "can_reason": true
-        },
-        {
-          "name": "Mistral Small 3.2 (Docs/Creative/Office)",
-          "id": "mistral-small3.2:24b",
-          "context_window": 131072,
-          "default_max_tokens": 8000,
-          "can_reason": true
         }
       ]
     },
-    "vllm-server": {
-      "name": "vLLM Server (Multi-user LAN)",
-      "base_url": "http://{{VLLM_SERVER_IP}}:8000/v1/",
+    "squire-server": {
+      "name": "Squire Server (CachyOS Linux)",
+      "base_url": "http://__VLLM_SERVER_IP__:8000/v1/",
       "type": "openai",
       "api_key": "unused",
       "models": [
         {
-          "name": "Qwen2.5-Coder 32B (Heavy coding)",
-          "id": "Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4",
-          "context_window": 32768,
+          "name": "Qwen3-Coder 30B MoE (Heavy coding)",
+          "id": "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit",
+          "context_window": 262144,
           "default_max_tokens": 8000,
           "can_reason": true
         },
@@ -64,7 +57,7 @@
           "can_reason": true
         },
         {
-          "name": "Mistral Small 3.2 (Docs/Creative/Office)",
+          "name": "Mistral Small 3.2 (Docs / Creative / Office)",
           "id": "mistralai/Mistral-Small-3.2-24B-Instruct-2503-GPTQ-Int4",
           "context_window": 131072,
           "default_max_tokens": 8000,
@@ -177,7 +170,7 @@
   },
   "models": {
     "large": {
-      "model": "qwen2.5-coder:32b",
+      "model": "glm-4.7-flash",
       "provider": "ollama",
       "max_tokens": 8000
     },
@@ -190,13 +183,21 @@
   "mcp": {
     "word-mcp": {
       "type": "stdio",
-      "command": "{{LOCALAPPDATA}}/ai-tools/mcp-word/.venv/{{VENV_BIN}}/word_mcp_server{{EXE}}",
+      "command": "__LOCALAPPDATA__/ai-tools/mcp-word/__VENV_BIN__/word_mcp_server__EXE__",
       "args": []
     },
     "pptx-mcp": {
       "type": "stdio",
-      "command": "{{LOCALAPPDATA}}/ai-tools/mcp-pptx/.venv/{{VENV_BIN}}/ppt_mcp_server{{EXE}}",
+      "command": "__LOCALAPPDATA__/ai-tools/mcp-pptx/__VENV_BIN__/ppt_mcp_server__EXE__",
       "args": []
+    },
+    "imagegen-mcp": {
+      "type": "stdio",
+      "command": "__LOCALAPPDATA__/ai-tools/mcp-imagegen/__VENV_BIN__/python__EXE__",
+      "args": ["__LOCALAPPDATA__/ai-tools/mcp-imagegen/imagegen-mcp-server.py"],
+      "env": {
+        "IMAGEGEN_URL": "http://__IMAGEGEN_HOST__:8001"
+      }
     }
   }
 }

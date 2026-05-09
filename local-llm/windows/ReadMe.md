@@ -1,6 +1,6 @@
 # Local LLM Stack — Windows Desktop
 
-Single-user AI assistant on Windows with Ollama, Crush, Copilot CLI, MCP, and ComfyUI.
+Single-user AI assistant on Windows with Ollama, Crush, Copilot CLI, MCP, and local image generation.
 
 **Hardware:** RTX 5090 (32GB, default) or RTX 4090 (24GB)
 **Inference engine:** Ollama (single-user, GGUF models)
@@ -13,29 +13,25 @@ Single-user AI assistant on Windows with Ollama, Crush, Copilot CLI, MCP, and Co
 | **Crush** | Terminal AI agent with MCP support | winget |
 | **GitHub Copilot CLI** | Alternative terminal agent | User-local |
 | **uv** | Python toolchain (manages MCP venvs) | winget |
-| **ComfyUI Desktop** | Image generation (FLUX, SD3.5) | winget |
+| **Image Gen** | FLUX.1-schnell image generation (OpenAI API) | Python venv |
 | **copilot-local** | Task picker launcher for Copilot CLI | `~/Documents/CLI/` + PATH |
 | **MCP servers** | Office document editing (Word, PowerPoint) | Isolated Python venvs |
 
-### Models — RTX 5090 Profile (default, ~90 GB disk)
+### Models — RTX 5090 Profile (default, ~46 GB disk)
 
 | Model | Tag | Size | Task |
 |-------|-----|------|------|
-| Gemma 4 31B | `gemma4:31b` | 20 GB | Heavy coding (256k context) |
+| GLM-4.7-Flash 30B MoE | `glm-4.7-flash` | 17 GB | Heavy coding, tech docs, creative, Office (202k ctx) |
 | Qwen3 14B | `qwen3:14b` | 9 GB | Light coding |
 | DeepSeek-R1 32B | `deepseek-r1:32b` | 19 GB | Code review, reasoning |
-| Gemma 3 27B | `gemma3:27b` | 16 GB | Technical documentation |
-| Llama 3.3 70B Q2 | `llama3.3:70b-instruct-q2_K` | 26 GB | Creative writing |
-| Qwen3-Coder 30B MoE | `qwen3-coder:30b` | 19 GB | Office documents (256k context) |
 
-### Models — RTX 4090 Profile (~62 GB disk)
+### Models — RTX 4090 Profile (~45 GB disk)
 
 | Model | Tag | Size | Task |
 |-------|-----|------|------|
-| Qwen2.5-Coder 32B | `qwen2.5-coder:32b` | 19 GB | Heavy coding |
+| GLM-4.7-Flash 30B MoE | `glm-4.7-flash` | 17 GB | Heavy coding, tech docs, creative, Office (202k ctx) |
 | Qwen2.5-Coder 14B | `qwen2.5-coder:14b` | 9 GB | Light coding |
 | DeepSeek-R1 32B | `deepseek-r1:32b` | 19 GB | Code review, reasoning |
-| Mistral Small 3.2 | `mistral-small3.2:24b` | 15 GB | Tech docs, creative, Office docs |
 
 ## Install
 
@@ -88,14 +84,14 @@ The `copilot-local` launcher reads `COPILOT_LOCAL_PROFILE` env var (set by insta
 Override defaults by editing `config/ollama-models.txt`:
 ```text
 # One tag per line
-gemma4:31b
+glm-4.7-flash
 qwen3:14b
 deepseek-r1:32b
 ```
 
-### ComfyUI
+### Image Generation
 
-Auto-configures on first launch — downloads a default image model (~12 GB) and detects your GPU.
+The image gen service uses a Python venv at `%LOCALAPPDATA%\ai-tools\imagegen`. The FLUX.1-schnell model (~24GB) downloads automatically on first generation.
 
 ## Test the Installation
 
@@ -115,8 +111,8 @@ copilot-local
 # 5. MCP servers configured
 crush --debug run "list your tools" 2>&1 | findstr mcp_
 
-# 6. ComfyUI launches
-start "" "%LOCALAPPDATA%\Programs\ComfyUI\ComfyUI.exe"
+# 6. Image generation API
+curl http://localhost:8001/health
 ```
 
 ## Usage
@@ -125,18 +121,18 @@ start "" "%LOCALAPPDATA%\Programs\ComfyUI\ComfyUI.exe"
 
 ```
 copilot-local                    # Interactive task picker
-copilot-local gemma4:31b         # Skip picker, use specific model
+copilot-local glm-4.7-flash     # Skip picker, use specific model
 ```
 
 **Task picker (RTX 5090):**
 ```
-  [1] Heavy coding        (gemma4:31b)
+  [1] Heavy coding        (glm-4.7-flash)
   [2] Light coding        (qwen3:14b)
   [3] Code review         (deepseek-r1:32b)
-  [4] Technical docs      (gemma3:27b)
-  [5] Creative writing    (llama3.3:70b-instruct-q2_K)
-  [6] Office documents    (qwen3-coder:30b)
-  [7] Image generation    (ComfyUI - launches separately)
+  [4] Technical docs      (glm-4.7-flash)
+  [5] Creative writing    (glm-4.7-flash)
+  [6] Office documents    (glm-4.7-flash)
+  [7] Image generation    (FLUX.1-schnell — local API)
 ```
 
 ### Crush (MCP/Office tasks)
@@ -146,18 +142,41 @@ crush                            # Interactive session
 crush run "create a slide deck"  # One-shot with MCP tools
 ```
 
-### Image Generation (ComfyUI)
+### Image Generation
 
-1. Launch from Start Menu or `%LOCALAPPDATA%\Programs\ComfyUI\ComfyUI.exe`
-2. Browser opens to `localhost:8188`
-3. Load a workflow → type prompt → Generate
+**FLUX.1-schnell** via diffusers + FastAPI — OpenAI-compatible API on `localhost:8001`:
+
+1. Select option 7 from copilot-local (starts the server)
+2. Server loads FLUX.1-schnell in **fast** mode (NF4 quantized, ~9GB VRAM, ~1-4s/image)
+
+| Mode | Flag | VRAM | Speed | Quality |
+|------|------|------|-------|---------|
+| **Fast** (default) | `--quality fast` | ~9 GB | ~1-4s | Very good |
+| **HQ** | `--quality hq` | ~34 GB (CPU offload) | ~2-3 min | Best |
+
+```powershell
+# Generate an image
+curl http://localhost:8001/v1/images/generations `
+  -H "Content-Type: application/json" `
+  -d '{"prompt": "a cat sitting on a desk", "size": "1024x1024"}'
+```
+
+Or use the OpenAI Python client:
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:8001/v1", api_key="unused")
+result = client.images.generate(prompt="a sunset over mountains", size="1024x1024")
+```
+
+> **Note:** FLUX.1-schnell model downloads ~24GB on first use (cached in HuggingFace cache).
+> Ollama image generation is macOS-only and does not work on Windows.
 
 ### Model Management
 
 ```powershell
 ollama list                      # Installed models
 ollama ps                        # Loaded models + VRAM
-ollama pull gemma4:31b           # Add a model
+ollama pull glm-4.7-flash        # Add a model
 ollama rm qwen2.5-coder:14b     # Remove a model
 nvidia-smi                       # GPU VRAM usage
 ```
