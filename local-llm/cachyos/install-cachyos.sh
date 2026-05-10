@@ -25,7 +25,7 @@ CRUSH_HOME_DIR="${HOME}/.crush"
 CRUSH_CONFIG_DIR="${HOME}/.config/crush"
 DEFAULT_MODEL_ROOT="${HOME}/.ollama/models"
 VLLM_PORT=8000
-VLLM_DEFAULT_MODEL="Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4"
+VLLM_DEFAULT_MODEL="btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit"
 
 STEP_NUMBER=0
 FAILURES=()
@@ -150,9 +150,12 @@ model_description() {
         qwen3:14b) printf '%s' 'Qwen3 14B — light coding (40k ctx), ~9 GB' ;;
         gemma3:27b) printf '%s' 'Gemma 3 27B — tech docs (128k ctx), ~16 GB' ;;
         llama3.3:70b-instruct-q2_K) printf '%s' 'Llama 3.3 70B Q2 — creative writing, ~26 GB' ;;
-        qwen3-coder:30b) printf '%s' 'Qwen3-Coder 30B MoE — office docs (256k ctx), ~19 GB' ;;
+        qwen3-coder:30b) printf '%s' 'Qwen3-Coder 30B MoE — heavy coding/office docs (256k ctx), ~19 GB' ;;
+        qwen3:32b) printf '%s' 'Qwen3 32B — creative writing (128k ctx), ~20 GB' ;;
+        x/z-image-turbo) printf '%s' 'Z-Image Turbo 6B — image generation, ~12 GB' ;;
         # HuggingFace model IDs (vLLM server mode)
         Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4) printf '%s' 'Qwen2.5-Coder 32B GPTQ — heavy coding, ~18 GB' ;;
+        btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit) printf '%s' 'Qwen3-Coder 30B MoE GPTQ — heavy coding (agentic), ~19 GB' ;;
         Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4) printf '%s' 'Qwen2.5-Coder 14B GPTQ — light coding, ~8 GB' ;;
         deepseek-ai/DeepSeek-R1-Distill-Qwen-32B-GPTQ-Int4) printf '%s' 'DeepSeek R1 Distill 32B GPTQ — code review, ~18 GB' ;;
         mistralai/Mistral-Small-3.2-24B-Instruct-2503-GPTQ-Int4) printf '%s' 'Mistral Small 3.2 GPTQ — docs/creative/office, ~13 GB' ;;
@@ -217,23 +220,23 @@ load_effective_model_config() {
 
     case "$MODEL_PROFILE" in
         desktop)
-            EFFECTIVE_MODEL_REQUIRED_GB=90
-            SELECTED_MODELS=("gemma4:31b" "qwen3:14b" "deepseek-r1:32b" "gemma3:27b" "llama3.3:70b-instruct-q2_K" "qwen3-coder:30b")
+            EFFECTIVE_MODEL_REQUIRED_GB=84
+            SELECTED_MODELS=("gemma4:31b" "qwen3:14b" "deepseek-r1:32b" "gemma3:27b" "qwen3:32b" "qwen3-coder:30b")
             ;;
         server)
-            EFFECTIVE_MODEL_REQUIRED_GB=62
+            EFFECTIVE_MODEL_REQUIRED_GB=74
             if [[ "$IS_SERVER_MODE" == true ]]; then
                 # vLLM uses HuggingFace model IDs (GPTQ quantized)
                 SELECTED_MODELS=(
-                    "Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4"
+                    "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit"
                     "Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4"
                     "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B-GPTQ-Int4"
                     "mistralai/Mistral-Small-3.2-24B-Instruct-2503-GPTQ-Int4"
                 )
-                EFFECTIVE_MODEL_REQUIRED_GB=57
+                EFFECTIVE_MODEL_REQUIRED_GB=58
             else
                 # Ollama (full mode, single-user) uses Ollama tags
-                SELECTED_MODELS=("qwen2.5-coder:32b" "qwen2.5-coder:14b" "deepseek-r1:32b" "mistral-small3.2:24b")
+                SELECTED_MODELS=("qwen3-coder:30b" "qwen2.5-coder:14b" "deepseek-r1:32b" "mistral-small3.2:24b")
             fi
             ;;
     esac
@@ -589,7 +592,27 @@ if [[ "$SHOULD_INSTALL_SOFTWARE" == true ]]; then
                 if [[ ! -d "$VLLM_VENV" ]]; then
                     "$UV_BIN" venv "$VLLM_VENV" --python 3.12
                 fi
-                if "$UV_BIN" pip install --python "$VLLM_VENV/bin/python" vllm; then
+                # Detect CUDA version and choose appropriate torch backend
+                local cuda_version torch_backend_flag=""
+                if command_exists nvcc; then
+                    cuda_version="$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+\.[0-9]+')"
+                    if [[ -n "$cuda_version" ]]; then
+                        local cuda_major="${cuda_version%%.*}"
+                        if (( cuda_major >= 13 )); then
+                            torch_backend_flag="--torch-backend=cu130"
+                            info "Detected CUDA ${cuda_version} — using --torch-backend=cu130"
+                        elif [[ "$cuda_version" == 12.* ]]; then
+                            torch_backend_flag="--torch-backend=auto"
+                            info "Detected CUDA ${cuda_version} — using --torch-backend=auto"
+                        fi
+                    fi
+                fi
+                if [[ -z "$torch_backend_flag" ]]; then
+                    torch_backend_flag="--torch-backend=auto"
+                    info "Could not detect CUDA version — using --torch-backend=auto"
+                fi
+
+                if "$UV_BIN" pip install --python "$VLLM_VENV/bin/python" vllm $torch_backend_flag; then
                     success "vLLM installed in $VLLM_VENV"
                 else
                     add_failure "vLLM installation failed. Check CUDA version (needs 12.1+)."
@@ -630,7 +653,7 @@ Environment=\"VLLM_MODEL=${VLLM_DEFAULT_MODEL}\"
 Environment=\"VLLM_HOST=0.0.0.0\"
 Environment=\"VLLM_PORT=${VLLM_PORT}\"
 Environment=\"VLLM_MAX_MODEL_LEN=32768\"
-Environment=\"VLLM_GPU_MEMORY_UTILIZATION=0.90\"
+Environment=\"VLLM_GPU_MEMORY_UTILIZATION=0.50\"
 Restart=on-failure
 RestartSec=10
 
@@ -669,6 +692,63 @@ WantedBy=multi-user.target
                 fi
             else
                 info "ufw is not installed — skipping firewall configuration."
+            fi
+
+            step "Install image generation service (SGLang-Diffusion)"
+            VLLM_VENV="${HOME}/.local/share/vllm-env"
+            IMAGEGEN_PORT=8001
+
+            # Install SGLang with diffusion support into the vLLM venv (shares torch/CUDA)
+            info "Installing SGLang with diffusion support into vLLM venv..."
+            "$UV_BIN" pip install --python "$VLLM_VENV/bin/python" \
+                "sglang[diffusion]" --prerelease=allow 2>/dev/null \
+                && success "SGLang-Diffusion installed." \
+                || add_warning "SGLang-Diffusion install failed."
+
+            step "Configure image generation systemd service"
+            local imagegen_service="/etc/systemd/system/imagegen.service"
+            local imagegen_service_content="[Unit]
+Description=Image Generation API (SGLang-Diffusion + FLUX.1-schnell)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$(whoami)
+ExecStart=${VLLM_VENV}/bin/python -m sglang.launch_server \\
+    --model-path \${IMAGEGEN_MODEL} \\
+    --host 0.0.0.0 \\
+    --port ${IMAGEGEN_PORT}
+Environment=\"IMAGEGEN_MODEL=black-forest-labs/FLUX.1-schnell\"
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
+"
+            if printf '%s' "$imagegen_service_content" | run_privileged tee "$imagegen_service" >/dev/null; then
+                run_privileged systemctl daemon-reload
+                success "Created imagegen.service (SGLang-Diffusion)"
+                info "Default model: FLUX.1-schnell on port ${IMAGEGEN_PORT}"
+                info "Start with: sudo systemctl enable --now imagegen"
+            else
+                add_failure "Failed to create imagegen systemd service."
+            fi
+
+            step "Configure firewall (image gen port ${IMAGEGEN_PORT})"
+            if command_exists ufw; then
+                ufw_status="$(run_privileged ufw status 2>/dev/null || true)"
+                if grep -Fq "$LAN_CIDR" <<<"$ufw_status" && grep -Fq "${IMAGEGEN_PORT}" <<<"$ufw_status"; then
+                    info "ufw already has a LAN rule for port ${IMAGEGEN_PORT}."
+                else
+                    if run_privileged ufw allow from "$LAN_CIDR" to any port "${IMAGEGEN_PORT}" proto tcp comment 'ImageGen LAN' >/dev/null; then
+                        success "Added ufw allow rule for $LAN_CIDR -> ${IMAGEGEN_PORT}/tcp"
+                    else
+                        add_warning "Could not add ufw allow rule for port ${IMAGEGEN_PORT}."
+                    fi
+                fi
+            else
+                info "ufw is not installed — skipping image gen firewall."
             fi
         else
             # ── Ollama (full mode, single-user, localhost only) ────────────────
@@ -769,10 +849,14 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
                 # Extract host from the provided URL
                 vllm_ip="$(echo "$OLLAMA_HOST_ARG" | sed -E 's|https?://||;s|:[0-9]+.*||')"
             fi
-            sed -e "s|{{LOCALAPPDATA}}|${linux_app_data}|g" \
-                -e "s|{{VENV_BIN}}|bin|g" \
-                -e "s|{{EXE}}||g" \
-                -e "s|{{VLLM_SERVER_IP}}|${vllm_ip}|g" \
+            # Determine imagegen host — same as vLLM for server/client modes, localhost for standalone
+            local imagegen_host="127.0.0.1"
+            [[ "$vllm_ip" != "127.0.0.1" ]] && imagegen_host="$vllm_ip"
+            sed -e "s|__LOCALAPPDATA__|${linux_app_data}|g" \
+                -e "s|__VENV_BIN__|bin|g" \
+                -e "s|__EXE__||g" \
+                -e "s|__VLLM_SERVER_IP__|${vllm_ip}|g" \
+                -e "s|__IMAGEGEN_HOST__|${imagegen_host}|g" \
                 "$crush_config_source" > "$crush_config_dest"
             success "Deployed crush.json to $crush_config_dest"
             if [[ "$IS_SERVER_MODE" == true ]]; then
@@ -822,6 +906,73 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
     else
         warn "Launcher script not found at $launcher_source — skipping."
     fi
+
+    # ── Deploy crush-task launcher ────────────────────────────────────────
+    step "Deploy crush-task launcher"
+    local crush_task_source="${SCRIPT_DIR}/../scripts/crush-task.sh"
+    local crush_task_dest="${HOME}/.local/bin/crush-task"
+
+    if [[ -f "$crush_task_source" ]]; then
+        mkdir -p "${HOME}/.local/bin"
+        install -m 0755 "$crush_task_source" "$crush_task_dest"
+        success "Deployed crush-task to $crush_task_dest"
+        info "Usage: crush-task (from any directory)"
+    else
+        warn "crush-task script not found at $crush_task_source — skipping."
+    fi
+
+    # ── Deploy Copilot CLI MCP configuration ──────────────────────────────
+    step "Deploy Copilot CLI MCP configuration"
+    local copilot_mcp_source="${SCRIPT_DIR}/../config/copilot-mcp-config.json"
+    local copilot_dir="${HOME}/.copilot"
+    local copilot_mcp_dest="${copilot_dir}/mcp-config.json"
+
+    if [[ -f "$copilot_mcp_source" ]]; then
+        mkdir -p "$copilot_dir"
+        if [[ -f "$copilot_mcp_dest" ]]; then
+            info "Copilot MCP config already exists at $copilot_mcp_dest — skipping (won't overwrite)."
+        else
+            local linux_app_data="${HOME}/.local/share"
+            local imagegen_host="127.0.0.1"
+            [[ "${vllm_ip:-}" != "127.0.0.1" && -n "${vllm_ip:-}" ]] && imagegen_host="$vllm_ip"
+            sed -e "s|__LOCALAPPDATA__|${linux_app_data}|g" \
+                -e "s|__VENV_BIN__|bin|g" \
+                -e "s|__EXE__||g" \
+                -e "s|__IMAGEGEN_HOST__|${imagegen_host}|g" \
+                "$copilot_mcp_source" > "$copilot_mcp_dest"
+            success "Deployed mcp-config.json to $copilot_mcp_dest"
+        fi
+    else
+        warn "Copilot MCP config template not found — skipping."
+    fi
+
+    # ── Set up imagegen MCP venv ──────────────────────────────────────────
+    step "Set up imagegen MCP server"
+    local mcp_imagegen_dir="${HOME}/.local/share/ai-tools/mcp-imagegen"
+    local mcp_imagegen_script="${SCRIPT_DIR}/../mcp/imagegen-mcp-server.py"
+
+    if [[ -f "$mcp_imagegen_script" ]]; then
+        mkdir -p "$mcp_imagegen_dir"
+        cp "$mcp_imagegen_script" "$mcp_imagegen_dir/imagegen-mcp-server.py"
+
+        if [[ -d "$mcp_imagegen_dir/.venv" ]]; then
+            info "imagegen MCP venv already exists — skipping."
+        else
+            local UV_BIN
+            UV_BIN="$(command -v uv || echo "${HOME}/.local/bin/uv")"
+            if [[ -x "$UV_BIN" ]]; then
+                "$UV_BIN" venv "$mcp_imagegen_dir/.venv" --quiet 2>/dev/null
+                "$UV_BIN" pip install --python "$mcp_imagegen_dir/.venv/bin/python" \
+                    fastmcp httpx --quiet 2>/dev/null \
+                    && success "imagegen MCP venv created with fastmcp + httpx" \
+                    || warn "Failed to install imagegen MCP dependencies."
+            else
+                warn "uv not found — skipping imagegen MCP venv setup."
+            fi
+        fi
+    else
+        warn "imagegen-mcp-server.py not found — skipping."
+    fi
 fi
 
 if [[ "$SHOULD_PULL_MODELS" == true ]]; then
@@ -847,6 +998,16 @@ if [[ "$SHOULD_PULL_MODELS" == true ]]; then
                     add_failure "Model download failed: $model_id"
                 fi
             done
+
+            # Also download FLUX.1-schnell for image generation
+            echo
+            printf '%b\n' "${COLOR_GRAY}  Downloading black-forest-labs/FLUX.1-schnell (image generation)${COLOR_RESET}"
+            info "FLUX.1-schnell — fast image generation (4 steps), ~12 GB"
+            if "$HF_CLI" download "black-forest-labs/FLUX.1-schnell" --quiet; then
+                success "FLUX.1-schnell ready."
+            else
+                add_warning "FLUX.1-schnell download failed — image gen will not work until downloaded."
+            fi
         fi
     else
         # ── Ollama: Pull GGUF models ────────────────────────────────────
@@ -938,10 +1099,12 @@ elif [[ "$IS_SERVER_MODE" == true ]]; then
     printf '%b\n' "${COLOR_CYAN}── Client Access (vLLM) ───────────────────────────────────────${COLOR_RESET}"
     printf '%b\n' ""
     printf '%b\n' "  vLLM API:    http://${local_ip}:${VLLM_PORT}/v1"
-    printf '%b\n' "  Firewall:    ufw allow from ${LAN_CIDR} to port ${VLLM_PORT}/tcp"
+    printf '%b\n' "  Image Gen:   http://${local_ip}:8001/v1/images/generations"
+    printf '%b\n' "  Firewall:    ufw allow from ${LAN_CIDR} to port ${VLLM_PORT},8001/tcp"
     printf '%b\n' ""
     printf '%b\n' "  Verify from any LAN machine:"
     printf '%b\n' "    curl http://${local_ip}:${VLLM_PORT}/v1/models"
+    printf '%b\n' "    curl http://${local_ip}:8001/health"
     printf '%b\n' ""
     printf '%b\n' "  Windows client install:"
     printf '%b\n' "    .\\install-windows.ps1 -Mode Client -OllamaHost http://${local_ip}:${VLLM_PORT}/v1"
@@ -956,10 +1119,11 @@ elif [[ "$IS_SERVER_MODE" == true ]]; then
     printf '%b\n' "${COLOR_CYAN}──────────────────────────────────────────────────────────────${COLOR_RESET}"
     echo
     printf '%b\n' 'Next steps:'
-    printf '%b\n' "  1. Start service: sudo systemctl enable --now vllm"
-    printf '%b\n' "  2. Verify API locally: curl http://127.0.0.1:${VLLM_PORT}/v1/models"
-    printf '%b\n' "  3. Verify from LAN: curl http://${local_ip}:${VLLM_PORT}/v1/models"
-    printf '%b\n' '  4. Launch Crush and select vllm-server provider'
+    printf '%b\n' "  1. Start services: sudo systemctl enable --now vllm imagegen"
+    printf '%b\n' "  2. Verify vLLM: curl http://127.0.0.1:${VLLM_PORT}/v1/models"
+    printf '%b\n' "  3. Verify image gen: curl http://127.0.0.1:8001/health"
+    printf '%b\n' "  4. Verify from LAN: curl http://${local_ip}:${VLLM_PORT}/v1/models"
+    printf '%b\n' '  5. Launch Crush and select vllm-server provider'
 else
     echo
     printf '%b\n' 'Next steps:'

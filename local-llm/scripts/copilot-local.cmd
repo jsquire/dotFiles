@@ -22,66 +22,74 @@ if not defined COPILOT_LOCAL_PROFILE set COPILOT_LOCAL_PROFILE=Desktop
 echo.
 if /i "%COPILOT_LOCAL_PROFILE%"=="Server" (
     echo   --- Coding ---
-    echo   [1] Heavy coding        (qwen2.5-coder:32b^)
+    echo   [1] Heavy coding        (glm-4.7-flash^)
     echo   [2] Light coding        (qwen2.5-coder:14b^)
     echo   [3] Code review         (deepseek-r1:32b^)
     echo.
     echo   --- Writing ^& Documents ---
-    echo   [4] Technical docs      (mistral-small3.2:24b^)
-    echo   [5] Creative writing    (mistral-small3.2:24b^)
-    echo   [6] Office documents    (mistral-small3.2:24b^)
+    echo   [4] Technical docs      (glm-4.7-flash^)
+    echo   [5] Creative writing    (glm-4.7-flash^)
+    echo   [6] Office documents    (glm-4.7-flash^)
 ) else (
     echo   --- Coding ---
-    echo   [1] Heavy coding        (gemma4:31b^)
+    echo   [1] Heavy coding        (glm-4.7-flash^)
     echo   [2] Light coding        (qwen3:14b^)
     echo   [3] Code review         (deepseek-r1:32b^)
     echo.
     echo   --- Writing ^& Documents ---
-    echo   [4] Technical docs      (gemma3:27b^)
-    echo   [5] Creative writing    (llama3.3:70b-instruct-q2_K^)
-    echo   [6] Office documents    (qwen3-coder:30b^)
+    echo   [4] Technical docs      (glm-4.7-flash^)
+    echo   [5] Creative writing    (glm-4.7-flash^)
+    echo   [6] Office documents    (glm-4.7-flash^)
 )
 echo.
 echo   --- Visual ---
-echo   [7] Image generation    (ComfyUI - launches separately)
+echo   [7] Image generation    (FLUX.1-schnell via MCP^)
 echo.
 set /p choice="  Select task [1]: "
 
 if "%choice%"=="" set choice=1
 
 if /i "%COPILOT_LOCAL_PROFILE%"=="Server" (
-    if "%choice%"=="1" set COPILOT_MODEL=qwen2.5-coder:32b
+    if "%choice%"=="1" set COPILOT_MODEL=glm-4.7-flash
     if "%choice%"=="2" set COPILOT_MODEL=qwen2.5-coder:14b
     if "%choice%"=="3" set COPILOT_MODEL=deepseek-r1:32b
-    if "%choice%"=="4" set COPILOT_MODEL=mistral-small3.2:24b
-    if "%choice%"=="5" set COPILOT_MODEL=mistral-small3.2:24b
-    if "%choice%"=="6" set COPILOT_MODEL=mistral-small3.2:24b
+    if "%choice%"=="4" set COPILOT_MODEL=glm-4.7-flash
+    if "%choice%"=="5" set COPILOT_MODEL=glm-4.7-flash
+    if "%choice%"=="6" set COPILOT_MODEL=glm-4.7-flash
 ) else (
-    if "%choice%"=="1" set COPILOT_MODEL=gemma4:31b
+    if "%choice%"=="1" set COPILOT_MODEL=glm-4.7-flash
     if "%choice%"=="2" set COPILOT_MODEL=qwen3:14b
     if "%choice%"=="3" set COPILOT_MODEL=deepseek-r1:32b
-    if "%choice%"=="4" set COPILOT_MODEL=gemma3:27b
-    if "%choice%"=="5" set COPILOT_MODEL=llama3.3:70b-instruct-q2_K
-    if "%choice%"=="6" set COPILOT_MODEL=qwen3-coder:30b
+    if "%choice%"=="4" set COPILOT_MODEL=glm-4.7-flash
+    if "%choice%"=="5" set COPILOT_MODEL=glm-4.7-flash
+    if "%choice%"=="6" set COPILOT_MODEL=glm-4.7-flash
 )
 
-if "%choice%"=="7" (
-    echo.
-    echo   Image generation requires ComfyUI - not available via Copilot CLI.
-    echo   Launch ComfyUI Desktop from Start Menu for image tasks.
-    exit /b 0
-)
+if "%choice%"=="7" set COPILOT_MODEL=glm-4.7-flash
+
+:: Set MCP flags based on task category
+:: Coding (1-3): disable all MCP servers — max context for code
+:: Docs (4-6): enable word + pptx, disable imagegen
+:: Image (7): enable imagegen, disable word + pptx
+set MCP_FLAGS=
+if "%choice%"=="1" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server imagegen-mcp
+if "%choice%"=="2" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server imagegen-mcp
+if "%choice%"=="3" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server imagegen-mcp
+if "%choice%"=="4" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
+if "%choice%"=="5" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
+if "%choice%"=="6" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
+if "%choice%"=="7" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp
 
 if not defined COPILOT_MODEL (
     echo   Invalid selection.
     if /i "%COPILOT_LOCAL_PROFILE%"=="Server" (
-        set COPILOT_MODEL=qwen2.5-coder:32b
+        set COPILOT_MODEL=glm-4.7-flash
     ) else (
-        set COPILOT_MODEL=gemma4:31b
+        set COPILOT_MODEL=glm-4.7-flash
     )
 )
 
 :launch
 echo   Using model: %COPILOT_MODEL%
 echo.
-copilot %1 %2 %3 %4 %5 %6 %7 %8 %9
+copilot %MCP_FLAGS% %1 %2 %3 %4 %5 %6 %7 %8 %9

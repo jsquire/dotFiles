@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "word-mcp": {
+      "tools": ["*"],
+      "type": "local",
+      "command": "__LOCALAPPDATA__/ai-tools/mcp-word/__VENV_BIN__/word_mcp_server__EXE__",
+      "args": []
+    },
+    "pptx-mcp": {
+      "type": "local",
+      "command": "__LOCALAPPDATA__/ai-tools/mcp-pptx/__VENV_BIN__/ppt_mcp_server__EXE__",
+      "args": [],
+      "tools": ["*"]
+    },
+    "imagegen-mcp": {
+      "type": "local",
+      "command": "__LOCALAPPDATA__/ai-tools/mcp-imagegen/__VENV_BIN__/python__EXE__",
+      "args": ["__LOCALAPPDATA__/ai-tools/mcp-imagegen/imagegen-mcp-server.py"],
+      "env": {
+        "IMAGEGEN_URL": "http://__IMAGEGEN_HOST__:8001"
+      },
+      "tools": ["*"]
+    }
+  }
+}
