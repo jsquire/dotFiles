@@ -1,6 +1,6 @@
 # imagegen-launch.ps1 — Start imagegen server, wait for ready, launch Copilot, cleanup on exit
 param(
-    [string]$Model = "glm-4.7-flash",
+    [string]$Model = "gemma4-65k",
     [int]$Port = 8001,
     [string]$Quality = "fast"
 )

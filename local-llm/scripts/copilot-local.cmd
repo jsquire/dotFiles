@@ -1,7 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set COPILOT_PROVIDER_BASE_URL=http://localhost:11434/v1
 set COPILOT_PROVIDER_MAX_PROMPT_TOKENS=14000
 set COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8000
 
@@ -22,24 +21,24 @@ if not defined COPILOT_LOCAL_PROFILE set COPILOT_LOCAL_PROFILE=Desktop
 echo.
 if /i "%COPILOT_LOCAL_PROFILE%"=="Server" (
     echo   --- Coding ---
-    echo   [1] Heavy coding        (glm-4.7-flash^)
-    echo   [2] Light coding        (qwen2.5-coder:14b^)
-    echo   [3] Code review         (deepseek-r1:32b^)
+    echo   [1] Heavy coding        (gemma4-65k^)
+    echo   [2] Light coding        (qwen3:14b^)
+    echo   [3] Code review         (gemma4-65k^)
     echo.
     echo   --- Writing ^& Documents ---
-    echo   [4] Technical docs      (glm-4.7-flash^)
-    echo   [5] Creative writing    (glm-4.7-flash^)
-    echo   [6] Office documents    (glm-4.7-flash^)
+    echo   [4] Technical docs      (gemma4-65k^)
+    echo   [5] Creative writing    (gemma4-65k^)
+    echo   [6] Office documents    (gemma4-65k^)
 ) else (
     echo   --- Coding ---
-    echo   [1] Heavy coding        (glm-4.7-flash^)
+    echo   [1] Heavy coding        (gemma4-65k^)
     echo   [2] Light coding        (qwen3:14b^)
-    echo   [3] Code review         (deepseek-r1:32b^)
+    echo   [3] Code review         (gemma4-65k^)
     echo.
     echo   --- Writing ^& Documents ---
-    echo   [4] Technical docs      (glm-4.7-flash^)
-    echo   [5] Creative writing    (glm-4.7-flash^)
-    echo   [6] Office documents    (glm-4.7-flash^)
+    echo   [4] Technical docs      (gemma4-65k^)
+    echo   [5] Creative writing    (gemma4-65k^)
+    echo   [6] Office documents    (gemma4-65k^)
 )
 echo.
 echo   --- Visual ---
@@ -50,22 +49,22 @@ set /p choice="  Select task [1]: "
 if "%choice%"=="" set choice=1
 
 if /i "%COPILOT_LOCAL_PROFILE%"=="Server" (
-    if "%choice%"=="1" set COPILOT_MODEL=glm-4.7-flash
-    if "%choice%"=="2" set COPILOT_MODEL=qwen2.5-coder:14b
-    if "%choice%"=="3" set COPILOT_MODEL=deepseek-r1:32b
-    if "%choice%"=="4" set COPILOT_MODEL=glm-4.7-flash
-    if "%choice%"=="5" set COPILOT_MODEL=glm-4.7-flash
-    if "%choice%"=="6" set COPILOT_MODEL=glm-4.7-flash
-) else (
-    if "%choice%"=="1" set COPILOT_MODEL=glm-4.7-flash
+    if "%choice%"=="1" set COPILOT_MODEL=gemma4-65k
     if "%choice%"=="2" set COPILOT_MODEL=qwen3:14b
-    if "%choice%"=="3" set COPILOT_MODEL=deepseek-r1:32b
-    if "%choice%"=="4" set COPILOT_MODEL=glm-4.7-flash
-    if "%choice%"=="5" set COPILOT_MODEL=glm-4.7-flash
-    if "%choice%"=="6" set COPILOT_MODEL=glm-4.7-flash
+    if "%choice%"=="3" set COPILOT_MODEL=gemma4-65k
+    if "%choice%"=="4" set COPILOT_MODEL=gemma4-65k
+    if "%choice%"=="5" set COPILOT_MODEL=gemma4-65k
+    if "%choice%"=="6" set COPILOT_MODEL=gemma4-65k
+) else (
+    if "%choice%"=="1" set COPILOT_MODEL=gemma4-65k
+    if "%choice%"=="2" set COPILOT_MODEL=qwen3:14b
+    if "%choice%"=="3" set COPILOT_MODEL=gemma4-65k
+    if "%choice%"=="4" set COPILOT_MODEL=gemma4-65k
+    if "%choice%"=="5" set COPILOT_MODEL=gemma4-65k
+    if "%choice%"=="6" set COPILOT_MODEL=gemma4-65k
 )
 
-if "%choice%"=="7" set COPILOT_MODEL=glm-4.7-flash
+if "%choice%"=="7" set COPILOT_MODEL=qwen3:14b
 
 :: Set MCP flags based on task category
 :: Coding (1-3): disable all MCP servers — max context for code
@@ -83,13 +82,20 @@ if "%choice%"=="7" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-ser
 if not defined COPILOT_MODEL (
     echo   Invalid selection.
     if /i "%COPILOT_LOCAL_PROFILE%"=="Server" (
-        set COPILOT_MODEL=glm-4.7-flash
+        set COPILOT_MODEL=gemma4-65k
     ) else (
-        set COPILOT_MODEL=glm-4.7-flash
+        set COPILOT_MODEL=gemma4-65k
     )
 )
+
+:: Git safety: block git write operations
+set GIT_SAFETY=--deny-tool="shell(git add)" --deny-tool="shell(git commit)" --deny-tool="shell(git push)" --deny-tool="shell(git merge)" --deny-tool="shell(git rebase)" --deny-tool="shell(git reset)" --deny-tool="shell(git stash)" --deny-tool="shell(git cherry-pick)" --deny-tool="shell(git revert)" --deny-tool="shell(git tag)"
+
+:: Set PPTX instructions for doc profiles (6 = Office documents)
+set EXTRA_FLAGS=
+if "%choice%"=="6" set EXTRA_FLAGS=--custom-instructions "D:\personal\dotFiles\local-llm\config\pptx-instructions.md"
 
 :launch
 echo   Using model: %COPILOT_MODEL%
 echo.
-copilot %MCP_FLAGS% %1 %2 %3 %4 %5 %6 %7 %8 %9
+ollama launch copilot --model %COPILOT_MODEL% --yes -- %MCP_FLAGS% %GIT_SAFETY% %EXTRA_FLAGS% %1 %2 %3 %4 %5 %6 %7 %8 %9

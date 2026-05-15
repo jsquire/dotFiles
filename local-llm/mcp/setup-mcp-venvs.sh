@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# MCP Venv Setup — Linux
+# MCP Tool Setup — Linux
 #
-# Creates isolated uv virtual environments for each MCP server.
+# Installs MCP servers as uv tools (globally accessible via uvx).
 # Run this AFTER install-cachyos.sh has installed uv and Python.
+#
+# Note: ppt-mcp (COM automation) is Windows-only.
+# On Linux, docx-mcp-server handles Word editing; PPTX editing is
+# done on Windows clients connecting to the headless server.
 #
 # Usage:
 #   chmod +x setup-mcp-venvs.sh
@@ -10,33 +14,14 @@
 
 set -euo pipefail
 
-AI_TOOLS_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/ai-tools"
-
-declare -A MCP_SERVERS=(
-    ["mcp-word"]="office-word-mcp-server"
-    ["mcp-pptx"]="office-powerpoint-mcp-server"
-)
-
-for name in "${!MCP_SERVERS[@]}"; do
-    package="${MCP_SERVERS[$name]}"
-    venv_path="$AI_TOOLS_ROOT/$name"
-    echo ""
-    echo "── Setting up $name ($package) ──"
-
-    mkdir -p "$venv_path"
-
-    echo "  Initializing uv project..."
-    uv init --directory "$venv_path" --no-readme 2>/dev/null || true
-
-    echo "  Installing $package..."
-    if uv add --directory "$venv_path" "$package"; then
-        echo "  ✓ $name ready"
-    else
-        echo "  ✗ Failed to install $package" >&2
-    fi
-done
+echo "── Installing docx-mcp-server (Word OOXML editing, 45 tools) ──"
+if uv tool install docx-mcp-server --python 3.12; then
+    echo "  ✓ docx-mcp-server ready"
+else
+    echo "  ✗ Failed to install docx-mcp-server" >&2
+fi
 
 echo ""
 echo "── Done ──"
-echo "MCP venvs are at: $AI_TOOLS_ROOT"
-echo "Update ~/.crush/mcp-servers.json to point to these paths."
+echo "MCP tools installed globally via uv. Use 'uvx <tool>' to run."
+echo "Note: ppt-mcp (PowerPoint COM) is Windows-only — not installed on Linux."

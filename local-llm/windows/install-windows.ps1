@@ -22,9 +22,8 @@
 
 .PARAMETER ModelProfile
     GPU/environment profile that determines which models to pull:
-      Desktop — RTX 5090 (32GB). Pulls glm-4.7-flash, qwen3:14b, deepseek-r1:32b (~46 GB).
-      Server  — RTX 4090 (24GB dedicated). Pulls glm-4.7-flash, qwen2.5-coder:14b,
-               deepseek-r1:32b (~45 GB).
+      Desktop — RTX 5090 (32GB). Pulls gemma4:26b, qwen3:14b (~26 GB).
+      Server  — RTX 4090 (24GB dedicated). Pulls gemma4:26b, qwen3:14b (~26 GB).
     Ignored in Client mode.
 
 .PARAMETER OllamaHost
@@ -111,15 +110,13 @@ if ($Help) {
     -Mode Client    Install client tools only (Crush, Copilot CLI, uv, MCP). Requires -OllamaHost.
 
   GPU PROFILES:
-    -ModelProfile Desktop   RTX 5090 (32GB) — 3 task-optimized models, ~46 GB total:
-                              glm-4.7-flash       Heavy coding / docs / creative / office (202k ctx)
-                              qwen3:14b           Light coding
-                              deepseek-r1:32b     Code review / reasoning
+    -ModelProfile Desktop   RTX 5090 (32GB) — 2 models, ~26 GB total:
+                              gemma4-65k          General (256k ctx)
+                              qwen3:14b           Image gen profile (VRAM-friendly)
 
-    -ModelProfile Server    RTX 4090 (24GB dedicated) — 3 models, ~45 GB total:
-                              glm-4.7-flash        Heavy coding / docs / creative / office (202k ctx)
-                              qwen2.5-coder:14b    Light coding
-                              deepseek-r1:32b      Code review / reasoning
+    -ModelProfile Server    RTX 4090 (24GB dedicated) — 2 models, ~26 GB total:
+                              gemma4-65k           General (256k ctx)
+                              qwen3:14b            Image gen profile (VRAM-friendly)
 
   OPTIONS:
     -OllamaHost <url>    Remote Ollama endpoint (required for Client mode)
@@ -175,29 +172,25 @@ $script:Warnings = @()
 
 # Known model descriptions for progress display
 $KnownModelDescriptions = @{
-    "glm-4.7-flash"                  = "GLM-4.7-Flash 30B MoE — heavy coding/docs/creative/office (202k ctx), ~17 GB"
-    "qwen2.5-coder:14b"              = "Qwen2.5-Coder 14B — light coding, ~9 GB"
-    "deepseek-r1:32b"                = "DeepSeek R1 32B — code review/reasoning, ~19 GB"
-    "qwen3:14b"                      = "Qwen3 14B — light coding (40k ctx), ~9 GB"
+    "gemma4:26b"                     = "Gemma 4 26B MoE — general (256k ctx), ~17 GB"
+    "qwen3:14b"                      = "Qwen3 14B — image gen profile, VRAM-friendly (131k ctx), ~9 GB"
 }
 
 $ProfileDefinitions = @{
     "Desktop" = @{
         Description = "RTX 5090 (32GB) — gaming desktop with IDEs open (~25-27 GB available)"
-        RequiredGB = 46
+        RequiredGB = 26
         Models = [ordered]@{
-            "glm-4.7-flash"              = $KnownModelDescriptions["glm-4.7-flash"]
+            "gemma4:26b"                     = $KnownModelDescriptions["gemma4:26b"]
             "qwen3:14b"                  = $KnownModelDescriptions["qwen3:14b"]
-            "deepseek-r1:32b"            = $KnownModelDescriptions["deepseek-r1:32b"]
         }
     }
     "Server" = @{
-        Description = "RTX 4090 (24GB) — dedicated server, full VRAM (containers use 0 GPU)"
-        RequiredGB = 45
+        Description = "RTX 4090 (24GB) — dedicated server, full VRAM"
+        RequiredGB = 26
         Models = [ordered]@{
-            "glm-4.7-flash"        = $KnownModelDescriptions["glm-4.7-flash"]
-            "qwen2.5-coder:14b"    = $KnownModelDescriptions["qwen2.5-coder:14b"]
-            "deepseek-r1:32b"      = $KnownModelDescriptions["deepseek-r1:32b"]
+            "gemma4:26b"             = $KnownModelDescriptions["gemma4:26b"]
+            "qwen3:14b"            = $KnownModelDescriptions["qwen3:14b"]
         }
     }
 }
@@ -549,6 +542,9 @@ if ($ShouldInstallSoftware) {
         }
 
         Set-UserEnvironmentVariable -Name "OLLAMA_KEEP_ALIVE" -Value "5m"
+        Set-UserEnvironmentVariable -Name "OLLAMA_FLASH_ATTENTION" -Value "1"
+        Set-UserEnvironmentVariable -Name "OLLAMA_KV_CACHE_TYPE" -Value "q8_0"
+        Write-Info "OLLAMA_FLASH_ATTENTION=1 and OLLAMA_KV_CACHE_TYPE=q8_0 reduce VRAM usage for large contexts."
 
         if (-not [string]::IsNullOrWhiteSpace($ModelPath)) {
             if (-not (Test-Path $ModelPath)) {
@@ -594,22 +590,29 @@ if ($ShouldInstallSoftware) {
         Write-Info "Launch Crush after install and set its provider endpoint to $OllamaHost."
     }
 
-    # ── Step: MCP server directory ───────────────────────────────────────
+    # ── Step: Install MCP tools ──────────────────────────────────────────
 
-    Write-Step "Create MCP server directories"
-    Write-Info "MCP servers will live in isolated uv venvs under $AiToolsDir."
+    Write-Step "Install MCP tools (uv global)"
+    Write-Info "MCP servers installed as uv tools — accessible via 'uvx' command."
 
-    $mcpDirs = @(
-        (Join-Path $AiToolsDir "mcp-word")
-        (Join-Path $AiToolsDir "mcp-pptx")
+    $mcpTools = @(
+        @{ Package = "ppt-mcp";         Python = $null;  Desc = "PowerPoint COM automation" }
+        @{ Package = "docx-mcp-server"; Python = "3.12"; Desc = "Word OOXML editing" }
     )
 
-    foreach ($dir in $mcpDirs) {
-        if (-not (Test-Path $dir)) {
-            New-Item -ItemType Directory -Path $dir -Force | Out-Null
-            Write-Success "Created $dir"
+    foreach ($tool in $mcpTools) {
+        Write-Host "  Installing $($tool.Desc)..." -ForegroundColor White
+        $uvArgs = @("tool", "install", $tool.Package)
+        if ($tool.Python) {
+            $uvArgs += "--python"
+            $uvArgs += $tool.Python
+        }
+        uv @uvArgs 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "$($tool.Package) ready."
         } else {
-            Write-Info "$dir already exists."
+            Write-Warn "$($tool.Package) install failed."
+            $script:Failures += "MCP: $($tool.Package)"
         }
     }
 
@@ -643,6 +646,39 @@ if ($ShouldInstallSoftware) {
         }
     } else {
         Write-Warn "Config template not found at $crushConfigSource — skipping Crush config."
+    }
+
+    # ── Step: Deploy Crush skills and MCP servers ───────────────────────
+
+    Write-Step "Deploy Crush skills and MCP servers"
+
+    # Deploy plan-mode MCP server
+    $mcpSourceDir = Join-Path $PSScriptRoot "..\config\mcp"
+    $mcpDestDir = Join-Path $CrushDir "mcp"
+    if (Test-Path $mcpSourceDir) {
+        New-Item -ItemType Directory -Path $mcpDestDir -Force | Out-Null
+        Copy-Item "$mcpSourceDir\*" $mcpDestDir -Recurse -Force
+        Write-Success "Deployed MCP servers to $mcpDestDir"
+    }
+
+    # Deploy local skills from dotFiles
+    $skillsSourceDir = Join-Path $PSScriptRoot "..\config\skills"
+    $skillsDestDir = Join-Path $CrushDir "skills"
+    if (Test-Path $skillsSourceDir) {
+        New-Item -ItemType Directory -Path $skillsDestDir -Force | Out-Null
+        Copy-Item "$skillsSourceDir\*" $skillsDestDir -Recurse -Force
+        Write-Success "Deployed local skills (plan-mode, git-safety) to $skillsDestDir"
+    }
+
+    # Download latest doc-coauthoring skill from anthropics/skills
+    $docCoauthoringDir = Join-Path $skillsDestDir "doc-coauthoring"
+    New-Item -ItemType Directory -Path $docCoauthoringDir -Force | Out-Null
+    $docCoauthoringUrl = "https://raw.githubusercontent.com/anthropics/skills/main/skills/doc-coauthoring/SKILL.md"
+    try {
+        Invoke-WebRequest -Uri $docCoauthoringUrl -OutFile (Join-Path $docCoauthoringDir "SKILL.md") -ErrorAction Stop
+        Write-Success "Downloaded latest doc-coauthoring skill from anthropics/skills"
+    } catch {
+        Write-Warn "Could not download doc-coauthoring skill: $_"
     }
 
     # ── Step: Deploy Copilot CLI MCP configuration ────────────────────
@@ -795,6 +831,27 @@ if ($ShouldPullModels) {
                     $script:Failures += "Model: $tag"
                 }
                 Write-Host ""
+            }
+
+            # Set num_ctx on models via Modelfiles (Ollama defaults to 2048)
+            Write-Host "  Setting context window (num_ctx) on models..." -ForegroundColor White
+            $numCtxSettings = @{
+                "gemma4:26b"    = 65536
+                "qwen3:14b"     = 16384
+            }
+            foreach ($entry in $numCtxSettings.GetEnumerator()) {
+                $tag = $entry.Key
+                $ctx = $entry.Value
+                $modelfilePath = Join-Path $env:TEMP "Modelfile-$($tag -replace '[:\.]', '-')"
+                @"
+FROM $tag
+PARAMETER num_ctx $ctx
+"@ | Set-Content $modelfilePath
+                ollama create $tag -f $modelfilePath 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Info "  $tag → num_ctx $ctx"
+                }
+                Remove-Item $modelfilePath -ErrorAction SilentlyContinue
             }
         }
     }

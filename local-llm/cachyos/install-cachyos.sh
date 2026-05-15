@@ -147,7 +147,8 @@ model_description() {
         deepseek-r1:32b) printf '%s' 'DeepSeek R1 32B — code review/reasoning, ~19 GB' ;;
         mistral-small3.2:24b) printf '%s' 'Mistral Small 3.2 — docs/creative/office, ~15 GB' ;;
         gemma4:31b) printf '%s' 'Gemma 4 31B — heavy coding (256k ctx), ~20 GB' ;;
-        qwen3:14b) printf '%s' 'Qwen3 14B — light coding (40k ctx), ~9 GB' ;;
+        gemma4:26b) printf '%s' 'Gemma 4 26B MoE — general (256k ctx), ~17 GB' ;;
+        qwen3:14b) printf '%s' 'Qwen3 14B — image gen profile, VRAM-friendly (131k ctx), ~9 GB' ;;
         gemma3:27b) printf '%s' 'Gemma 3 27B — tech docs (128k ctx), ~16 GB' ;;
         llama3.3:70b-instruct-q2_K) printf '%s' 'Llama 3.3 70B Q2 — creative writing, ~26 GB' ;;
         qwen3-coder:30b) printf '%s' 'Qwen3-Coder 30B MoE — heavy coding/office docs (256k ctx), ~19 GB' ;;
@@ -236,7 +237,7 @@ load_effective_model_config() {
                 EFFECTIVE_MODEL_REQUIRED_GB=58
             else
                 # Ollama (full mode, single-user) uses Ollama tags
-                SELECTED_MODELS=("qwen3-coder:30b" "qwen2.5-coder:14b" "deepseek-r1:32b" "mistral-small3.2:24b")
+                SELECTED_MODELS=("gemma4:26b" "qwen3:14b")
             fi
             ;;
     esac
@@ -768,7 +769,9 @@ WantedBy=multi-user.target
                 local_override_path="${local_override_dir}/override.conf"
                 local_override_content="[Service]
 Environment=\"OLLAMA_HOST=${OLLAMA_BIND_HOST}\"
-Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
+Environment=\"OLLAMA_KEEP_ALIVE=5m\"
+Environment=\"OLLAMA_FLASH_ATTENTION=1\"
+Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
 
                 if [[ -n "$MODEL_PATH" ]]; then
                     if mkdir -p "$MODEL_PATH" 2>/dev/null || run_privileged mkdir -p "$MODEL_PATH"; then
@@ -785,6 +788,8 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
                     success "Configured Ollama override at $local_override_path"
                     info "OLLAMA_HOST=${OLLAMA_BIND_HOST}"
                     info "OLLAMA_KEEP_ALIVE=5m"
+                    info "OLLAMA_FLASH_ATTENTION=1"
+                    info "OLLAMA_KV_CACHE_TYPE=q8_0"
                     [[ -n "$MODEL_PATH" ]] && info "OLLAMA_MODELS=${MODEL_PATH}"
                 else
                     add_failure "Failed to create the Ollama systemd override."
@@ -825,9 +830,18 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
     info "Crush is the CLI agent. Prefer user-local install; use pacman when available."
     install_crush || true
 
-    step "Create MCP directories"
-    mkdir -p "${AI_TOOLS_DIR}/mcp-word" "${AI_TOOLS_DIR}/mcp-pptx" "$CRUSH_HOME_DIR" "$CRUSH_CONFIG_DIR"
-    success "Created MCP directories under ${AI_TOOLS_DIR}"
+    step "Install MCP tools"
+    info "Installing MCP servers as uv tools (docx-mcp-server). ppt-mcp is Windows-only."
+    if command_exists uv; then
+        if uv tool install docx-mcp-server --python 3.12 >/dev/null 2>&1; then
+            success "docx-mcp-server installed (Word OOXML editing)"
+        else
+            add_warning "Failed to install docx-mcp-server. Run 'uv tool install docx-mcp-server --python 3.12' manually."
+        fi
+    else
+        add_warning "uv not found — cannot install MCP tools. Install uv first."
+    fi
+    mkdir -p "$CRUSH_HOME_DIR" "$CRUSH_CONFIG_DIR"
     success "Prepared Crush config directories: ${CRUSH_HOME_DIR} and ${CRUSH_CONFIG_DIR}"
 
     # ── Deploy Crush configuration ───────────────────────────────────────
@@ -919,6 +933,37 @@ Environment=\"OLLAMA_KEEP_ALIVE=5m\"\n"
         info "Usage: crush-task (from any directory)"
     else
         warn "crush-task script not found at $crush_task_source — skipping."
+    fi
+
+    # ── Deploy Crush skills and MCP servers ─────────────────────────────
+    step "Deploy Crush skills and MCP servers"
+
+    # Deploy plan-mode MCP server
+    local mcp_source_dir="${SCRIPT_DIR}/../config/mcp"
+    local mcp_dest_dir="${CRUSH_CONFIG_DIR}/mcp"
+    if [[ -d "$mcp_source_dir" ]]; then
+        mkdir -p "$mcp_dest_dir"
+        cp -r "$mcp_source_dir"/* "$mcp_dest_dir"/
+        success "Deployed MCP servers to $mcp_dest_dir"
+    fi
+
+    # Deploy local skills from dotFiles
+    local skills_source_dir="${SCRIPT_DIR}/../config/skills"
+    local skills_dest_dir="${CRUSH_CONFIG_DIR}/skills"
+    if [[ -d "$skills_source_dir" ]]; then
+        mkdir -p "$skills_dest_dir"
+        cp -r "$skills_source_dir"/* "$skills_dest_dir"/
+        success "Deployed local skills (plan-mode, git-safety) to $skills_dest_dir"
+    fi
+
+    # Download latest doc-coauthoring skill from anthropics/skills
+    local doc_coauth_dir="${skills_dest_dir}/doc-coauthoring"
+    mkdir -p "$doc_coauth_dir"
+    local doc_coauth_url="https://raw.githubusercontent.com/anthropics/skills/main/skills/doc-coauthoring/SKILL.md"
+    if curl -fsSL "$doc_coauth_url" -o "${doc_coauth_dir}/SKILL.md" 2>/dev/null; then
+        success "Downloaded latest doc-coauthoring skill from anthropics/skills"
+    else
+        warn "Could not download doc-coauthoring skill from GitHub"
     fi
 
     # ── Deploy Copilot CLI MCP configuration ──────────────────────────────
@@ -1047,6 +1092,23 @@ if [[ "$SHOULD_PULL_MODELS" == true ]]; then
                         else
                             add_failure "Model pull failed: $tag"
                         fi
+                    done
+
+                    # Set num_ctx on models (Ollama defaults to 2048)
+                    printf '%b\n' "${COLOR_GRAY}  Setting context window (num_ctx) on models...${COLOR_RESET}"
+                    local -A num_ctx_settings=(
+                        ["gemma4:26b"]=65536
+                        ["qwen3:14b"]=16384
+                    )
+                    for tag in "${!num_ctx_settings[@]}"; do
+                        local ctx="${num_ctx_settings[$tag]}"
+                        local modelfile_tmp
+                        modelfile_tmp="$(mktemp)"
+                        printf 'FROM %s\nPARAMETER num_ctx %s\n' "$tag" "$ctx" > "$modelfile_tmp"
+                        if "$OLLAMA_BIN" create "$tag" -f "$modelfile_tmp" >/dev/null 2>&1; then
+                            info "  $tag → num_ctx $ctx"
+                        fi
+                        rm -f "$modelfile_tmp"
                     done
                 else
                     add_failure "Ollama binary was not found after the API became ready."

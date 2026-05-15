@@ -7,23 +7,16 @@
       "type": "openai",
       "models": [
         {
-          "name": "GLM-4.7-Flash (Heavy coding / Docs / Creative / Office)",
-          "id": "glm-4.7-flash",
-          "context_window": 202752,
+          "name": "Gemma 4 26B (General)",
+          "id": "gemma4-65k",
+          "context_window": 65536,
           "default_max_tokens": 8000,
           "can_reason": true
         },
         {
-          "name": "Qwen2.5-Coder 14B (Light coding)",
-          "id": "qwen2.5-coder:14b",
-          "context_window": 32768,
-          "default_max_tokens": 8000,
-          "can_reason": true
-        },
-        {
-          "name": "DeepSeek R1 32B (Code review)",
-          "id": "deepseek-r1:32b",
-          "context_window": 131072,
+          "name": "Qwen3 14B (Image gen profile — VRAM-friendly)",
+          "id": "qwen3:14b",
+          "context_window": 16384,
           "default_max_tokens": 8000,
           "can_reason": true
         }
@@ -31,35 +24,21 @@
     },
     "squire-server": {
       "name": "Squire Server (CachyOS Linux)",
-      "base_url": "http://__VLLM_SERVER_IP__:8000/v1/",
+      "base_url": "http://__SQUIRE_SERVER_IP__:11434/v1/",
       "type": "openai",
       "api_key": "unused",
       "models": [
         {
-          "name": "Qwen3-Coder 30B MoE (Heavy coding)",
-          "id": "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit",
-          "context_window": 262144,
+          "name": "Gemma 4 26B (General)",
+          "id": "gemma4-65k",
+          "context_window": 65536,
           "default_max_tokens": 8000,
           "can_reason": true
         },
         {
-          "name": "Qwen2.5-Coder 14B (Light coding)",
-          "id": "Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4",
-          "context_window": 32768,
-          "default_max_tokens": 8000,
-          "can_reason": true
-        },
-        {
-          "name": "DeepSeek R1 32B (Code review)",
-          "id": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B-GPTQ-Int4",
-          "context_window": 131072,
-          "default_max_tokens": 8000,
-          "can_reason": true
-        },
-        {
-          "name": "Mistral Small 3.2 (Docs / Creative / Office)",
-          "id": "mistralai/Mistral-Small-3.2-24B-Instruct-2503-GPTQ-Int4",
-          "context_window": 131072,
+          "name": "Qwen3 14B (Image gen profile — VRAM-friendly)",
+          "id": "qwen3:14b",
+          "context_window": 16384,
           "default_max_tokens": 8000,
           "can_reason": true
         }
@@ -170,12 +149,12 @@
   },
   "models": {
     "large": {
-      "model": "glm-4.7-flash",
+      "model": "gemma4-65k",
       "provider": "ollama",
       "max_tokens": 8000
     },
     "small": {
-      "model": "qwen2.5-coder:14b",
+      "model": "qwen3:14b",
       "provider": "ollama",
       "max_tokens": 8000
     }
@@ -183,13 +162,13 @@
   "mcp": {
     "word-mcp": {
       "type": "stdio",
-      "command": "__LOCALAPPDATA__/ai-tools/mcp-word/__VENV_BIN__/word_mcp_server__EXE__",
-      "args": []
+      "command": "uvx",
+      "args": ["--python", "3.12", "docx-mcp-server"]
     },
     "pptx-mcp": {
       "type": "stdio",
-      "command": "__LOCALAPPDATA__/ai-tools/mcp-pptx/__VENV_BIN__/ppt_mcp_server__EXE__",
-      "args": []
+      "command": "uvx",
+      "args": ["ppt-mcp"]
     },
     "imagegen-mcp": {
       "type": "stdio",
@@ -198,6 +177,31 @@
       "env": {
         "IMAGEGEN_URL": "http://__IMAGEGEN_HOST__:8001"
       }
+    },
+    "planmode": {
+      "type": "stdio",
+      "command": "python__EXE_SUFFIX__",
+      "args": ["__CONFIG_DIR__/mcp/plan_mode_server.py"]
     }
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "bash|edit|write|notebook_edit|mcp__filesystem",
+        "hook": {
+          "type": "command",
+          "command": "python__EXE_SUFFIX__ -c \"import sys; from pathlib import Path; f=Path.home()/'.config'/'crush'/'plan-mode'; sys.exit(2) if f.exists() else sys.exit(0)\"",
+          "timeout_secs": 5
+        }
+      },
+      {
+        "matcher": "mcp__git__(add|commit|push|merge|rebase|reset|stash|checkout_branch|delete_branch|tag|cherry_pick|revert)",
+        "hook": {
+          "type": "command",
+          "command": "python__EXE_SUFFIX__ -c \"import sys; print('Git write operations are blocked by policy.'); sys.exit(2)\"",
+          "timeout_secs": 5
+        }
+      }
+    ]
   }
 }

@@ -305,7 +305,7 @@ Write-Info "No manual PATH cleanup required."
 if ($IsFullMode) {
     Write-Step "Remove Ollama environment variables"
 
-    $envVarsToRemove = @("OLLAMA_HOST", "OLLAMA_KEEP_ALIVE", "OLLAMA_MODELS")
+    $envVarsToRemove = @("OLLAMA_HOST", "OLLAMA_KEEP_ALIVE", "OLLAMA_MODELS", "OLLAMA_FLASH_ATTENTION", "OLLAMA_KV_CACHE_TYPE")
     foreach ($varName in $envVarsToRemove) {
         $current = [Environment]::GetEnvironmentVariable($varName, "User")
         if ($null -ne $current) {

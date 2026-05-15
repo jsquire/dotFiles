@@ -3,13 +3,13 @@
     "word-mcp": {
       "tools": ["*"],
       "type": "local",
-      "command": "__LOCALAPPDATA__/ai-tools/mcp-word/__VENV_BIN__/word_mcp_server__EXE__",
-      "args": []
+      "command": "uvx",
+      "args": ["--python", "3.12", "docx-mcp-server"]
     },
     "pptx-mcp": {
       "type": "local",
-      "command": "__LOCALAPPDATA__/ai-tools/mcp-pptx/__VENV_BIN__/ppt_mcp_server__EXE__",
-      "args": [],
+      "command": "uvx",
+      "args": ["ppt-mcp"],
       "tools": ["*"]
     },
     "imagegen-mcp": {
