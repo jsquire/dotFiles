@@ -1,6 +1,6 @@
-# MCP Venv Setup — Windows
+# MCP Tool Setup — Windows
 #
-# Creates isolated uv virtual environments for each MCP server.
+# Installs MCP servers as uv tools (globally accessible via uvx).
 # Run this AFTER install-windows.ps1 has installed uv and Python.
 #
 # Usage:
@@ -10,38 +10,29 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$AiToolsRoot = Join-Path $env:LOCALAPPDATA "ai-tools"
-
-$McpServers = @(
-    @{ Name = "mcp-word";    Package = "office-word-mcp-server";        Description = "Word document creation and automation" }
-    @{ Name = "mcp-pptx";    Package = "office-powerpoint-mcp-server";  Description = "PowerPoint presentation creation" }
+$McpTools = @(
+    @{ Package = "ppt-mcp";          Python = $null;  Description = "PowerPoint COM automation (154 tools)" }
+    @{ Package = "docx-mcp-server";  Python = "3.12"; Description = "Word OOXML editing (45 tools)" }
 )
 
-foreach ($server in $McpServers) {
-    $venvPath = Join-Path $AiToolsRoot $server.Name
-    Write-Host "`n── Setting up $($server.Description) ──" -ForegroundColor Cyan
+foreach ($tool in $McpTools) {
+    Write-Host "`n── Installing $($tool.Description) ──" -ForegroundColor Cyan
 
-    if (Test-Path $venvPath) {
-        Write-Host "  Directory exists, updating..." -ForegroundColor Yellow
-    } else {
-        New-Item -ItemType Directory -Path $venvPath -Force | Out-Null
-        Write-Host "  Created $venvPath"
+    $args = @("tool", "install", $tool.Package)
+    if ($tool.Python) {
+        $args += "--python"
+        $args += $tool.Python
     }
 
-    Write-Host "  Initializing uv project..."
-    & uv init --directory $venvPath --no-readme 2>&1 | Out-Null
-
-    Write-Host "  Installing $($server.Package)..."
-    & uv add --directory $venvPath $server.Package
+    & uv @args
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "  ✓ $($server.Name) ready" -ForegroundColor Green
+        Write-Host "  ✓ $($tool.Package) ready" -ForegroundColor Green
     } else {
-        Write-Host "  ✗ Failed to install $($server.Package)" -ForegroundColor Red
+        Write-Host "  ✗ Failed to install $($tool.Package)" -ForegroundColor Red
     }
 }
 
 Write-Host "`n── Done ──" -ForegroundColor Cyan
-Write-Host "MCP venvs are at: $AiToolsRoot"
-Write-Host "Update ~/.crush/mcp-servers.json to point to these paths."
-Write-Host "See config/mcp-servers.json for a template."
+Write-Host "MCP tools installed globally via uv. Use 'uvx <tool>' to run."
+Write-Host "Config files point to 'uvx' command — no path changes needed."
