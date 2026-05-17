@@ -149,6 +149,7 @@ model_description() {
         gemma4:31b) printf '%s' 'Gemma 4 31B — heavy coding (256k ctx), ~20 GB' ;;
         gemma4:26b) printf '%s' 'Gemma 4 26B MoE — general (256k ctx), ~17 GB' ;;
         qwen3:14b) printf '%s' 'Qwen3 14B — image gen profile, VRAM-friendly (131k ctx), ~9 GB' ;;
+        qwen2.5-coder:14b) printf '%s' 'Qwen2.5-Coder 14B — code review profile (32k ctx), ~9 GB' ;;
         gemma3:27b) printf '%s' 'Gemma 3 27B — tech docs (128k ctx), ~16 GB' ;;
         llama3.3:70b-instruct-q2_K) printf '%s' 'Llama 3.3 70B Q2 — creative writing, ~26 GB' ;;
         qwen3-coder:30b) printf '%s' 'Qwen3-Coder 30B MoE — heavy coding/office docs (256k ctx), ~19 GB' ;;
@@ -237,7 +238,7 @@ load_effective_model_config() {
                 EFFECTIVE_MODEL_REQUIRED_GB=58
             else
                 # Ollama (full mode, single-user) uses Ollama tags
-                SELECTED_MODELS=("gemma4:26b" "qwen3:14b")
+                SELECTED_MODELS=("gemma4:26b" "qwen3:14b" "qwen2.5-coder:14b")
             fi
             ;;
     esac
@@ -831,12 +832,17 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
     install_crush || true
 
     step "Install MCP tools"
-    info "Installing MCP servers as uv tools (docx-mcp-server). ppt-mcp is Windows-only."
+    info "Installing MCP servers as uv tools (docx-mcp-server, office-powerpoint-mcp-server)."
     if command_exists uv; then
         if uv tool install docx-mcp-server --python 3.12 >/dev/null 2>&1; then
             success "docx-mcp-server installed (Word OOXML editing)"
         else
             add_warning "Failed to install docx-mcp-server. Run 'uv tool install docx-mcp-server --python 3.12' manually."
+        fi
+        if uv tool install office-powerpoint-mcp-server --python 3.12 >/dev/null 2>&1; then
+            success "office-powerpoint-mcp-server installed (cross-platform PPTX editing)"
+        else
+            add_warning "Failed to install office-powerpoint-mcp-server. Run 'uv tool install office-powerpoint-mcp-server --python 3.12' manually."
         fi
     else
         add_warning "uv not found — cannot install MCP tools. Install uv first."
@@ -869,9 +875,27 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
             sed -e "s|__LOCALAPPDATA__|${linux_app_data}|g" \
                 -e "s|__VENV_BIN__|bin|g" \
                 -e "s|__EXE__||g" \
-                -e "s|__VLLM_SERVER_IP__|${vllm_ip}|g" \
+                -e "s|__EXE_SUFFIX__||g" \
+                -e "s|__CONFIG_DIR__|${CRUSH_CONFIG_DIR}|g" \
+                -e "s|__SQUIRE_SERVER_IP__|${vllm_ip}|g" \
                 -e "s|__IMAGEGEN_HOST__|${imagegen_host}|g" \
                 "$crush_config_source" > "$crush_config_dest"
+
+            # On Linux: disable COM-based pptx-mcp, enable cross-platform pptx-mcp-xplat
+            sed -i '/"pptx-mcp":/{ /pptx-mcp-xplat/!s/"disabled": *false/"disabled": true/; /pptx-mcp-xplat/!s/\(\"pptx-mcp\".*\)/\1/ }' "$crush_config_dest" 2>/dev/null || true
+            python3 -c "
+import json, sys
+with open('$crush_config_dest', 'r') as f:
+    cfg = json.load(f)
+mcps = cfg.get('mcp', cfg.get('mcpServers', {}))
+if 'pptx-mcp' in mcps:
+    mcps['pptx-mcp']['disabled'] = True
+if 'pptx-mcp-xplat' in mcps:
+    mcps['pptx-mcp-xplat'].pop('disabled', None)
+with open('$crush_config_dest', 'w') as f:
+    json.dump(cfg, f, indent=2)
+" 2>/dev/null && info "Swapped PPTX MCP: pptx-mcp disabled, pptx-mcp-xplat enabled (cross-platform)" || true
+
             success "Deployed crush.json to $crush_config_dest"
             if [[ "$IS_SERVER_MODE" == true ]]; then
                 info "vLLM server provider configured at http://${vllm_ip}:${VLLM_PORT}/v1"
@@ -907,15 +931,6 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
         mkdir -p "${HOME}/.local/bin"
         install -m 0755 "$launcher_source" "$launcher_dest"
         success "Deployed copilot-local to $launcher_dest"
-
-        # Set profile env var in shell profile
-        local profile_name="${MODEL_PROFILE^}"  # capitalize first letter
-        local shell_rc="${HOME}/.bashrc"
-        [[ -f "${HOME}/.zshrc" ]] && shell_rc="${HOME}/.zshrc"
-        if ! grep -q "COPILOT_LOCAL_PROFILE" "$shell_rc" 2>/dev/null; then
-            printf '\nexport COPILOT_LOCAL_PROFILE="%s"\n' "$profile_name" >> "$shell_rc"
-            success "Set COPILOT_LOCAL_PROFILE=$profile_name in $shell_rc"
-        fi
         info "Usage: copilot-local (from any directory)"
     else
         warn "Launcher script not found at $launcher_source — skipping."
@@ -983,6 +998,8 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
             sed -e "s|__LOCALAPPDATA__|${linux_app_data}|g" \
                 -e "s|__VENV_BIN__|bin|g" \
                 -e "s|__EXE__||g" \
+                -e "s|__EXE_SUFFIX__||g" \
+                -e "s|__CONFIG_DIR__|${CRUSH_CONFIG_DIR}|g" \
                 -e "s|__IMAGEGEN_HOST__|${imagegen_host}|g" \
                 "$copilot_mcp_source" > "$copilot_mcp_dest"
             success "Deployed mcp-config.json to $copilot_mcp_dest"
@@ -1099,6 +1116,7 @@ if [[ "$SHOULD_PULL_MODELS" == true ]]; then
                     local -A num_ctx_settings=(
                         ["gemma4:26b"]=65536
                         ["qwen3:14b"]=16384
+                        ["qwen2.5-coder:14b"]=65536
                     )
                     for tag in "${!num_ctx_settings[@]}"; do
                         local ctx="${num_ctx_settings[$tag]}"
@@ -1107,6 +1125,28 @@ if [[ "$SHOULD_PULL_MODELS" == true ]]; then
                         printf 'FROM %s\nPARAMETER num_ctx %s\n' "$tag" "$ctx" > "$modelfile_tmp"
                         if "$OLLAMA_BIN" create "$tag" -f "$modelfile_tmp" >/dev/null 2>&1; then
                             info "  $tag → num_ctx $ctx"
+                        fi
+                        rm -f "$modelfile_tmp"
+                    done
+
+                    # Create named alias models used by launcher scripts
+                    printf '%b\n' "${COLOR_GRAY}  Creating launcher model aliases...${COLOR_RESET}"
+                    local -A alias_from=(
+                        ["gemma4-65k"]="gemma4:26b"
+                        ["qwen25coder-65k"]="qwen2.5-coder:14b"
+                    )
+                    local -A alias_ctx=(
+                        ["gemma4-65k"]=65536
+                        ["qwen25coder-65k"]=65536
+                    )
+                    for alias_name in "${!alias_from[@]}"; do
+                        local from="${alias_from[$alias_name]}"
+                        local ctx="${alias_ctx[$alias_name]}"
+                        local modelfile_tmp
+                        modelfile_tmp="$(mktemp)"
+                        printf 'FROM %s\nPARAMETER num_ctx %s\n' "$from" "$ctx" > "$modelfile_tmp"
+                        if "$OLLAMA_BIN" create "$alias_name" -f "$modelfile_tmp" >/dev/null 2>&1; then
+                            info "  $alias_name → $from @ num_ctx $ctx"
                         fi
                         rm -f "$modelfile_tmp"
                     done

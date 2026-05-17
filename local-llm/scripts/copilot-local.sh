@@ -13,31 +13,17 @@ if [[ "${1:-}" == *":"* ]]; then
     exec ollama launch copilot --model "$COPILOT_MODEL" --yes -- "$@"
 fi
 
-# Detect profile from environment or default to Desktop
-PROFILE="${COPILOT_LOCAL_PROFILE:-Desktop}"
-
 # No model specified — show picker
 echo
 echo "  --- Coding ---"
-if [[ "$PROFILE" == "Server" ]]; then
-    echo "  [1] Heavy coding        (gemma4-65k)"
-    echo "  [2] Light coding        (qwen3:14b)"
-    echo "  [3] Code review         (gemma4-65k)"
-    echo
-    echo "  --- Writing & Documents ---"
-    echo "  [4] Technical docs      (gemma4-65k)"
-    echo "  [5] Creative writing    (gemma4-65k)"
-    echo "  [6] Office documents    (gemma4-65k)"
-else
-    echo "  [1] Heavy coding        (gemma4-65k)"
-    echo "  [2] Light coding        (qwen3:14b)"
-    echo "  [3] Code review         (gemma4-65k)"
-    echo
-    echo "  --- Writing & Documents ---"
-    echo "  [4] Technical docs      (gemma4-65k)"
-    echo "  [5] Creative writing    (gemma4-65k)"
-    echo "  [6] Office documents    (gemma4-65k)"
-fi
+echo "  [1] Heavy coding        (gemma4-65k)"
+echo "  [2] Light coding        (qwen3:14b)"
+echo "  [3] Code review         (qwen25coder-65k)"
+echo
+echo "  --- Writing & Documents ---"
+echo "  [4] Technical docs      (gemma4-65k)"
+echo "  [5] Creative writing    (gemma4-65k)"
+echo "  [6] Office documents    (gemma4-65k)"
 echo
 echo "  --- Visual ---"
 echo "  [7] Image generation    (FLUX.1-schnell via MCP)"
@@ -49,35 +35,24 @@ choice="${choice:-1}"
 MCP_FLAGS=()
 case "$choice" in
     1|2|3)
-        MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server imagegen-mcp)
+        MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp)
         ;;
     4|5|6)
         MCP_FLAGS=(--disable-mcp-server imagegen-mcp)
         ;;
     7)
-        MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp)
+        MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat)
         ;;
 esac
 
-if [[ "$PROFILE" == "Server" ]]; then
-    case "$choice" in
-        1) export COPILOT_MODEL="gemma4-65k" ;;
-        2) export COPILOT_MODEL="qwen3:14b" ;;
-        3) export COPILOT_MODEL="gemma4-65k" ;;
-        4|5|6) export COPILOT_MODEL="gemma4-65k" ;;
-        7) export COPILOT_MODEL="qwen3:14b" ;;
-        *) echo "  Invalid. Using gemma4-65k"; export COPILOT_MODEL="gemma4-65k" ;;
-    esac
-else
-    case "$choice" in
-        1) export COPILOT_MODEL="gemma4-65k" ;;
-        2) export COPILOT_MODEL="qwen3:14b" ;;
-        3) export COPILOT_MODEL="gemma4-65k" ;;
-        4|5|6) export COPILOT_MODEL="gemma4-65k" ;;
-        7) export COPILOT_MODEL="qwen3:14b" ;;
-        *) echo "  Invalid. Using gemma4-65k"; export COPILOT_MODEL="gemma4-65k" ;;
-    esac
-fi
+case "$choice" in
+    1) export COPILOT_MODEL="gemma4-65k" ;;
+    2) export COPILOT_MODEL="qwen3:14b" ;;
+    3) export COPILOT_MODEL="qwen25coder-65k" ;;
+    4|5|6) export COPILOT_MODEL="gemma4-65k" ;;
+    7) export COPILOT_MODEL="qwen3:14b" ;;
+    *) echo "  Invalid. Using gemma4-65k"; export COPILOT_MODEL="gemma4-65k" ;;
+esac
 
 # Git safety: block git write operations
 GIT_SAFETY=(

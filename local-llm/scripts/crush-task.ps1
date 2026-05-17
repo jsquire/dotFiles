@@ -19,11 +19,12 @@
 #>
 
 param(
-    [ValidateSet("coding", "word", "pptx", "docs", "image", "all")]
+    [ValidateSet("coding", "review", "word", "pptx", "docs", "image", "all")]
     [string]$Task
 )
 
 $DefaultModel = "gemma4-65k"
+$ReviewModel  = "qwen25coder-65k"
 
 function Write-CrushConfig {
     param(
@@ -57,22 +58,24 @@ if (-not $Task) {
     Write-Host ""
     Write-Host "  --- Crush Task Profiles ---"
     Write-Host "  [1] Coding          (no MCP - fast, all context for code)"
-    Write-Host "  [2] Word docs       (Word MCP only - 54 tools)"
-    Write-Host "  [3] PowerPoint      (PPTX MCP only - 37 tools)"
-    Write-Host "  [4] Document create (guided co-authoring workflow)"
-    Write-Host "  [5] Image gen       (FLUX.1-schnell MCP)"
-    Write-Host "  [6] All tools       (all MCP servers - may be slow)"
+    Write-Host "  [2] Code review     (Qwen2.5-Coder - different perspective)"
+    Write-Host "  [3] Word docs       (Word MCP only - 54 tools)"
+    Write-Host "  [4] PowerPoint      (PPTX MCP only - 37 tools)"
+    Write-Host "  [5] Document create (guided co-authoring workflow)"
+    Write-Host "  [6] Image gen       (FLUX.1-schnell MCP)"
+    Write-Host "  [7] All tools       (all MCP servers - may be slow)"
     Write-Host ""
     $choice = Read-Host "  Select profile [1]"
     if (-not $choice) { $choice = "1" }
 
     switch ($choice) {
         "1" { $Task = "coding" }
-        "2" { $Task = "word" }
-        "3" { $Task = "pptx" }
-        "4" { $Task = "docs" }
-        "5" { $Task = "image" }
-        "6" { $Task = "all" }
+        "2" { $Task = "review" }
+        "3" { $Task = "word" }
+        "4" { $Task = "pptx" }
+        "5" { $Task = "docs" }
+        "6" { $Task = "image" }
+        "7" { $Task = "all" }
         default {
             Write-Host "  Invalid selection, defaulting to coding."
             $Task = "coding"
@@ -88,6 +91,24 @@ switch ($Task) {
             "imagegen-mcp" = @{ disabled = $true }
         } -Model $DefaultModel
         Write-Host "  Profile: Coding (no MCP servers)"
+    }
+    "review" {
+        $reviewGuide = @"
+You are a code reviewer. Focus on:
+- Bugs, logic errors, and edge cases
+- Security vulnerabilities (injection, auth, data exposure)
+- Performance issues (N+1 queries, unnecessary allocations, blocking calls)
+- API contract violations and type mismatches
+- Concurrency issues (race conditions, deadlocks)
+Do NOT comment on style, formatting, or naming conventions unless they cause bugs.
+Be direct. If the code is correct, say so briefly.
+"@
+        Write-CrushConfig -McpOverrides @{
+            "word-mcp"     = @{ disabled = $true }
+            "pptx-mcp"     = @{ disabled = $true }
+            "imagegen-mcp" = @{ disabled = $true }
+        } -SystemPromptPrefix $reviewGuide -Model $ReviewModel
+        Write-Host "  Profile: Code review (Qwen2.5-Coder 14B)"
     }
     "word" {
         $wordGuide = @"
@@ -155,23 +176,33 @@ Check for: overlapping elements, text overflow, low-contrast text, misaligned co
         Write-Host "  Profile: PowerPoint (ppt-mcp COM, 154 tools, short descriptions)"
     }
     "docs" {
-        # Download latest doc-coauthoring skill in background
+        # Download latest doc-coauthoring skill
         $docSkillDir = Join-Path $env:USERPROFILE ".config\crush\skills\doc-coauthoring"
         $docSkillFile = Join-Path $docSkillDir "SKILL.md"
-        Start-Job -ScriptBlock {
-            param($dir, $file)
-            try {
-                if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-                Invoke-WebRequest -Uri "https://raw.githubusercontent.com/anthropics/skills/main/skills/doc-coauthoring/SKILL.md" `
-                    -OutFile $file -TimeoutSec 5 -ErrorAction Stop
-            } catch {}
-        } -ArgumentList $docSkillDir, $docSkillFile | Out-Null
+        if (-not (Test-Path $docSkillDir)) { New-Item -ItemType Directory -Path $docSkillDir -Force | Out-Null }
 
-        # Load skill content into system prompt if available
-        $docsGuide = "You are a document co-authoring assistant. Guide the user through structured document creation."
         if (Test-Path $docSkillFile) {
+            # Cached version exists — update in background, use cached now
+            Start-Job -ScriptBlock {
+                param($dir, $file)
+                try {
+                    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/anthropics/skills/main/skills/doc-coauthoring/SKILL.md" `
+                        -OutFile $file -TimeoutSec 5 -ErrorAction Stop
+                } catch {}
+            } -ArgumentList $docSkillDir, $docSkillFile | Out-Null
             $docsGuide = Get-Content $docSkillFile -Raw
+        } else {
+            # No cached version — block on download
+            Write-Host "  Downloading doc-coauthoring skill..."
+            try {
+                Invoke-WebRequest -Uri "https://raw.githubusercontent.com/anthropics/skills/main/skills/doc-coauthoring/SKILL.md" `
+                    -OutFile $docSkillFile -TimeoutSec 10 -ErrorAction Stop
+                $docsGuide = Get-Content $docSkillFile -Raw
+            } catch {
+                $docsGuide = "You are a document co-authoring assistant. Guide the user through structured document creation."
+            }
         }
+
         Write-CrushConfig -McpOverrides @{
             "word-mcp"     = @{ disabled = $false }
             "pptx-mcp"     = @{ disabled = $true }

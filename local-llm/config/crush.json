@@ -19,6 +19,13 @@
           "context_window": 16384,
           "default_max_tokens": 8000,
           "can_reason": true
+        },
+        {
+          "name": "Qwen2.5-Coder 14B (Code review)",
+          "id": "qwen25coder-65k",
+          "context_window": 65536,
+          "default_max_tokens": 8000,
+          "can_reason": false
         }
       ]
     },
@@ -41,6 +48,13 @@
           "context_window": 16384,
           "default_max_tokens": 8000,
           "can_reason": true
+        },
+        {
+          "name": "Qwen2.5-Coder 14B (Code review)",
+          "id": "qwen25coder-65k",
+          "context_window": 65536,
+          "default_max_tokens": 8000,
+          "can_reason": false
         }
       ]
     },
@@ -169,6 +183,12 @@
       "type": "stdio",
       "command": "uvx",
       "args": ["ppt-mcp"]
+    },
+    "pptx-mcp-xplat": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--python", "3.12", "office-powerpoint-mcp-server"],
+      "disabled": true
     },
     "imagegen-mcp": {
       "type": "stdio",

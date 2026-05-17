@@ -22,8 +22,8 @@
 
 .PARAMETER ModelProfile
     GPU/environment profile that determines which models to pull:
-      Desktop — RTX 5090 (32GB). Pulls gemma4:26b, qwen3:14b (~26 GB).
-      Server  — RTX 4090 (24GB dedicated). Pulls gemma4:26b, qwen3:14b (~26 GB).
+      Desktop — RTX 5090 (32GB). Pulls gemma4:26b, qwen3:14b, qwen2.5-coder:14b (~35 GB).
+      Server  — RTX 4090 (24GB dedicated). Pulls gemma4:26b, qwen3:14b, qwen2.5-coder:14b (~35 GB).
     Ignored in Client mode.
 
 .PARAMETER OllamaHost
@@ -46,6 +46,10 @@
     Set OLLAMA_HOST=0.0.0.0 to allow LAN access (e.g., from a laptop).
     Without this flag, Ollama only listens on localhost. Only applies in Full
     mode.
+
+.PARAMETER Theme
+    Shortcut icon theme. Dark = white icons (visible on dark backgrounds),
+    Light = dark icons (visible on light backgrounds). Default: Dark.
 
 .EXAMPLE
     .\install-windows.ps1
@@ -93,6 +97,10 @@ param(
     [switch]$SkipModels,
     [switch]$ModelsOnly,
     [switch]$EnableLAN,
+
+    [ValidateSet("Dark", "Light")]
+    [string]$Theme = "Dark",
+
     [switch]$Help
 )
 
@@ -110,13 +118,15 @@ if ($Help) {
     -Mode Client    Install client tools only (Crush, Copilot CLI, uv, MCP). Requires -OllamaHost.
 
   GPU PROFILES:
-    -ModelProfile Desktop   RTX 5090 (32GB) — 2 models, ~26 GB total:
+    -ModelProfile Desktop   RTX 5090 (32GB) — 3 models, ~35 GB total:
                               gemma4-65k          General (256k ctx)
                               qwen3:14b           Image gen profile (VRAM-friendly)
+                              qwen25coder-65k     Code review (different perspective)
 
-    -ModelProfile Server    RTX 4090 (24GB dedicated) — 2 models, ~26 GB total:
+    -ModelProfile Server    RTX 4090 (24GB dedicated) — 3 models, ~35 GB total:
                               gemma4-65k           General (256k ctx)
                               qwen3:14b            Image gen profile (VRAM-friendly)
+                              qwen25coder-65k      Code review (different perspective)
 
   OPTIONS:
     -OllamaHost <url>    Remote Ollama endpoint (required for Client mode)
@@ -125,6 +135,9 @@ if ($Help) {
     -SkipModels          Install software only; pull models later with: ollama pull <tag>
     -ModelsOnly          Skip software installation; only pull/update models
     -EnableLAN           Set OLLAMA_HOST=0.0.0.0 so other machines can connect
+    -Theme <Dark|Light>  Shortcut icon theme (default: Dark)
+                         Dark  = white icons (for dark taskbar/Start Menu)
+                         Light = dark icons (for light taskbar/Start Menu)
     -Help                Show this help text
 
   EXAMPLES:
@@ -174,23 +187,26 @@ $script:Warnings = @()
 $KnownModelDescriptions = @{
     "gemma4:26b"                     = "Gemma 4 26B MoE — general (256k ctx), ~17 GB"
     "qwen3:14b"                      = "Qwen3 14B — image gen profile, VRAM-friendly (131k ctx), ~9 GB"
+    "qwen2.5-coder:14b"             = "Qwen2.5-Coder 14B — code review profile (32k ctx), ~9 GB"
 }
 
 $ProfileDefinitions = @{
     "Desktop" = @{
         Description = "RTX 5090 (32GB) — gaming desktop with IDEs open (~25-27 GB available)"
-        RequiredGB = 26
+        RequiredGB = 35
         Models = [ordered]@{
             "gemma4:26b"                     = $KnownModelDescriptions["gemma4:26b"]
             "qwen3:14b"                  = $KnownModelDescriptions["qwen3:14b"]
+            "qwen2.5-coder:14b"          = $KnownModelDescriptions["qwen2.5-coder:14b"]
         }
     }
     "Server" = @{
         Description = "RTX 4090 (24GB) — dedicated server, full VRAM"
-        RequiredGB = 26
+        RequiredGB = 35
         Models = [ordered]@{
             "gemma4:26b"             = $KnownModelDescriptions["gemma4:26b"]
             "qwen3:14b"            = $KnownModelDescriptions["qwen3:14b"]
+            "qwen2.5-coder:14b"    = $KnownModelDescriptions["qwen2.5-coder:14b"]
         }
     }
 }
@@ -634,10 +650,14 @@ if ($ShouldInstallSoftware) {
             # Expand template placeholders for this platform
             $crushContent = Get-Content $crushConfigSource -Raw
             $expandedLocalAppData = ($LocalAppData -replace '\\', '/') # forward slashes for JSON
+            $expandedConfigDir = ($crushConfigDir -replace '\\', '/')
             $crushContent = $crushContent -replace '__LOCALAPPDATA__', $expandedLocalAppData
             $crushContent = $crushContent -replace '__VENV_BIN__', '.venv/Scripts'
+            $crushContent = $crushContent -replace '__EXE_SUFFIX__', '.exe'
             $crushContent = $crushContent -replace '__EXE__', '.exe'
+            $crushContent = $crushContent -replace '__CONFIG_DIR__', $expandedConfigDir
             $crushContent = $crushContent -replace '__IMAGEGEN_HOST__', '127.0.0.1'
+            $crushContent = $crushContent -replace '__SQUIRE_SERVER_IP__', '127.0.0.1'
             Set-Content -Path $crushConfigDest -Value $crushContent -Encoding UTF8
             Write-Success "Deployed crush.json to $crushConfigDest"
             Write-Info "Local Ollama is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
@@ -695,9 +715,12 @@ if ($ShouldInstallSoftware) {
         } else {
             $mcpContent = Get-Content $copilotMcpSource -Raw
             $expandedLocalAppData = ($LocalAppData -replace '\\', '/')
+            $expandedConfigDir = ($crushConfigDir -replace '\\', '/')
             $mcpContent = $mcpContent -replace '__LOCALAPPDATA__', $expandedLocalAppData
             $mcpContent = $mcpContent -replace '__VENV_BIN__', '.venv/Scripts'
+            $mcpContent = $mcpContent -replace '__EXE_SUFFIX__', '.exe'
             $mcpContent = $mcpContent -replace '__EXE__', '.exe'
+            $mcpContent = $mcpContent -replace '__CONFIG_DIR__', $expandedConfigDir
             $mcpContent = $mcpContent -replace '__IMAGEGEN_HOST__', '127.0.0.1'
             Set-Content -Path $copilotMcpDest -Value $mcpContent -Encoding UTF8
             Write-Success "Deployed mcp-config.json to $copilotMcpDest"
@@ -735,6 +758,36 @@ if ($ShouldInstallSoftware) {
         Write-Info "API: POST http://localhost:8001/v1/images/generations"
     }
 
+    # ── Step: Set up imagegen MCP client (fastmcp wrapper) ────────────────
+
+    Write-Step "Set up imagegen MCP client"
+    $mcpImagegenDir = "$env:LOCALAPPDATA\ai-tools\mcp-imagegen"
+    $mcpImagegenScript = Join-Path $PSScriptRoot "..\mcp\imagegen-mcp-server.py"
+    $mcpImagegenVenv = "$mcpImagegenDir\.venv"
+
+    if (Test-Path $mcpImagegenScript) {
+        if (-not (Test-Path $mcpImagegenDir)) {
+            New-Item -ItemType Directory -Path $mcpImagegenDir -Force | Out-Null
+        }
+        Copy-Item $mcpImagegenScript "$mcpImagegenDir\imagegen-mcp-server.py" -Force
+        if (-not (Test-Path "$mcpImagegenVenv\Scripts\python.exe")) {
+            Write-Info "Creating MCP client venv with fastmcp + httpx..."
+            & uv venv $mcpImagegenVenv --python 3.12 --quiet 2>$null
+            $env:VIRTUAL_ENV = $mcpImagegenVenv
+            & uv pip install --quiet fastmcp httpx 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "imagegen MCP client venv created."
+            } else {
+                Write-Warn "Failed to install fastmcp/httpx for imagegen MCP."
+                $script:Failures += "imagegen MCP venv"
+            }
+        } else {
+            Write-Info "imagegen MCP client venv already exists."
+        }
+    } else {
+        Write-Warn "imagegen-mcp-server.py not found at $mcpImagegenScript — skipping."
+    }
+
     # ── Step: Deploy copilot-local launcher ───────────────────────────────
 
     Write-Step "Deploy copilot-local launcher"
@@ -749,14 +802,6 @@ if ($ShouldInstallSoftware) {
         Copy-Item -Path $launcherSource -Destination $launcherDest -Force
         Write-Success "Deployed copilot-local.cmd to $launcherDest"
 
-        # Set profile environment variable so launcher shows correct models
-        $currentProfile = [Environment]::GetEnvironmentVariable("COPILOT_LOCAL_PROFILE", "User")
-        if ($currentProfile -ne $ModelProfile) {
-            [Environment]::SetEnvironmentVariable("COPILOT_LOCAL_PROFILE", $ModelProfile, "User")
-            $env:COPILOT_LOCAL_PROFILE = $ModelProfile
-            Write-Success "Set COPILOT_LOCAL_PROFILE=$ModelProfile"
-        }
-
         # Ensure Documents\CLI is on PATH
         $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
         if ($userPath -notlike "*$cliDir*") {
@@ -770,6 +815,80 @@ if ($ShouldInstallSoftware) {
     } else {
         Write-Warn "Launcher script not found at $launcherSource — skipping."
     }
+
+    # ── Step: Deploy crush-task launcher ──────────────────────────────────
+
+    Write-Step "Deploy crush-task launcher"
+    $crushSource = Join-Path $PSScriptRoot "..\scripts\crush-task.ps1"
+    $crushDest = Join-Path $UserProfile "Documents\CLI\crush-task.ps1"
+
+    if (Test-Path $crushSource) {
+        $cliDir = Split-Path $crushDest
+        if (-not (Test-Path $cliDir)) {
+            New-Item -ItemType Directory -Path $cliDir -Force | Out-Null
+        }
+        Copy-Item -Path $crushSource -Destination $crushDest -Force
+        Write-Success "Deployed crush-task.ps1 to $crushDest"
+    } else {
+        Write-Warn "Crush task script not found at $crushSource — skipping."
+    }
+
+    # ── Step: Create Start Menu shortcuts ─────────────────────────────────
+
+    Write-Step "Create Start Menu shortcuts"
+    $aiFolder = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\AI"
+    if (-not (Test-Path $aiFolder)) {
+        New-Item -ItemType Directory -Path $aiFolder -Force | Out-Null
+    }
+
+    # Deploy all icon variants to ~/.config/crush/
+    $iconsSource = Join-Path $PSScriptRoot "icons"
+    $iconsDest = Join-Path $UserProfile ".config\crush"
+    if (Test-Path $iconsSource) {
+        Get-ChildItem (Join-Path $iconsSource "*.ico") | ForEach-Object {
+            Copy-Item $_.FullName $iconsDest -Force -ErrorAction SilentlyContinue
+        }
+        Write-Info "Deployed icon variants to $iconsDest"
+    }
+
+    # Select icons based on theme: Dark bg → light variant, Light bg → dark variant
+    $themeVariant = if ($Theme -eq "Light") { "dark" } else { "light" }
+    $crushIconPath = Join-Path $iconsDest "crush-$themeVariant.ico"
+    $copilotIconPath = Join-Path $iconsDest "copilot-$themeVariant.ico"
+    # Fallback for Copilot if new naming not found
+    if (-not (Test-Path $copilotIconPath)) {
+        $copilotIconPath = if ($Theme -eq "Light") {
+            Join-Path $iconsDest "copilot.ico"
+        } else {
+            Join-Path $iconsDest "copilot-white.ico"
+        }
+    }
+    Write-Info "Theme: $Theme → Crush: $(Split-Path $crushIconPath -Leaf), Copilot: $(Split-Path $copilotIconPath -Leaf)"
+
+    $shell = New-Object -ComObject WScript.Shell
+    $cliDir = Join-Path $UserProfile "Documents\CLI"
+
+    # Crush (Local) shortcut — launches crush-task.ps1 picker
+    $crushLnk = $shell.CreateShortcut((Join-Path $aiFolder "Crush (Local).lnk"))
+    $crushLnk.TargetPath = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+    $crushLnk.Arguments = "-NoExit -ExecutionPolicy Bypass -File `"$cliDir\crush-task.ps1`""
+    $crushLnk.WorkingDirectory = $UserProfile
+    $crushLnk.Description = "Crush CLI with local Ollama — task profile picker"
+    if (Test-Path $crushIconPath) { $crushLnk.IconLocation = "$crushIconPath,0" }
+    $crushLnk.Save()
+    Write-Success "Created shortcut: Crush (Local)"
+
+    # Copilot (Local) shortcut — launches copilot-local.cmd picker
+    $copilotLnk = $shell.CreateShortcut((Join-Path $aiFolder "Copilot (Local).lnk"))
+    $copilotLnk.TargetPath = "C:\Windows\System32\cmd.exe"
+    $copilotLnk.Arguments = "/k `"$cliDir\copilot-local.cmd`""
+    $copilotLnk.WorkingDirectory = $UserProfile
+    $copilotLnk.Description = "GitHub Copilot CLI with local Ollama — task profile picker"
+    if (Test-Path $copilotIconPath) { $copilotLnk.IconLocation = "$copilotIconPath,0" }
+    $copilotLnk.Save()
+    Write-Success "Created shortcut: Copilot (Local)"
+
+    [System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell) | Out-Null
 
 } # end if ($ShouldInstallSoftware)
 
@@ -838,6 +957,7 @@ if ($ShouldPullModels) {
             $numCtxSettings = @{
                 "gemma4:26b"    = 65536
                 "qwen3:14b"     = 16384
+                "qwen2.5-coder:14b" = 65536
             }
             foreach ($entry in $numCtxSettings.GetEnumerator()) {
                 $tag = $entry.Key
@@ -850,6 +970,27 @@ PARAMETER num_ctx $ctx
                 ollama create $tag -f $modelfilePath 2>$null
                 if ($LASTEXITCODE -eq 0) {
                     Write-Info "  $tag → num_ctx $ctx"
+                }
+                Remove-Item $modelfilePath -ErrorAction SilentlyContinue
+            }
+
+            # Create named alias models used by launcher scripts
+            Write-Host "  Creating launcher model aliases..." -ForegroundColor White
+            $aliasModels = @{
+                "gemma4-65k"       = @{ From = "gemma4:26b"; Ctx = 65536 }
+                "qwen25coder-65k"  = @{ From = "qwen2.5-coder:14b"; Ctx = 65536 }
+            }
+            foreach ($entry in $aliasModels.GetEnumerator()) {
+                $alias = $entry.Key
+                $cfg   = $entry.Value
+                $modelfilePath = Join-Path $env:TEMP "Modelfile-$alias"
+                @"
+FROM $($cfg.From)
+PARAMETER num_ctx $($cfg.Ctx)
+"@ | Set-Content $modelfilePath
+                ollama create $alias -f $modelfilePath 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Info "  $alias → $($cfg.From) @ num_ctx $($cfg.Ctx)"
                 }
                 Remove-Item $modelfilePath -ErrorAction SilentlyContinue
             }
