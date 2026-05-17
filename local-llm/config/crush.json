@@ -208,19 +208,13 @@
     "PreToolUse": [
       {
         "matcher": "bash|edit|write|notebook_edit|mcp__filesystem",
-        "hook": {
-          "type": "command",
-          "command": "python__EXE_SUFFIX__ -c \"import sys; from pathlib import Path; f=Path.home()/'.config'/'crush'/'plan-mode'; sys.exit(2) if f.exists() else sys.exit(0)\"",
-          "timeout_secs": 5
-        }
+        "command": "python__EXE_SUFFIX__ -c \"import sys; from pathlib import Path; f=Path.home()/'.config'/'crush'/'plan-mode'; sys.exit(2) if f.exists() else sys.exit(0)\"",
+        "timeout": 5
       },
       {
         "matcher": "mcp__git__(add|commit|push|merge|rebase|reset|stash|checkout_branch|delete_branch|tag|cherry_pick|revert)",
-        "hook": {
-          "type": "command",
-          "command": "python__EXE_SUFFIX__ -c \"import sys; print('Git write operations are blocked by policy.'); sys.exit(2)\"",
-          "timeout_secs": 5
-        }
+        "command": "python__EXE_SUFFIX__ -c \"import sys; print('Git write operations are blocked by policy.'); sys.exit(2)\"",
+        "timeout": 5
       }
     ]
   }
