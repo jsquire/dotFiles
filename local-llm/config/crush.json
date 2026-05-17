@@ -197,20 +197,10 @@
       "env": {
         "IMAGEGEN_URL": "http://__IMAGEGEN_HOST__:8001"
       }
-    },
-    "planmode": {
-      "type": "stdio",
-      "command": "python__EXE_SUFFIX__",
-      "args": ["__CONFIG_DIR__/mcp/plan_mode_server.py"]
     }
   },
   "hooks": {
     "PreToolUse": [
-      {
-        "matcher": "bash|edit|write|notebook_edit|mcp__filesystem",
-        "command": "python__EXE_SUFFIX__ -c \"import sys; from pathlib import Path; f=Path.home()/'.config'/'crush'/'plan-mode'; sys.exit(2) if f.exists() else sys.exit(0)\"",
-        "timeout": 5
-      },
       {
         "matcher": "mcp__git__(add|commit|push|merge|rebase|reset|stash|checkout_branch|delete_branch|tag|cherry_pick|revert)",
         "command": "python__EXE_SUFFIX__ -c \"import sys; print('Git write operations are blocked by policy.'); sys.exit(2)\"",

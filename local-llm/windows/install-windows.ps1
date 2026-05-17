@@ -672,12 +672,12 @@ if ($ShouldInstallSoftware) {
 
     Write-Step "Deploy Crush skills and MCP servers"
 
-    # Deploy plan-mode MCP server
+    # Deploy custom MCP servers (if any)
     $mcpSourceDir = Join-Path $PSScriptRoot "..\config\mcp"
     $mcpDestDir = Join-Path $CrushDir "mcp"
     if (Test-Path $mcpSourceDir) {
         New-Item -ItemType Directory -Path $mcpDestDir -Force | Out-Null
-        Copy-Item "$mcpSourceDir\*" $mcpDestDir -Recurse -Force
+        Copy-Item "$mcpSourceDir\*" $mcpDestDir -Recurse -Force -ErrorAction SilentlyContinue
         Write-Success "Deployed MCP servers to $mcpDestDir"
     }
 
@@ -687,7 +687,7 @@ if ($ShouldInstallSoftware) {
     if (Test-Path $skillsSourceDir) {
         New-Item -ItemType Directory -Path $skillsDestDir -Force | Out-Null
         Copy-Item "$skillsSourceDir\*" $skillsDestDir -Recurse -Force
-        Write-Success "Deployed local skills (plan-mode, git-safety) to $skillsDestDir"
+        Write-Success "Deployed local skills (git-safety) to $skillsDestDir"
     }
 
     # Download latest doc-coauthoring skill from anthropics/skills

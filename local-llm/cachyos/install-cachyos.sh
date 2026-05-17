@@ -953,12 +953,12 @@ with open('$crush_config_dest', 'w') as f:
     # ── Deploy Crush skills and MCP servers ─────────────────────────────
     step "Deploy Crush skills and MCP servers"
 
-    # Deploy plan-mode MCP server
+    # Deploy custom MCP servers (if any)
     local mcp_source_dir="${SCRIPT_DIR}/../config/mcp"
     local mcp_dest_dir="${CRUSH_CONFIG_DIR}/mcp"
     if [[ -d "$mcp_source_dir" ]]; then
         mkdir -p "$mcp_dest_dir"
-        cp -r "$mcp_source_dir"/* "$mcp_dest_dir"/
+        cp -r "$mcp_source_dir"/* "$mcp_dest_dir"/ 2>/dev/null || true
         success "Deployed MCP servers to $mcp_dest_dir"
     fi
 
@@ -968,7 +968,7 @@ with open('$crush_config_dest', 'w') as f:
     if [[ -d "$skills_source_dir" ]]; then
         mkdir -p "$skills_dest_dir"
         cp -r "$skills_source_dir"/* "$skills_dest_dir"/
-        success "Deployed local skills (plan-mode, git-safety) to $skills_dest_dir"
+        success "Deployed local skills (git-safety) to $skills_dest_dir"
     fi
 
     # Download latest doc-coauthoring skill from anthropics/skills
