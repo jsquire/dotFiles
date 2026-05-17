@@ -8,9 +8,12 @@
     keeping the tool count low so the model can reliably use them all.
 
     Profiles:
+      General     — Word MCP + gh CLI (default — research & document authoring)
       Coding      — no MCP servers (code tools only)
+      Code review — Qwen2.5-Coder model, no MCP (different perspective)
       Word        — word-mcp only (Word document editing)
       PowerPoint  — pptx-mcp only (PowerPoint editing)
+      Guided auth — doc-coauthoring skill + Word MCP (structured workflow)
       Image       — imagegen-mcp (image generation)
       All         — everything enabled (may degrade with smaller models)
 
@@ -19,7 +22,7 @@
 #>
 
 param(
-    [ValidateSet("coding", "review", "word", "pptx", "docs", "image", "all")]
+    [ValidateSet("general", "coding", "review", "word", "pptx", "docs", "image", "all")]
     [string]$Task
 )
 
@@ -57,28 +60,30 @@ function Write-CrushConfig {
 if (-not $Task) {
     Write-Host ""
     Write-Host "  --- Crush Task Profiles ---"
-    Write-Host "  [1] Coding          (no MCP - fast, all context for code)"
-    Write-Host "  [2] Code review     (Qwen2.5-Coder - different perspective)"
-    Write-Host "  [3] Word docs       (Word MCP only - 54 tools)"
-    Write-Host "  [4] PowerPoint      (PPTX MCP only - 37 tools)"
-    Write-Host "  [5] Document create (guided co-authoring workflow)"
-    Write-Host "  [6] Image gen       (FLUX.1-schnell MCP)"
-    Write-Host "  [7] All tools       (all MCP servers - may be slow)"
+    Write-Host "  [1] General           (general research and document authoring)"
+    Write-Host "  [2] Coding            (no MCP - fast, all context for code)"
+    Write-Host "  [3] Code review       (Qwen2.5-Coder - different perspective)"
+    Write-Host "  [4] Word docs         (Word MCP only - focused editing)"
+    Write-Host "  [5] PowerPoint        (PPTX MCP only)"
+    Write-Host "  [6] Guided authoring  (guided document authoring workflow)"
+    Write-Host "  [7] Image gen         (FLUX.1-schnell MCP)"
+    Write-Host "  [8] All tools         (all MCP servers - may be slow)"
     Write-Host ""
     $choice = Read-Host "  Select profile [1]"
     if (-not $choice) { $choice = "1" }
 
     switch ($choice) {
-        "1" { $Task = "coding" }
-        "2" { $Task = "review" }
-        "3" { $Task = "word" }
-        "4" { $Task = "pptx" }
-        "5" { $Task = "docs" }
-        "6" { $Task = "image" }
-        "7" { $Task = "all" }
+        "1" { $Task = "general" }
+        "2" { $Task = "coding" }
+        "3" { $Task = "review" }
+        "4" { $Task = "word" }
+        "5" { $Task = "pptx" }
+        "6" { $Task = "docs" }
+        "7" { $Task = "image" }
+        "8" { $Task = "all" }
         default {
-            Write-Host "  Invalid selection, defaulting to coding."
-            $Task = "coding"
+            Write-Host "  Invalid selection, defaulting to general."
+            $Task = "general"
         }
     }
 }
@@ -91,6 +96,14 @@ switch ($Task) {
             "imagegen-mcp" = @{ disabled = $true }
         } -Model $DefaultModel
         Write-Host "  Profile: Coding (no MCP servers)"
+    }
+    "general" {
+        Write-CrushConfig -McpOverrides @{
+            "word-mcp"     = @{ disabled = $false }
+            "pptx-mcp"     = @{ disabled = $true }
+            "imagegen-mcp" = @{ disabled = $true }
+        } -Model $DefaultModel
+        Write-Host "  Profile: General (Word MCP + gh CLI)"
     }
     "review" {
         $reviewGuide = @"
@@ -129,7 +142,6 @@ This server edits Word documents via direct OOXML manipulation. Key tools:
         Write-Host "  Profile: Word (docx-mcp-server, 45 tools)"
     }
     "pptx" {
-        $env:CRUSH_SHORT_TOOL_DESCRIPTIONS = "1"
         $pptxGuide = @"
 IMPORTANT: Be concise. Do not explain what you will do — just do it. Minimize output.
 
@@ -208,7 +220,7 @@ Check for: overlapping elements, text overflow, low-contrast text, misaligned co
             "pptx-mcp"     = @{ disabled = $true }
             "imagegen-mcp" = @{ disabled = $true }
         } -SystemPromptPrefix $docsGuide -Model $DefaultModel
-        Write-Host "  Profile: Document creation (doc-coauthoring skill + Word MCP)"
+        Write-Host "  Profile: Guided document authoring (doc-coauthoring skill + Word MCP)"
     }
     "image" {
         Write-CrushConfig -McpOverrides @{
@@ -219,7 +231,6 @@ Check for: overlapping elements, text overflow, low-contrast text, misaligned co
         Write-Host "  Profile: Image generation (FLUX.1-schnell) — using qwen3:14b for VRAM headroom"
     }
     "all" {
-        $env:CRUSH_SHORT_TOOL_DESCRIPTIONS = "1"
         Write-CrushConfig -McpOverrides @{
             "word-mcp"     = @{ disabled = $false }
             "pptx-mcp"     = @{ disabled = $false }

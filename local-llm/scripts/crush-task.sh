@@ -5,9 +5,12 @@
 # for the selected task, then launches Crush.
 #
 # Profiles:
+#   general — Word MCP + gh CLI (default — research & document authoring)
 #   coding  — no MCP servers (code tools only)
+#   review  — Qwen2.5-Coder model, no MCP (different perspective)
 #   word    — word-mcp only (Word document editing)
 #   pptx    — pptx-mcp only (PowerPoint editing)
+#   docs    — doc-coauthoring skill + Word MCP (structured workflow)
 #   image   — imagegen-mcp (image generation)
 #   all     — everything enabled (may degrade with smaller models)
 set -euo pipefail
@@ -59,28 +62,30 @@ REVIEW_MODEL="qwen25coder-65k"
 if [[ -z "$task" ]]; then
     echo
     echo "  --- Crush Task Profiles ---"
-    echo "  [1] Coding          (no MCP - fast, all context for code)"
-    echo "  [2] Code review     (Qwen2.5-Coder - different perspective)"
-    echo "  [3] Word docs       (Word MCP only - 54 tools)"
-    echo "  [4] PowerPoint      (PPTX MCP only - 37 tools)"
-    echo "  [5] Document create (guided co-authoring workflow)"
-    echo "  [6] Image gen       (FLUX.1-schnell MCP)"
-    echo "  [7] All tools       (all MCP servers - may be slow)"
+    echo "  [1] General           (general research and document authoring)"
+    echo "  [2] Coding            (no MCP - fast, all context for code)"
+    echo "  [3] Code review       (Qwen2.5-Coder - different perspective)"
+    echo "  [4] Word docs         (Word MCP only - focused editing)"
+    echo "  [5] PowerPoint        (PPTX MCP only)"
+    echo "  [6] Guided authoring  (guided document authoring workflow)"
+    echo "  [7] Image gen         (FLUX.1-schnell MCP)"
+    echo "  [8] All tools         (all MCP servers - may be slow)"
     echo
     read -rp "  Select profile [1]: " choice
     choice="${choice:-1}"
 
     case "$choice" in
-        1) task="coding" ;;
-        2) task="review" ;;
-        3) task="word" ;;
-        4) task="pptx" ;;
-        5) task="docs" ;;
-        6) task="image" ;;
-        7) task="all" ;;
+        1) task="general" ;;
+        2) task="coding" ;;
+        3) task="review" ;;
+        4) task="word" ;;
+        5) task="pptx" ;;
+        6) task="docs" ;;
+        7) task="image" ;;
+        8) task="all" ;;
         *)
-            echo "  Invalid selection, defaulting to coding."
-            task="coding"
+            echo "  Invalid selection, defaulting to general."
+            task="general"
             ;;
     esac
 fi
@@ -120,6 +125,10 @@ case "$task" in
         write_crush_config true true true "" "$DEFAULT_MODEL"
         echo "  Profile: Coding (no MCP servers)"
         ;;
+    general)
+        write_crush_config false true true "" "$DEFAULT_MODEL"
+        echo "  Profile: General (Word MCP + gh CLI)"
+        ;;
     review)
         REVIEW_GUIDE="You are a code reviewer. Focus on:
 - Bugs, logic errors, and edge cases
@@ -137,7 +146,6 @@ Be direct. If the code is correct, say so briefly."
         echo "  Profile: Word (docx-mcp-server, 45 tools)"
         ;;
     pptx)
-        export CRUSH_SHORT_TOOL_DESCRIPTIONS=1
         write_crush_config true false true "$PPTX_GUIDE" "$DEFAULT_MODEL"
         echo "  Profile: PowerPoint (office-powerpoint-mcp-server, 32 tools)"
         ;;
@@ -164,21 +172,20 @@ Be direct. If the code is correct, say so briefly."
             fi
         fi
         write_crush_config false true true "$DOCS_GUIDE" "$DEFAULT_MODEL"
-        echo "  Profile: Document creation (doc-coauthoring skill + Word MCP)"
+        echo "  Profile: Guided document authoring (doc-coauthoring skill + Word MCP)"
         ;;
     image)
         write_crush_config true true false "" "qwen3:14b"
         echo "  Profile: Image generation (FLUX.1-schnell) — using qwen3:14b for VRAM headroom"
         ;;
     all)
-        export CRUSH_SHORT_TOOL_DESCRIPTIONS=1
         write_crush_config false false false "" "$DEFAULT_MODEL"
         echo "  Profile: All tools (93 MCP tools - may be slow with smaller models)"
         ;;
     *)
-        echo "  Unknown profile '$task', defaulting to coding."
-        write_crush_config true true true "" "$DEFAULT_MODEL"
-        echo "  Profile: Coding (no MCP servers)"
+        echo "  Unknown profile '$task', defaulting to general."
+        write_crush_config false true true "" "$DEFAULT_MODEL"
+        echo "  Profile: General (Word MCP + gh CLI)"
         ;;
 esac
 
