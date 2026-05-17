@@ -14,32 +14,17 @@ if not "%~1"=="" (
     )
 )
 
-:: Detect profile from environment (set by installer) or default to Desktop
-if not defined COPILOT_LOCAL_PROFILE set COPILOT_LOCAL_PROFILE=Desktop
-
 :: No model specified — show picker
 echo.
-if /i "%COPILOT_LOCAL_PROFILE%"=="Server" (
-    echo   --- Coding ---
-    echo   [1] Heavy coding        (gemma4-65k^)
-    echo   [2] Light coding        (qwen3:14b^)
-    echo   [3] Code review         (gemma4-65k^)
-    echo.
-    echo   --- Writing ^& Documents ---
-    echo   [4] Technical docs      (gemma4-65k^)
-    echo   [5] Creative writing    (gemma4-65k^)
-    echo   [6] Office documents    (gemma4-65k^)
-) else (
-    echo   --- Coding ---
-    echo   [1] Heavy coding        (gemma4-65k^)
-    echo   [2] Light coding        (qwen3:14b^)
-    echo   [3] Code review         (gemma4-65k^)
-    echo.
-    echo   --- Writing ^& Documents ---
-    echo   [4] Technical docs      (gemma4-65k^)
-    echo   [5] Creative writing    (gemma4-65k^)
-    echo   [6] Office documents    (gemma4-65k^)
-)
+echo   --- Coding ---
+echo   [1] Heavy coding        (gemma4-65k^)
+echo   [2] Light coding        (qwen3:14b^)
+echo   [3] Code review         (qwen25coder-65k^)
+echo.
+echo   --- Writing ^& Documents ---
+echo   [4] Technical docs      (gemma4-65k^)
+echo   [5] Creative writing    (gemma4-65k^)
+echo   [6] Office documents    (gemma4-65k^)
 echo.
 echo   --- Visual ---
 echo   [7] Image generation    (FLUX.1-schnell via MCP^)
@@ -48,22 +33,12 @@ set /p choice="  Select task [1]: "
 
 if "%choice%"=="" set choice=1
 
-if /i "%COPILOT_LOCAL_PROFILE%"=="Server" (
-    if "%choice%"=="1" set COPILOT_MODEL=gemma4-65k
-    if "%choice%"=="2" set COPILOT_MODEL=qwen3:14b
-    if "%choice%"=="3" set COPILOT_MODEL=gemma4-65k
-    if "%choice%"=="4" set COPILOT_MODEL=gemma4-65k
-    if "%choice%"=="5" set COPILOT_MODEL=gemma4-65k
-    if "%choice%"=="6" set COPILOT_MODEL=gemma4-65k
-) else (
-    if "%choice%"=="1" set COPILOT_MODEL=gemma4-65k
-    if "%choice%"=="2" set COPILOT_MODEL=qwen3:14b
-    if "%choice%"=="3" set COPILOT_MODEL=gemma4-65k
-    if "%choice%"=="4" set COPILOT_MODEL=gemma4-65k
-    if "%choice%"=="5" set COPILOT_MODEL=gemma4-65k
-    if "%choice%"=="6" set COPILOT_MODEL=gemma4-65k
-)
-
+if "%choice%"=="1" set COPILOT_MODEL=gemma4-65k
+if "%choice%"=="2" set COPILOT_MODEL=qwen3:14b
+if "%choice%"=="3" set COPILOT_MODEL=qwen25coder-65k
+if "%choice%"=="4" set COPILOT_MODEL=gemma4-65k
+if "%choice%"=="5" set COPILOT_MODEL=gemma4-65k
+if "%choice%"=="6" set COPILOT_MODEL=gemma4-65k
 if "%choice%"=="7" set COPILOT_MODEL=qwen3:14b
 
 :: Set MCP flags based on task category
@@ -71,21 +46,17 @@ if "%choice%"=="7" set COPILOT_MODEL=qwen3:14b
 :: Docs (4-6): enable word + pptx, disable imagegen
 :: Image (7): enable imagegen, disable word + pptx
 set MCP_FLAGS=
-if "%choice%"=="1" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server imagegen-mcp
-if "%choice%"=="2" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server imagegen-mcp
-if "%choice%"=="3" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server imagegen-mcp
+if "%choice%"=="1" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
+if "%choice%"=="2" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
+if "%choice%"=="3" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
 if "%choice%"=="4" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
 if "%choice%"=="5" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
 if "%choice%"=="6" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
-if "%choice%"=="7" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp
+if "%choice%"=="7" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat
 
 if not defined COPILOT_MODEL (
     echo   Invalid selection.
-    if /i "%COPILOT_LOCAL_PROFILE%"=="Server" (
-        set COPILOT_MODEL=gemma4-65k
-    ) else (
-        set COPILOT_MODEL=gemma4-65k
-    )
+    set COPILOT_MODEL=gemma4-65k
 )
 
 :: Git safety: block git write operations
