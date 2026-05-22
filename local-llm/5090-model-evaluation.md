@@ -23,7 +23,7 @@ upgraded in the future).
 ### Software Stack
 - **Backend**: Ollama (with vendored llama.cpp)
 - **Frontend**: Crush CLI (task profiles), Copilot CLI (legacy scripts)
-- **MCP servers**: docx-mcp-server (Word), ppt-mcp (PowerPoint), FLUX.1 (image gen)
+- **MCP servers**: docx-mcp-server (Word), ppt-mcp (PowerPoint), HiDream-O1 (image gen)
 - **Env vars**: `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`
 
 ### Current Model Set
@@ -38,7 +38,7 @@ upgraded in the future).
 | Coding | None | 0 | 30-60K tokens (long refactors) | Reasoning, code gen |
 | Word | 54 tools | ~5K | 10-30K tokens | Tool calling accuracy |
 | PowerPoint | 37 tools (short desc) | ~3K | 10-20K tokens | Tool calling accuracy |
-| Image gen | FLUX MCP | ~1K | 4-8K tokens | N/A (uses qwen3:14b) |
+| Image gen | HiDream MCP | ~1K | 4-8K tokens | N/A (uses qwen3:14b) |
 | All tools | 93 tools | ~10-15K | Up to 50K tokens | Tool calling + reasoning |
 
 ### Config Files That Change on Model Switch

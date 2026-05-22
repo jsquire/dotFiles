@@ -22,8 +22,8 @@
 
 .PARAMETER ModelProfile
     GPU/environment profile that determines which models to pull:
-      Desktop — RTX 5090 (32GB). Pulls gemma4:26b, qwen3:14b, qwen2.5-coder:14b (~35 GB).
-      Server  — RTX 4090 (24GB dedicated). Pulls gemma4:26b, qwen3:14b, qwen2.5-coder:14b (~35 GB).
+      Desktop — RTX 5090 (32GB). Pulls gemma4:26b, qwen3:14b, qwen3:4b, qwen3-coder:30b (~40 GB).
+      Server  — RTX 4090 (24GB dedicated). Pulls gemma4:26b, qwen3:14b, qwen3:4b, qwen3-coder:30b (~40 GB).
     Ignored in Client mode.
 
 .PARAMETER OllamaHost
@@ -118,15 +118,17 @@ if ($Help) {
     -Mode Client    Install client tools only (Crush, Copilot CLI, uv, MCP). Requires -OllamaHost.
 
   GPU PROFILES:
-    -ModelProfile Desktop   RTX 5090 (32GB) — 3 models, ~35 GB total:
+    -ModelProfile Desktop   RTX 5090 (32GB) — 4 models, ~40 GB total:
                               gemma4-65k          General (256k ctx)
-                              qwen3:14b           Image gen profile (VRAM-friendly)
-                              qwen25coder-65k     Code review (different perspective)
+                              qwen3:14b           Light coding
+                              qwen3:4b            Image gen profile (VRAM-friendly)
+                              qwen3coder-65k      Code review (different perspective)
 
-    -ModelProfile Server    RTX 4090 (24GB dedicated) — 3 models, ~35 GB total:
+    -ModelProfile Server    RTX 4090 (24GB dedicated) — 4 models, ~40 GB total:
                               gemma4-65k           General (256k ctx)
-                              qwen3:14b            Image gen profile (VRAM-friendly)
-                              qwen25coder-65k      Code review (different perspective)
+                              qwen3:14b            Light coding
+                              qwen3:4b             Image gen profile (VRAM-friendly)
+                              qwen3coder-65k       Code review (different perspective)
 
   OPTIONS:
     -OllamaHost <url>    Remote Ollama endpoint (required for Client mode)
@@ -186,27 +188,30 @@ $script:Warnings = @()
 # Known model descriptions for progress display
 $KnownModelDescriptions = @{
     "gemma4:26b"                     = "Gemma 4 26B MoE — general (256k ctx), ~17 GB"
-    "qwen3:14b"                      = "Qwen3 14B — image gen profile, VRAM-friendly (131k ctx), ~9 GB"
+    "qwen3:14b"                      = "Qwen3 14B — light coding profile (131k ctx), ~9 GB"
+    "qwen3:4b"                       = "Qwen3 4B — image gen profile, VRAM-friendly (32k ctx), ~2.5 GB"
     "qwen2.5-coder:14b"             = "Qwen2.5-Coder 14B — code review profile (32k ctx), ~9 GB"
 }
 
 $ProfileDefinitions = @{
     "Desktop" = @{
         Description = "RTX 5090 (32GB) — gaming desktop with IDEs open (~25-27 GB available)"
-        RequiredGB = 35
+        RequiredGB = 40
         Models = [ordered]@{
             "gemma4:26b"                     = $KnownModelDescriptions["gemma4:26b"]
             "qwen3:14b"                  = $KnownModelDescriptions["qwen3:14b"]
-            "qwen2.5-coder:14b"          = $KnownModelDescriptions["qwen2.5-coder:14b"]
+            "qwen3:4b"                   = $KnownModelDescriptions["qwen3:4b"]
+            "qwen3-coder:30b"            = "Qwen3-Coder 30B MoE — code review (256k ctx), ~18 GB"
         }
     }
     "Server" = @{
         Description = "RTX 4090 (24GB) — dedicated server, full VRAM"
-        RequiredGB = 35
+        RequiredGB = 40
         Models = [ordered]@{
             "gemma4:26b"             = $KnownModelDescriptions["gemma4:26b"]
             "qwen3:14b"            = $KnownModelDescriptions["qwen3:14b"]
-            "qwen2.5-coder:14b"    = $KnownModelDescriptions["qwen2.5-coder:14b"]
+            "qwen3:4b"             = $KnownModelDescriptions["qwen3:4b"]
+            "qwen3-coder:30b"      = "Qwen3-Coder 30B MoE — code review (256k ctx), ~18 GB"
         }
     }
 }
@@ -732,26 +737,40 @@ if ($ShouldInstallSoftware) {
     # ── Step: Set up Image Generation service (diffusers + FastAPI) ─────
 
     if ($IsFullMode) {
-        Write-Step "Set up Image Generation service (FLUX.1-schnell)"
+        Write-Step "Set up Image Generation service (HiDream-O1-Image-Dev)"
         $imagegenVenv = "$env:LOCALAPPDATA\ai-tools\imagegen\.venv"
+        $imagegenDir = "$env:LOCALAPPDATA\ai-tools\imagegen"
+        $imagegenRepoDir = "$imagegenDir\HiDream-O1-Image"
         $imagegenScript = "$PSScriptRoot\imagegen-server.py"
         $imagegenStart = "$PSScriptRoot\imagegen-start.cmd"
+
+        # Clone inference repo if missing
+        if (-not (Test-Path "$imagegenRepoDir\models\pipeline.py")) {
+            Write-Info "Cloning HiDream-O1-Image inference repo..."
+            & git clone --depth 1 https://github.com/HiDream-ai/HiDream-O1-Image.git $imagegenRepoDir
+        } else {
+            Write-Info "HiDream-O1-Image repo already present."
+        }
 
         if (Test-Path "$imagegenVenv\Scripts\python.exe") {
             Write-Info "Image generation venv already exists."
         } else {
             Write-Info "Creating isolated venv for image generation..."
             & uv venv $imagegenVenv --python 3.12 --quiet
-            Write-Info "Installing PyTorch (CUDA) + diffusers + FastAPI..."
+            Write-Info "Installing PyTorch (CUDA) + transformers + FastAPI..."
             $env:VIRTUAL_ENV = $imagegenVenv
-            & uv pip install --quiet torch --index-url https://download.pytorch.org/whl/cu128
+            & uv pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cu128
             & uv pip install --quiet `
-                "diffusers[torch]" transformers fastapi uvicorn accelerate pydantic sentencepiece protobuf bitsandbytes
-            Write-Info "Image generation venv created. FLUX.1-schnell model downloads on first use (~24GB)."
+                "transformers==4.57.1" diffusers accelerate einops scipy numpy pillow tqdm fastapi uvicorn pydantic huggingface_hub
+            Write-Info "Image generation venv created."
         }
 
+        # Download model weights if not cached
+        Write-Info "Ensuring HiDream-O1-Image-Dev model is cached (35GB, may take a few minutes)..."
+        & "$imagegenVenv\Scripts\python.exe" -c "from huggingface_hub import snapshot_download; snapshot_download('HiDream-ai/HiDream-O1-Image-Dev')" 2>$null
+        Write-Info "Model cached."
+
         # Copy server script and start script to ai-tools directory
-        $imagegenDir = "$env:LOCALAPPDATA\ai-tools\imagegen"
         Copy-Item $imagegenScript "$imagegenDir\imagegen-server.py" -Force -ErrorAction SilentlyContinue
         Copy-Item $imagegenStart "$imagegenDir\imagegen-start.cmd" -Force -ErrorAction SilentlyContinue
         Write-Info "Start with: copilot-local (option 7) or imagegen-start.cmd"
@@ -957,7 +976,8 @@ if ($ShouldPullModels) {
             $numCtxSettings = @{
                 "gemma4:26b"    = 65536
                 "qwen3:14b"     = 16384
-                "qwen2.5-coder:14b" = 65536
+                "qwen3:4b"      = 8192
+                "qwen3-coder:30b" = 65536
             }
             foreach ($entry in $numCtxSettings.GetEnumerator()) {
                 $tag = $entry.Key
@@ -978,7 +998,7 @@ PARAMETER num_ctx $ctx
             Write-Host "  Creating launcher model aliases..." -ForegroundColor White
             $aliasModels = @{
                 "gemma4-65k"       = @{ From = "gemma4:26b"; Ctx = 65536 }
-                "qwen25coder-65k"  = @{ From = "qwen2.5-coder:14b"; Ctx = 65536 }
+                "qwen3coder-65k"   = @{ From = "qwen3-coder:30b"; Ctx = 65536 }
             }
             foreach ($entry in $aliasModels.GetEnumerator()) {
                 $alias = $entry.Key

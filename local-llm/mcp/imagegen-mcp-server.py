@@ -9,7 +9,7 @@ Configuration via environment variables:
 
 When targeting localhost, automatically manages the server lifecycle:
   - Starts server on demand if not running (~15-20s cold start)
-  - Shuts down server after 5 min idle to free ~9GB VRAM
+  - Shuts down server after 5 min idle to free ~16GB VRAM
 
 When targeting a remote server, lifecycle management is skipped
 (the remote systemd service handles its own lifecycle).
@@ -33,7 +33,7 @@ mcp = FastMCP("imagegen-mcp")
 
 IMAGEGEN_URL = os.environ.get("IMAGEGEN_URL", "http://127.0.0.1:8001")
 IDLE_TIMEOUT_SECONDS = 300  # 5 minutes
-STARTUP_TIMEOUT_SECONDS = 120  # max wait for server to become ready
+STARTUP_TIMEOUT_SECONDS = 300  # max wait for server to become ready (headless cold start can be slow)
 
 _server_process: subprocess.Popen | None = None
 _last_request_time: float = 0
@@ -88,16 +88,26 @@ async def _start_server() -> bool:
     if not server_script.exists():
         return False
 
+    log_path = imagegen_dir / "server.log"
+    _server_log = open(log_path, "w")
+
     popen_kwargs = {
         "cwd": str(imagegen_dir),
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
+        "stdin": subprocess.DEVNULL,
+        "stdout": _server_log,
+        "stderr": subprocess.STDOUT,
+        "env": {
+            **os.environ,
+            "PYTHONIOENCODING": "utf-8",
+            "TQDM_DISABLE": "1",
+            "TRANSFORMERS_NO_ADVISORY_WARNINGS": "1",
+        },
     }
     if sys.platform == "win32":
         popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
     _server_process = subprocess.Popen(
-        [str(venv_python), str(server_script), "--quality", "fast", "--port", "8001"],
+        [str(venv_python), str(server_script), "--port", "8001"],
         **popen_kwargs,
     )
 
@@ -146,17 +156,17 @@ async def generate_image(
     width: int = 1024,
     height: int = 1024,
 ) -> str:
-    """Generate an image from a text prompt using FLUX.1-schnell.
+    """Generate an image from a text prompt using HiDream-O1-Image-Dev.
 
     The image is saved as a PNG file at the specified output_path.
     The imagegen server is started automatically if not running (~15-20s cold start).
-    Subsequent generations are fast (~1-4 seconds).
+    Subsequent generations take ~15-25 seconds depending on resolution.
 
     Args:
         prompt: Detailed text description of the image to generate.
         output_path: Full file path where the PNG image will be saved (e.g. C:/Users/Jesse/Desktop/cat.png).
-        width: Image width in pixels (default 1024). Use 512 for drafts, 1024 for quality.
-        height: Image height in pixels (default 1024). Use 512 for drafts, 1024 for quality.
+        width: Image width in pixels (default 1024). Rendered at 2048 native and downscaled.
+        height: Image height in pixels (default 1024). Rendered at 2048 native and downscaled.
     """
     global _last_request_time
 
@@ -177,7 +187,7 @@ async def generate_image(
     _last_request_time = time.time()
 
     try:
-        async with httpx.AsyncClient(timeout=120) as client:
+        async with httpx.AsyncClient(timeout=180) as client:
             resp = await client.post(
                 f"{IMAGEGEN_URL}/v1/images/generations",
                 json={

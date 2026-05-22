@@ -42,7 +42,7 @@ cd local-llm/cachyos
 | **Ollama** / **vLLM** | Model serving (platform-dependent) |
 | **Crush** | Terminal AI agent with MCP support |
 | **GitHub Copilot CLI** | Alternative terminal agent |
-| **ComfyUI Desktop** | Image generation (FLUX, SD3.5) — Windows only |
+| **ComfyUI Desktop** | Image generation (HiDream-O1, SD3.5) — Windows only |
 | **MCP servers** | Office document editing (Word, PowerPoint) |
 | **copilot-local** | Task picker launcher |
 

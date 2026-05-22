@@ -10,10 +10,10 @@
     Profiles:
       General     — Word MCP + gh CLI (default — research & document authoring)
       Coding      — no MCP servers (code tools only)
-      Code review — Qwen2.5-Coder model, no MCP (different perspective)
+      Guided auth — doc-coauthoring skill + Word MCP (structured workflow)
+      Code review — Qwen3-Coder model, no MCP (different perspective)
       Word        — word-mcp only (Word document editing)
       PowerPoint  — pptx-mcp only (PowerPoint editing)
-      Guided auth — doc-coauthoring skill + Word MCP (structured workflow)
       Image       — imagegen-mcp (image generation)
       All         — everything enabled (may degrade with smaller models)
 
@@ -27,7 +27,7 @@ param(
 )
 
 $DefaultModel = "gemma4-65k"
-$ReviewModel  = "qwen25coder-65k"
+$ReviewModel  = "qwen3coder-65k"
 
 function Write-CrushConfig {
     param(
@@ -50,6 +50,11 @@ function Write-CrushConfig {
                 "provider" = "ollama"
                 "max_tokens" = 8000
             }
+            "small" = @{
+                "model" = $Model
+                "provider" = "ollama"
+                "max_tokens" = 8000
+            }
         }
     }
     $json = $config | ConvertTo-Json -Depth 5
@@ -60,14 +65,14 @@ function Write-CrushConfig {
 if (-not $Task) {
     Write-Host ""
     Write-Host "  --- Crush Task Profiles ---"
-    Write-Host "  [1] General           (general research and document authoring)"
-    Write-Host "  [2] Coding            (no MCP - fast, all context for code)"
-    Write-Host "  [3] Code review       (Qwen2.5-Coder - different perspective)"
-    Write-Host "  [4] Word docs         (Word MCP only - focused editing)"
-    Write-Host "  [5] PowerPoint        (PPTX MCP only)"
-    Write-Host "  [6] Guided authoring  (guided document authoring workflow)"
-    Write-Host "  [7] Image gen         (FLUX.1-schnell MCP)"
-    Write-Host "  [8] All tools         (all MCP servers - may be slow)"
+    Write-Host "  [1] General           (Research and document authoring)"
+    Write-Host "  [2] Coding            (Gemma 4, no MCP servers)"
+    Write-Host "  [3] Guided Authoring  (Guided document authoring workflow)"
+    Write-Host "  [4] Code review       (Qwen3-Coder, no MCP servers)"
+    Write-Host "  [5] Word              (Word MCP only)"
+    Write-Host "  [6] PowerPoint        (PPTX MCP only)"
+    Write-Host "  [7] Image Generation  (HiDream-O1 MCP)"
+    Write-Host "  [8] All tools         (All MCP servers, may be slow)"
     Write-Host ""
     $choice = Read-Host "  Select profile [1]"
     if (-not $choice) { $choice = "1" }
@@ -75,10 +80,10 @@ if (-not $Task) {
     switch ($choice) {
         "1" { $Task = "general" }
         "2" { $Task = "coding" }
-        "3" { $Task = "review" }
-        "4" { $Task = "word" }
-        "5" { $Task = "pptx" }
-        "6" { $Task = "docs" }
+        "3" { $Task = "docs" }
+        "4" { $Task = "review" }
+        "5" { $Task = "word" }
+        "6" { $Task = "pptx" }
         "7" { $Task = "image" }
         "8" { $Task = "all" }
         default {
@@ -121,7 +126,7 @@ Be direct. If the code is correct, say so briefly.
             "pptx-mcp"     = @{ disabled = $true }
             "imagegen-mcp" = @{ disabled = $true }
         } -SystemPromptPrefix $reviewGuide -Model $ReviewModel
-        Write-Host "  Profile: Code review (Qwen2.5-Coder 14B)"
+        Write-Host "  Profile: Code review (Qwen3-Coder 30B)"
     }
     "word" {
         $wordGuide = @"
@@ -227,8 +232,8 @@ Check for: overlapping elements, text overflow, low-contrast text, misaligned co
             "word-mcp"     = @{ disabled = $true }
             "pptx-mcp"     = @{ disabled = $true }
             "imagegen-mcp" = @{ disabled = $false }
-        } -Model "qwen3:14b"
-        Write-Host "  Profile: Image generation (FLUX.1-schnell) — using qwen3:14b for VRAM headroom"
+        } -Model "qwen3:4b"
+        Write-Host "  Profile: Image generation (HiDream-O1) — using qwen3:4b for VRAM headroom"
     }
     "all" {
         Write-CrushConfig -McpOverrides @{

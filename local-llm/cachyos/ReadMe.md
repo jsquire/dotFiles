@@ -41,7 +41,7 @@ Clients connect via `http://server-ip:8000/v1` — same OpenAI API as Ollama.
 | Qwen2.5-Coder 14B | `Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4` | ~8 GB | Light coding |
 | DeepSeek-R1 32B | `deepseek-ai/DeepSeek-R1-Distill-Qwen-32B-GPTQ-Int4` | ~18 GB | Code review, reasoning |
 | Mistral Small 3.2 | `mistralai/Mistral-Small-3.2-24B-Instruct-2503-GPTQ-Int4` | ~13 GB | Tech docs, creative, Office |
-| FLUX.1-schnell | `black-forest-labs/FLUX.1-schnell` | ~12 GB | Image generation (via SGLang) |
+| HiDream-O1-Image-Dev | `HiDream-ai/HiDream-O1-Image-Dev` | ~35 GB | Image generation (custom pipeline) |
 
 ## Install
 
@@ -129,13 +129,12 @@ sudo systemctl status imagegen   # Check status
 journalctl -u imagegen -f        # Live logs
 ```
 
-Configuration: edit via systemd override:
+Configuration: the imagegen service uses a Python server with HiDream-O1-Image-Dev.
 ```bash
 sudo systemctl edit imagegen
-# Environment="IMAGEGEN_MODEL=black-forest-labs/FLUX.1-schnell"
 ```
 
-**GPU sharing:** vLLM is configured with `gpu_memory_utilization=0.50`, reserving ~12GB for SGLang-Diffusion's LayerwiseOffload. Both services share the RTX 4090 but operate on separate VRAM regions. Image gen latency is ~5-15 seconds per image.
+**GPU sharing:** vLLM is configured with `gpu_memory_utilization=0.50`, reserving ~16GB for HiDream-O1 image generation. Both services share the RTX 4090 but cannot run simultaneously at full capacity. Image gen latency is ~15-25 seconds per image.
 
 ## Test the Installation
 
@@ -158,7 +157,7 @@ sudo systemctl status imagegen
 
 # 5. Image gen API responds
 curl http://localhost:8001/health
-# Expected: {"status":"ok","model":"black-forest-labs/FLUX.1-schnell","gpu_available":true,...}
+# Expected: {"status":"ok","model":"HiDream-O1-Image-Dev","model_loaded":true}
 
 # 6. Image generation works
 curl http://localhost:8001/v1/images/generations \
@@ -249,7 +248,7 @@ response = client.chat.completions.create(
 from openai import OpenAI
 client = OpenAI(base_url="http://server-ip:8001/v1", api_key="unused")
 response = client.images.generate(
-    model="flux-schnell",
+    model="hidream-o1",
     prompt="a glowing fox in a forest, detailed",
     size="1024x1024",
     n=1,
@@ -349,7 +348,7 @@ Common causes:
 
 ### Image gen slow or OOM
 
-Image generation temporarily spikes VRAM (~12GB for FLUX.1-schnell). If vLLM is using most VRAM:
+Image generation temporarily spikes VRAM (~16GB for HiDream-O1). If vLLM is using most VRAM:
 
 ```bash
 # Option 1: Reduce vLLM memory further

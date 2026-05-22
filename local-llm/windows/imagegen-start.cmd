@@ -1,9 +1,10 @@
 @echo off
-:: imagegen-start.cmd — Start the image generation server (FLUX.1-schnell)
+:: imagegen-start.cmd — Start the image generation server (HiDream-O1-Image-Dev)
 :: Creates a uv venv on first run, installs dependencies, then starts the server.
 
 setlocal
 set VENV_DIR=%LOCALAPPDATA%\ai-tools\imagegen\.venv
+set REPO_DIR=%LOCALAPPDATA%\ai-tools\imagegen\HiDream-O1-Image
 set SCRIPT_DIR=%~dp0
 
 :: Check for uv
@@ -13,32 +14,39 @@ if errorlevel 1 (
     exit /b 1
 )
 
+:: Clone inference repo if missing
+if not exist "%REPO_DIR%\models\pipeline.py" (
+    echo   Cloning HiDream-O1-Image inference repo...
+    git clone --depth 1 https://github.com/HiDream-ai/HiDream-O1-Image.git "%REPO_DIR%"
+)
+
 :: Create venv if it doesn't exist
 if not exist "%VENV_DIR%\Scripts\python.exe" (
     echo   Creating image generation venv...
-    uv venv "%VENV_DIR%" --python 3.12 --quiet
+    uv venv "%VENV_DIR%" --quiet
     echo   Installing dependencies (first run only, this may take a few minutes^)...
     set VIRTUAL_ENV=%VENV_DIR%
     uv pip install --quiet ^
-        torch --index-url https://download.pytorch.org/whl/cu128
+        torch torchvision --index-url https://download.pytorch.org/whl/cu128
     uv pip install --quiet ^
-        "diffusers[torch]" ^
-        transformers ^
+        "transformers==4.57.1" ^
+        diffusers ^
+        accelerate ^
+        einops ^
+        scipy ^
+        numpy ^
+        pillow ^
+        tqdm ^
         fastapi ^
         uvicorn ^
-        accelerate ^
-        pydantic ^
-        sentencepiece ^
-        protobuf ^
-        bitsandbytes
+        pydantic
     echo   Dependencies installed.
 )
 
 echo.
 echo   Starting image generation server on http://127.0.0.1:8001
-echo   Model: FLUX.1-schnell
-echo   Mode: FAST (NF4 quantized, ~9GB VRAM, ~5-20s/image^)
-echo   Use --quality hq for full bf16 (best quality, ~2.5 min/image^)
+echo   Model: HiDream-O1-Image-Dev (8B, bf16, ~16GB VRAM^)
+echo   Generation time: ~15-25s per image
 echo.
 echo   Usage:
 echo     curl http://localhost:8001/v1/images/generations ^
