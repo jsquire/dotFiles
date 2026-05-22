@@ -13,7 +13,7 @@ Single-user AI assistant on Windows with Ollama, Crush, Copilot CLI, MCP, and lo
 | **Crush** | Terminal AI agent with MCP support | winget |
 | **GitHub Copilot CLI** | Alternative terminal agent | User-local |
 | **uv** | Python toolchain (manages MCP venvs) | winget |
-| **Image Gen** | FLUX.1-schnell image generation (OpenAI API) | Python venv |
+| **Image Gen** | HiDream-O1-Image-Dev image generation (OpenAI API) | Python venv |
 | **copilot-local** | Task picker launcher for Copilot CLI | `~/Documents/CLI/` + PATH |
 | **MCP servers** | Office document editing (Word, PowerPoint) | Isolated Python venvs |
 
@@ -91,7 +91,7 @@ deepseek-r1:32b
 
 ### Image Generation
 
-The image gen service uses a Python venv at `%LOCALAPPDATA%\ai-tools\imagegen`. The FLUX.1-schnell model (~24GB) downloads automatically on first generation.
+The image gen service uses a Python venv at `%LOCALAPPDATA%\ai-tools\imagegen`. The HiDream-O1-Image-Dev model (~35GB) is downloaded during install.
 
 ## Test the Installation
 
@@ -132,7 +132,7 @@ copilot-local glm-4.7-flash     # Skip picker, use specific model
   [4] Technical docs      (glm-4.7-flash)
   [5] Creative writing    (glm-4.7-flash)
   [6] Office documents    (glm-4.7-flash)
-  [7] Image generation    (FLUX.1-schnell — local API)
+  [7] Image generation    (HiDream-O1 — local API)
 ```
 
 ### Crush (MCP/Office tasks)
@@ -144,15 +144,10 @@ crush run "create a slide deck"  # One-shot with MCP tools
 
 ### Image Generation
 
-**FLUX.1-schnell** via diffusers + FastAPI — OpenAI-compatible API on `localhost:8001`:
+**HiDream-O1-Image-Dev** (8B params, MIT) — OpenAI-compatible API on `localhost:8001`:
 
 1. Select option 7 from copilot-local (starts the server)
-2. Server loads FLUX.1-schnell in **fast** mode (NF4 quantized, ~9GB VRAM, ~1-4s/image)
-
-| Mode | Flag | VRAM | Speed | Quality |
-|------|------|------|-------|---------|
-| **Fast** (default) | `--quality fast` | ~9 GB | ~1-4s | Very good |
-| **HQ** | `--quality hq` | ~34 GB (CPU offload) | ~2-3 min | Best |
+2. Server loads HiDream-O1 in bf16 (~16GB VRAM, ~15-25s/image)
 
 ```powershell
 # Generate an image
@@ -168,8 +163,8 @@ client = OpenAI(base_url="http://localhost:8001/v1", api_key="unused")
 result = client.images.generate(prompt="a sunset over mountains", size="1024x1024")
 ```
 
-> **Note:** FLUX.1-schnell model downloads ~24GB on first use (cached in HuggingFace cache).
-> Ollama image generation is macOS-only and does not work on Windows.
+> **Note:** Images render at 2048×2048 native resolution and downscale to requested size.
+> Model is ~35GB cached in HuggingFace hub. Inference repo cloned to `ai-tools/imagegen/HiDream-O1-Image/`.
 
 ### Model Management
 

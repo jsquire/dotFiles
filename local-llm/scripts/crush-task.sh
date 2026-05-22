@@ -7,10 +7,10 @@
 # Profiles:
 #   general — Word MCP + gh CLI (default — research & document authoring)
 #   coding  — no MCP servers (code tools only)
+#   docs    — doc-coauthoring skill + Word MCP (structured workflow)
 #   review  — Qwen2.5-Coder model, no MCP (different perspective)
 #   word    — word-mcp only (Word document editing)
 #   pptx    — pptx-mcp only (PowerPoint editing)
-#   docs    — doc-coauthoring skill + Word MCP (structured workflow)
 #   image   — imagegen-mcp (image generation)
 #   all     — everything enabled (may degrade with smaller models)
 set -euo pipefail
@@ -39,6 +39,11 @@ write_crush_config() {
       \"model\": \"${model_override}\",
       \"provider\": \"ollama\",
       \"max_tokens\": 8000
+    },
+    \"small\": {
+      \"model\": \"${model_override}\",
+      \"provider\": \"ollama\",
+      \"max_tokens\": 8000
     }
   }"
     fi
@@ -57,19 +62,19 @@ EOF
 
 task="${1:-}"
 DEFAULT_MODEL="gemma4-65k"
-REVIEW_MODEL="qwen25coder-65k"
+REVIEW_MODEL="qwen3coder-65k"
 
 if [[ -z "$task" ]]; then
     echo
     echo "  --- Crush Task Profiles ---"
-    echo "  [1] General           (general research and document authoring)"
-    echo "  [2] Coding            (no MCP - fast, all context for code)"
-    echo "  [3] Code review       (Qwen2.5-Coder - different perspective)"
-    echo "  [4] Word docs         (Word MCP only - focused editing)"
-    echo "  [5] PowerPoint        (PPTX MCP only)"
-    echo "  [6] Guided authoring  (guided document authoring workflow)"
-    echo "  [7] Image gen         (FLUX.1-schnell MCP)"
-    echo "  [8] All tools         (all MCP servers - may be slow)"
+    echo "  [1] General           (Research and document authoring)"
+    echo "  [2] Coding            (Gemma 4, no MCP servers)"
+    echo "  [3] Guided Authoring  (Guided document authoring workflow)"
+    echo "  [4] Code review       (Qwen2.5-Coder, no MCP servers)"
+    echo "  [5] Word              (Word MCP only)"
+    echo "  [6] PowerPoint        (PPTX MCP only)"
+    echo "  [7] Image Generation  (HiDream-O1 MCP)"
+    echo "  [8] All tools         (All MCP servers, may be slow)"
     echo
     read -rp "  Select profile [1]: " choice
     choice="${choice:-1}"
@@ -77,10 +82,10 @@ if [[ -z "$task" ]]; then
     case "$choice" in
         1) task="general" ;;
         2) task="coding" ;;
-        3) task="review" ;;
-        4) task="word" ;;
-        5) task="pptx" ;;
-        6) task="docs" ;;
+        3) task="docs" ;;
+        4) task="review" ;;
+        5) task="word" ;;
+        6) task="pptx" ;;
         7) task="image" ;;
         8) task="all" ;;
         *)
@@ -175,8 +180,8 @@ Be direct. If the code is correct, say so briefly."
         echo "  Profile: Guided document authoring (doc-coauthoring skill + Word MCP)"
         ;;
     image)
-        write_crush_config true true false "" "qwen3:14b"
-        echo "  Profile: Image generation (FLUX.1-schnell) — using qwen3:14b for VRAM headroom"
+        write_crush_config true true false "" "qwen3:4b"
+        echo "  Profile: Image generation (HiDream-O1) — using qwen3:4b for VRAM headroom"
         ;;
     all)
         write_crush_config false false false "" "$DEFAULT_MODEL"

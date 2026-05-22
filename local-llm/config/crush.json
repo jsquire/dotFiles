@@ -14,18 +14,25 @@
           "can_reason": true
         },
         {
-          "name": "Qwen3 14B (Image gen profile — VRAM-friendly)",
+          "name": "Qwen3 14B (Light coding)",
           "id": "qwen3:14b",
           "context_window": 16384,
           "default_max_tokens": 8000,
           "can_reason": true
         },
         {
-          "name": "Qwen2.5-Coder 14B (Code review)",
-          "id": "qwen25coder-65k",
+          "name": "Qwen3 4B (Image gen — VRAM-friendly)",
+          "id": "qwen3:4b",
+          "context_window": 8192,
+          "default_max_tokens": 4000,
+          "can_reason": true
+        },
+        {
+          "name": "Qwen3-Coder 30B (Code review)",
+          "id": "qwen3coder-65k",
           "context_window": 65536,
           "default_max_tokens": 8000,
-          "can_reason": false
+          "can_reason": true
         }
       ]
     },
@@ -43,18 +50,25 @@
           "can_reason": true
         },
         {
-          "name": "Qwen3 14B (Image gen profile — VRAM-friendly)",
+          "name": "Qwen3 14B (Light coding)",
           "id": "qwen3:14b",
           "context_window": 16384,
           "default_max_tokens": 8000,
           "can_reason": true
         },
         {
-          "name": "Qwen2.5-Coder 14B (Code review)",
-          "id": "qwen25coder-65k",
+          "name": "Qwen3 4B (Image gen — VRAM-friendly)",
+          "id": "qwen3:4b",
+          "context_window": 8192,
+          "default_max_tokens": 4000,
+          "can_reason": true
+        },
+        {
+          "name": "Qwen3-Coder 30B (Code review)",
+          "id": "qwen3coder-65k",
           "context_window": 65536,
           "default_max_tokens": 8000,
-          "can_reason": false
+          "can_reason": true
         }
       ]
     },
@@ -177,12 +191,14 @@
     "word-mcp": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["--python", "3.12", "docx-mcp-server"]
+      "args": ["--python", "3.12", "docx-mcp-server"],
+      "disabled": true
     },
     "pptx-mcp": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["ppt-mcp"]
+      "args": ["ppt-mcp"],
+      "disabled": true
     },
     "pptx-mcp-xplat": {
       "type": "stdio",
@@ -196,7 +212,8 @@
       "args": ["__LOCALAPPDATA__/ai-tools/mcp-imagegen/imagegen-mcp-server.py"],
       "env": {
         "IMAGEGEN_URL": "http://__IMAGEGEN_HOST__:8001"
-      }
+      },
+      "disabled": true
     }
   },
   "hooks": {

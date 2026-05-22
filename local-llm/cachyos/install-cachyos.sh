@@ -148,7 +148,8 @@ model_description() {
         mistral-small3.2:24b) printf '%s' 'Mistral Small 3.2 — docs/creative/office, ~15 GB' ;;
         gemma4:31b) printf '%s' 'Gemma 4 31B — heavy coding (256k ctx), ~20 GB' ;;
         gemma4:26b) printf '%s' 'Gemma 4 26B MoE — general (256k ctx), ~17 GB' ;;
-        qwen3:14b) printf '%s' 'Qwen3 14B — image gen profile, VRAM-friendly (131k ctx), ~9 GB' ;;
+        qwen3:14b) printf '%s' 'Qwen3 14B — light coding profile (131k ctx), ~9 GB' ;;
+        qwen3:4b) printf '%s' 'Qwen3 4B — image gen profile, VRAM-friendly (32k ctx), ~2.5 GB' ;;
         qwen2.5-coder:14b) printf '%s' 'Qwen2.5-Coder 14B — code review profile (32k ctx), ~9 GB' ;;
         gemma3:27b) printf '%s' 'Gemma 3 27B — tech docs (128k ctx), ~16 GB' ;;
         llama3.3:70b-instruct-q2_K) printf '%s' 'Llama 3.3 70B Q2 — creative writing, ~26 GB' ;;
@@ -238,7 +239,7 @@ load_effective_model_config() {
                 EFFECTIVE_MODEL_REQUIRED_GB=58
             else
                 # Ollama (full mode, single-user) uses Ollama tags
-                SELECTED_MODELS=("gemma4:26b" "qwen3:14b" "qwen2.5-coder:14b")
+                SELECTED_MODELS=("gemma4:26b" "qwen3:14b" "qwen3:4b" "qwen3-coder:30b")
             fi
             ;;
     esac
@@ -709,19 +710,43 @@ WantedBy=multi-user.target
 
             step "Configure image generation systemd service"
             local imagegen_service="/etc/systemd/system/imagegen.service"
+            local imagegen_dir="${HOME}/.local/share/ai-tools/imagegen"
+            local imagegen_repo="${imagegen_dir}/HiDream-O1-Image"
+            local imagegen_venv="${imagegen_dir}/.venv"
+
+            # Clone inference repo if missing
+            if [[ ! -f "${imagegen_repo}/models/pipeline.py" ]]; then
+                info "Cloning HiDream-O1-Image inference repo..."
+                git clone --depth 1 https://github.com/HiDream-ai/HiDream-O1-Image.git "${imagegen_repo}"
+            fi
+
+            # Create venv if missing
+            if [[ ! -f "${imagegen_venv}/bin/python" ]]; then
+                info "Creating image generation venv..."
+                uv venv "${imagegen_venv}" --python 3.12 --quiet
+                VIRTUAL_ENV="${imagegen_venv}" uv pip install --quiet \
+                    torch torchvision --index-url https://download.pytorch.org/whl/cu128
+                VIRTUAL_ENV="${imagegen_venv}" uv pip install --quiet \
+                    "transformers==4.57.1" diffusers accelerate einops scipy numpy pillow tqdm \
+                    fastapi uvicorn pydantic huggingface_hub flash-attn
+            fi
+
+            # Copy server script
+            cp "${SCRIPT_DIR}/../windows/imagegen-server.py" "${imagegen_dir}/imagegen-server.py"
+
             local imagegen_service_content="[Unit]
-Description=Image Generation API (SGLang-Diffusion + FLUX.1-schnell)
+Description=Image Generation API (HiDream-O1-Image-Dev)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=$(whoami)
-ExecStart=${VLLM_VENV}/bin/python -m sglang.launch_server \\
-    --model-path \${IMAGEGEN_MODEL} \\
+WorkingDirectory=${imagegen_dir}
+ExecStart=${imagegen_venv}/bin/python ${imagegen_dir}/imagegen-server.py \\
     --host 0.0.0.0 \\
     --port ${IMAGEGEN_PORT}
-Environment=\"IMAGEGEN_MODEL=black-forest-labs/FLUX.1-schnell\"
+Environment=\"LOCALAPPDATA=${HOME}/.local/share\"
 Restart=on-failure
 RestartSec=15
 
@@ -730,8 +755,8 @@ WantedBy=multi-user.target
 "
             if printf '%s' "$imagegen_service_content" | run_privileged tee "$imagegen_service" >/dev/null; then
                 run_privileged systemctl daemon-reload
-                success "Created imagegen.service (SGLang-Diffusion)"
-                info "Default model: FLUX.1-schnell on port ${IMAGEGEN_PORT}"
+                success "Created imagegen.service (HiDream-O1-Image-Dev)"
+                info "Model: HiDream-O1-Image-Dev on port ${IMAGEGEN_PORT}"
                 info "Start with: sudo systemctl enable --now imagegen"
             else
                 add_failure "Failed to create imagegen systemd service."
@@ -1061,14 +1086,14 @@ if [[ "$SHOULD_PULL_MODELS" == true ]]; then
                 fi
             done
 
-            # Also download FLUX.1-schnell for image generation
+            # Download HiDream-O1-Image-Dev for image generation
             echo
-            printf '%b\n' "${COLOR_GRAY}  Downloading black-forest-labs/FLUX.1-schnell (image generation)${COLOR_RESET}"
-            info "FLUX.1-schnell — fast image generation (4 steps), ~12 GB"
-            if "$HF_CLI" download "black-forest-labs/FLUX.1-schnell" --quiet; then
-                success "FLUX.1-schnell ready."
+            printf '%b\n' "${COLOR_GRAY}  Downloading HiDream-ai/HiDream-O1-Image-Dev (image generation)${COLOR_RESET}"
+            info "HiDream-O1-Image-Dev — high-quality image generation (28 steps), ~35 GB"
+            if "$HF_CLI" download "HiDream-ai/HiDream-O1-Image-Dev" --quiet; then
+                success "HiDream-O1-Image-Dev ready."
             else
-                add_warning "FLUX.1-schnell download failed — image gen will not work until downloaded."
+                add_warning "HiDream-O1-Image-Dev download failed — image gen will not work until downloaded."
             fi
         fi
     else
@@ -1116,7 +1141,8 @@ if [[ "$SHOULD_PULL_MODELS" == true ]]; then
                     local -A num_ctx_settings=(
                         ["gemma4:26b"]=65536
                         ["qwen3:14b"]=16384
-                        ["qwen2.5-coder:14b"]=65536
+                        ["qwen3:4b"]=8192
+                        ["qwen3-coder:30b"]=65536
                     )
                     for tag in "${!num_ctx_settings[@]}"; do
                         local ctx="${num_ctx_settings[$tag]}"
@@ -1133,11 +1159,11 @@ if [[ "$SHOULD_PULL_MODELS" == true ]]; then
                     printf '%b\n' "${COLOR_GRAY}  Creating launcher model aliases...${COLOR_RESET}"
                     local -A alias_from=(
                         ["gemma4-65k"]="gemma4:26b"
-                        ["qwen25coder-65k"]="qwen2.5-coder:14b"
+                        ["qwen3coder-65k"]="qwen3-coder:30b"
                     )
                     local -A alias_ctx=(
                         ["gemma4-65k"]=65536
-                        ["qwen25coder-65k"]=65536
+                        ["qwen3coder-65k"]=65536
                     )
                     for alias_name in "${!alias_from[@]}"; do
                         local from="${alias_from[$alias_name]}"

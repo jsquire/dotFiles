@@ -19,7 +19,7 @@ echo.
 echo   --- Coding ---
 echo   [1] Heavy coding        (gemma4-65k^)
 echo   [2] Light coding        (qwen3:14b^)
-echo   [3] Code review         (qwen25coder-65k^)
+echo   [3] Code review         (qwen3coder-65k^)
 echo.
 echo   --- Writing ^& Documents ---
 echo   [4] Technical docs      (gemma4-65k^)
@@ -27,7 +27,7 @@ echo   [5] Creative writing    (gemma4-65k^)
 echo   [6] Office documents    (gemma4-65k^)
 echo.
 echo   --- Visual ---
-echo   [7] Image generation    (FLUX.1-schnell via MCP^)
+echo   [7] Image generation    (HiDream-O1 via MCP^)
 echo.
 set /p choice="  Select task [1]: "
 
@@ -35,11 +35,11 @@ if "%choice%"=="" set choice=1
 
 if "%choice%"=="1" set COPILOT_MODEL=gemma4-65k
 if "%choice%"=="2" set COPILOT_MODEL=qwen3:14b
-if "%choice%"=="3" set COPILOT_MODEL=qwen25coder-65k
+if "%choice%"=="3" set COPILOT_MODEL=qwen3coder-65k
 if "%choice%"=="4" set COPILOT_MODEL=gemma4-65k
 if "%choice%"=="5" set COPILOT_MODEL=gemma4-65k
 if "%choice%"=="6" set COPILOT_MODEL=gemma4-65k
-if "%choice%"=="7" set COPILOT_MODEL=qwen3:14b
+if "%choice%"=="7" set COPILOT_MODEL=qwen3:4b
 
 :: Set MCP flags based on task category
 :: Coding (1-3): disable all MCP servers — max context for code

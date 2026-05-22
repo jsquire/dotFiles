@@ -1,8 +1,7 @@
 # imagegen-launch.ps1 — Start imagegen server, wait for ready, launch Copilot, cleanup on exit
 param(
     [string]$Model = "gemma4-65k",
-    [int]$Port = 8001,
-    [string]$Quality = "fast"
+    [int]$Port = 8001
 )
 
 $env:COPILOT_PROVIDER_BASE_URL = "http://localhost:11434/v1"
@@ -20,7 +19,7 @@ if (-not (Test-Path $py)) {
 }
 
 $psi = [System.Diagnostics.ProcessStartInfo]::new($py)
-$psi.Arguments = "`"$script`" --quality $Quality --port $Port"
+$psi.Arguments = "`"$script`" --port $Port"
 $psi.UseShellExecute = $false
 $psi.RedirectStandardOutput = $true
 $psi.RedirectStandardError = $true
@@ -37,7 +36,7 @@ $ready = $false
 while (-not $ready -and -not $srv.HasExited) {
     $line = $srv.StandardError.ReadLine()
     if ($line) {
-        if ($line -match 'pipeline loaded') {
+        if ($line -match 'Model loaded') {
             Write-Host "  $line"
             $ready = $true
         } elseif ($line -match 'Loading|Fetching|checkpoint') {

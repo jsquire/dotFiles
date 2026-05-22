@@ -18,7 +18,7 @@ echo
 echo "  --- Coding ---"
 echo "  [1] Heavy coding        (gemma4-65k)"
 echo "  [2] Light coding        (qwen3:14b)"
-echo "  [3] Code review         (qwen25coder-65k)"
+echo "  [3] Code review         (qwen3coder-65k)"
 echo
 echo "  --- Writing & Documents ---"
 echo "  [4] Technical docs      (gemma4-65k)"
@@ -26,7 +26,7 @@ echo "  [5] Creative writing    (gemma4-65k)"
 echo "  [6] Office documents    (gemma4-65k)"
 echo
 echo "  --- Visual ---"
-echo "  [7] Image generation    (FLUX.1-schnell via MCP)"
+echo "  [7] Image generation    (HiDream-O1 via MCP)"
 echo
 read -rp "  Select task [1]: " choice
 choice="${choice:-1}"
@@ -48,9 +48,9 @@ esac
 case "$choice" in
     1) export COPILOT_MODEL="gemma4-65k" ;;
     2) export COPILOT_MODEL="qwen3:14b" ;;
-    3) export COPILOT_MODEL="qwen25coder-65k" ;;
+    3) export COPILOT_MODEL="qwen3coder-65k" ;;
     4|5|6) export COPILOT_MODEL="gemma4-65k" ;;
-    7) export COPILOT_MODEL="qwen3:14b" ;;
+    7) export COPILOT_MODEL="qwen3:4b" ;;
     *) echo "  Invalid. Using gemma4-65k"; export COPILOT_MODEL="gemma4-65k" ;;
 esac
 
