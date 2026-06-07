@@ -50,22 +50,46 @@ cd local-llm/cachyos
 
 ```
 local-llm/
-├── ReadMe.md                  # This file (index)
+├── ReadMe.md                        # This file (index)
 ├── windows/
-│   ├── ReadMe.md              # Desktop documentation
-│   ├── install-windows.ps1    # Windows installer
-│   └── remove-windows.ps1     # Windows uninstaller
+│   ├── ReadMe.md                    # Desktop documentation
+│   ├── install-windows.ps1          # Windows installer
+│   ├── remove-windows.ps1           # Windows uninstaller
+│   ├── Modelfile.qwen3coder-65k     # Ollama custom model definition
+│   ├── imagegen-server.py           # ComfyUI API bridge
+│   ├── imagegen-start.cmd           # ComfyUI launcher
+│   └── icons/                       # Shortcut icons (copilot/crush, dark/light)
 ├── cachyos/
-│   ├── ReadMe.md              # Server documentation
-│   ├── install-cachyos.sh     # CachyOS installer
-│   └── remove-cachyos.sh      # CachyOS uninstaller
+│   ├── ReadMe.md                    # Server documentation
+│   ├── install-cachyos.sh           # CachyOS installer
+│   └── remove-cachyos.sh           # CachyOS uninstaller
 ├── scripts/
-│   ├── copilot-local.cmd      # Windows task picker
-│   └── copilot-local.sh       # Linux task picker
+│   ├── copilot-local.cmd            # Windows task picker
+│   ├── copilot-local.sh             # Linux task picker
+│   ├── crush-task.ps1               # Crush launcher (Windows)
+│   ├── crush-task.sh                # Crush launcher (Linux)
+│   ├── crush-task.cmd               # Crush launcher (cmd wrapper)
+│   └── imagegen-launch.ps1          # Image gen session launcher
 ├── config/
-│   ├── crush.json             # Crush config template
-│   └── ollama-models.txt      # Custom model list (optional)
-└── mcp/
-    ├── setup-mcp-venvs.ps1    # Windows MCP setup
-    └── setup-mcp-venvs.sh     # Linux MCP setup
+│   ├── crush.json                   # Crush config template (all providers)
+│   ├── copilot-mcp-config.json      # Copilot CLI MCP server config
+│   ├── ollama-models.txt            # Custom model list (optional)
+│   ├── pptx-instructions.md         # PowerPoint MCP system prompt
+│   ├── mcp/                         # MCP server configs (placeholder)
+│   └── skills/
+│       └── git-safety/SKILL.md      # Git safety skill definition
+├── mcp/
+│   ├── ReadMe.md                    # MCP setup documentation
+│   ├── imagegen-mcp-server.py       # Image generation MCP server
+│   ├── setup-mcp-venvs.ps1         # Windows MCP venv setup
+│   ├── setup-mcp-venvs.sh          # Linux MCP venv setup
+│   └── templates/                   # MCP template assets
+└── benchmarks/
+    ├── ReadMe.md                    # Benchmark methodology
+    ├── tasks/                       # Evaluation task sets
+    │   ├── coding-tasks.md
+    │   ├── document-tasks.md
+    │   ├── reasoning-tasks.md
+    │   └── sysadmin-tasks.md
+    └── results/                     # Benchmark output (gitkeep)
 ```

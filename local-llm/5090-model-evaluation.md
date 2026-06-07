@@ -61,69 +61,148 @@ upgraded in the future).
 | Windows workstation (5090) | 32,768 MiB (~32 GB) | ~2 GB (compositor + Ollama) | **~30 GB** |
 | CachyOS server (4090, unchanged) | 24,564 MiB (~24 GB) | ~0.5-1 GB | **~23.5 GB** |
 
-**Critical constraint**: Any model chosen must also work on the CachyOS 4090 server.
-If a model only fits on 5090, it can only be the Windows-local model, and the server
-must keep Gemma 4 26B or another 4090-compatible model. This creates a split
-configuration that should be avoided unless the quality gain is substantial.
+**Resolved constraint**: Same model on both hosts (Qwen3.6-27B), different backends
+and context limits. Windows 5090 (Ollama, 128K) and CachyOS 4090 (vLLM, 32K, FP8 KV).
+This avoids split-model complexity while respecting VRAM differences.
 
 ---
 
-## Candidate Models to Evaluate
+## Model Decision (May 2026 Research — Finalized)
 
-Models are sorted by priority. All sizes are Ollama Q4_K_M unless noted.
+### Selected Model: **Qwen3.6-27B** (both hosts)
+
+Based on comprehensive evaluation of all candidates against published benchmarks,
+community sentiment, and VRAM constraints.
+
+#### Why Qwen3.6-27B Wins
+
+| Metric | Qwen3.6-27B | Qwen3.5-27B | Gemma 4 26B (current) | Source |
+|--------|-------------|-------------|----------------------|--------|
+| LiveCodeBench v6 | **83.9%** | 80.7% | 77.1% | Alibaba blog, Google tech report |
+| SWE-bench Verified | **77.2%** | 75.0% | N/A | HuggingFace model card |
+| Terminal-Bench 2.0 | **59.3%** | N/A | N/A | Alibaba blog |
+| C# community sentiment | "Senior developer feel" | "Surprisingly good" | "Compiles, occasional hallucination" | r/LocalLLaMA May 2026 |
+| Tool calling | "Robust slot filling, context carryover" | Published BFCL 68.5% | Adequate (no published score) | Community reviews |
+| Architecture | Dense 27B, GQA (8 KV heads) | Hybrid 27B | MoE 3.8B active | config.json |
+| Context window | **262K native** | 128K | 256K | Model card |
+| License | Apache 2.0 | Apache 2.0 | Gemma ToU | — |
+
+#### Eliminated Candidates (Data-Based)
+
+| Model | Reason | Data |
+|-------|--------|------|
+| **GPT-OSS 20B** | "So censored it's unusable" — coding refusals on innocuous prompts | r/LocalLLaMA, YouTube reviews |
+| **LFM2-24B-A2B** | 32K context max — cannot hold 60K+ coding sessions | Architecture limit |
+| **Gemma 4 31B** | Only fits at 65K on 5090, no 128K path, slowest (25 t/s), tight VRAM | VRAM math, benchmarks |
+| **Qwen3.5-35B-A3B** | Superseded by Qwen3.6-35B-A3B; LiveCode only 74.6% (below current 77.1%) | Benchmark comparison |
+| **Qwen3.6-35B-A3B** | 30-38GB VRAM at 128K — exceeds 5090's 30GB available | VRAM projections |
+| **Gemma 4 26B @ 128K** | Viable fallback but +6.8% LiveCode improvement from Qwen3.6-27B justifies switch | Benchmark delta |
+
+#### Deployment Configuration
+
+| Host | Backend | Model | Context | GPU Util | KV Cache | VRAM Budget |
+|------|---------|-------|---------|----------|----------|-------------|
+| **Windows 5090 (32 GB)** | Ollama | qwen3.6:27b | **128K** | 100% | q8_0 | ~21-24 GB / 30 GB |
+| **CachyOS 4090 (24 GB)** | vLLM | Qwen3.6-27B-Instruct-GPTQ-Int4 | **32K** | 0.90 | **FP8 (fp8_e5m2)** | ~19 GB / 21.6 GB |
+
+#### CachyOS 4090 Multi-User Math (2 concurrent users)
+
+```
+Architecture: 32 layers, 8 KV heads (GQA), head_dim 128
+KV per token (FP8): 2 × 32 × 8 × 128 × 1 byte = 65,536 bytes/token
+
+Per user @ 32K context: 65,536 × 32,768 = 2.0 GB
+Two users @ 32K each: 4.0 GB KV total
+Model weights (GPTQ-Int4): ~15 GB
+Total: ~19 GB → fits in 21.6 GB (0.90 × 24 GB) with 2.6 GB headroom
+```
+
+FP8 KV cache impact (published data):
+- Quality: < 1% accuracy loss on HumanEval/MBPP (arxiv.org/abs/2411.02355)
+- Speed: ~5-8% slower on Ada Lovelace (software dequant, no native FP8 tensor cores)
+- Memory: 50% KV reduction — enables 2-user concurrency that FP16 cannot support
+
+#### Speed Projections (RTX 5090)
+
+| Context | Estimated tok/s | Per-turn time (400 tok) | 30-turn session |
+|---------|----------------|------------------------|-----------------|
+| 32K | 35-40 t/s | ~10-11s | ~5 min |
+| 65K | 28-35 t/s | ~12-14s | ~6 min |
+| 128K | 25-30 t/s | ~13-16s | ~7 min |
+
+Compared to current Gemma 4 26B on RTX 4090: ~54-91 tok/s (MoE advantage).
+The 5090 with dense 27B will be slower per-token but higher quality per-turn.
+User's stated preference: "80% quality + speed > marginally better per-turn quality"
+→ Qwen3.6-27B at 83.9% LiveCode exceeds the quality bar; speed at 25-40 t/s is
+in the "Good" range (interactive use, no perceptible lag for coding).
+
+---
+
+## Candidate Models (Historical — Evaluated May 2026)
+
+Models sorted by priority. All sizes are Q4_K_M unless noted.
 
 ### Tier 1: Models Unlocked by 5090 (didn't fit on 4090)
 
 | Model | Arch | Total/Active | Ollama Size | Published Benchmarks | Why Test |
 |-------|------|-------------|-------------|---------------------|----------|
-| **Qwen3.5-35B-A3B** | MoE | 35B/3B | 24 GB | BFCL 67.3%, LiveCode 74.6%, GPQA 84.2%, **TAU2 81.2%** | Highest agentic score; didn't fit on 4090 |
+| **Qwen3.6-27B** ★ SELECTED | Dense | 27B/27B | 15-18 GB | **LiveCode 83.9%**, SWE-bench 77.2%, Terminal-Bench 59.3% | Best coding quality, 262K context |
+| **Qwen3.5-35B-A3B** | MoE | 35B/3B | 24 GB | BFCL 67.3%, LiveCode 74.6%, GPQA 84.2%, TAU2 81.2% | Highest agentic score; didn't fit on 4090 |
 | **Gemma 4 31B** | Dense | 31B/31B | 20 GB | LiveCode 80.0%, GPQA 84.3%, TAU2 76.9% | Dense reasoning powerhouse |
-| **Qwen3.5-27B** | Hybrid | 27B/27B | 17 GB | **BFCL 68.5%**, **LiveCode 80.7%**, **GPQA 85.5%**, TAU2 79.0% | Best benchmarks, now fits 100% GPU |
-| **Qwen3.5-27B at 128K ctx** | Hybrid | 27B/27B | 17 GB | Same | Same model, double context for long sessions |
+| **Qwen3.5-27B** | Hybrid | 27B/27B | 17 GB | BFCL 68.5%, LiveCode 80.7%, GPQA 85.5%, TAU2 79.0% | Best pre-3.6 benchmarks |
+| **Qwen3.6-35B-A3B** | MoE | 35B/3B | 21 GB | LiveCode 80.4%, SWE-bench 73.4%, τ2 95.3% | Fast MoE but VRAM-constrained at 128K |
 
 ### Tier 2: Revalidate with Headroom
 
 | Model | Arch | Total/Active | Ollama Size | Why Test |
 |-------|------|-------------|-------------|----------|
-| **GPT-OSS 20B** | MoE | 21B/3.6B | 14 GB | Most VRAM-efficient; could run 256K context |
+| **GPT-OSS 20B** | MoE | 21B/3.6B | 14 GB | Most VRAM-efficient — ELIMINATED (censorship) |
 | **Gemma 4 26B at 128K** | MoE | 25B/3.8B | 18 GB | Current model with doubled context window |
+| **LFM2-24B-A2B** | Hybrid MoE | 24B/2B | 13 GB | Fast — ELIMINATED (32K context limit) |
 
-### Tier 3: If New Models Have Appeared
-At the time of this evaluation, check:
-- `ollama.com/library` for any new 30-50B models
-- HuggingFace trending models in the 30-50B range
-- r/LocalLLaMA top posts from the last 2 months
-- Any new Qwen, Gemma, GPT-OSS, or Mistral releases
+### Arena Leaderboard Context (May 22, 2026)
+
+| Rank | Model | Score | Relevance |
+|------|-------|-------|-----------|
+| 9 | Gemma 4 31B | 1058.1 | Evaluated — VRAM-constrained on 5090 at 128K |
+| 17 | Qwen3.6 35B A3B | 940.0 | Evaluated — VRAM-constrained at 128K |
+| 21 | LFM2-24B-A2B | 857.8 | Evaluated — 32K context limit eliminates it |
+
+Note: Qwen3.6-27B not yet listed in arena (too new, April 2026 release)
 
 ---
 
-## VRAM Fit Projections (5090, 30 GB available)
+## VRAM Fit Projections — Updated with Qwen3.6
 
-| Model | Weights | KV@65K q8_0 | Total@65K | Fits 5090? | KV@128K q8_0 | Total@128K | Fits? | KV@256K | Total@256K | Fits? |
-|-------|---------|-------------|-----------|-----------|-------------|-----------|-------|---------|-----------|-------|
-| Qwen3.5-35B-A3B | 24 GB | ~1-2 GB | ~25-26 GB | ✅ +4 GB | ~3-4 GB | ~27-28 GB | ✅ +2 GB | ~6-8 GB | ~30-32 GB | ⚠️ |
-| Gemma 4 31B | 20 GB | ~6-8 GB* | ~26-28 GB | ✅ ~2 GB | ~12-16 GB | ~32-36 GB | ❌ | — | — | ❌ |
-| Qwen3.5-27B | 17 GB | ~2.3 GB | ~19 GB | ✅✅ +11 GB | ~4.3 GB | ~21 GB | ✅✅ | ~8 GB | ~25 GB | ✅ +5 GB |
-| GPT-OSS 20B | 14 GB | ~1 GB | ~15 GB | ✅✅ +15 GB | ~2 GB | ~16 GB | ✅✅ | ~4 GB | ~18 GB | ✅✅ |
-| Gemma 4 26B | 18 GB | ~2 GB | ~20 GB | ✅✅ +10 GB | ~4 GB | ~22 GB | ✅✅ | ~8 GB | ~26 GB | ✅ +4 GB |
+### RTX 5090 (30 GB available, Ollama, q8_0 KV cache)
 
-\* Gemma 4 31B is dense with ~31B params, so full KV cache per layer.
-Note: Qwen3.5-27B has hybrid attention (16/64 full attention layers), so KV cache is
-~25% of a traditional dense model. Qwen3.5-35B-A3B is MoE with small active params.
+| Model | Weights | KV@65K | Total@65K | Fits? | KV@128K | Total@128K | Fits? |
+|-------|---------|--------|-----------|-------|---------|-----------|-------|
+| **Qwen3.6-27B** ★ | 15-18 GB | ~4 GB | ~19-22 GB | ✅✅ +8 GB | ~8 GB | ~23-26 GB | ✅ +4 GB |
+| Qwen3.5-27B | 17 GB | ~2.3 GB | ~19 GB | ✅✅ +11 GB | ~4.3 GB | ~21 GB | ✅✅ |
+| Gemma 4 26B | 18 GB | ~2 GB | ~20 GB | ✅✅ +10 GB | ~4 GB | ~22 GB | ✅✅ |
+| Gemma 4 31B | 20 GB | ~6-8 GB | ~26-28 GB | ✅ ~2 GB | ~12-16 GB | ❌ | ❌ |
 
-### Cross-Host Compatibility Check
+Note: Qwen3.6-27B is dense with GQA (8 KV heads / 56 query heads). KV cache is ~14%
+of what a full 56-head model would need. Architecture from config.json: 32 layers,
+num_key_value_heads=8, head_dim=128.
 
-| Model | Fits 5090 (30 GB) @65K | Fits 4090 (23.5 GB) @65K | Both Hosts? |
-|-------|----------------------|------------------------|-------------|
-| Qwen3.5-35B-A3B | ✅ | ❌ (24 GB weights alone) | ❌ Windows-only |
-| Gemma 4 31B | ✅ | ❌ (26-28 GB total) | ❌ Windows-only |
-| Qwen3.5-27B | ✅✅ | ⚠️ 28 GB measured, 16% CPU spill | ❌ Windows-only* |
-| GPT-OSS 20B | ✅✅ | ✅✅ | ✅ Both |
-| Gemma 4 26B | ✅✅ | ✅ (verified 100% GPU) | ✅ Both |
+### RTX 4090 (24 GB, vLLM, GPTQ-Int4, FP8 KV cache)
 
-\* Qwen3.5-27B was measured at 28 GB loaded / 16% CPU on RTX 4090 (May 2026). Ollama
-may not optimize the hybrid attention KV cache, allocating more than theoretically needed.
-**Re-measure on the 5090** — it should fit 100% GPU with 32 GB VRAM.
+| Model | Weights | KV@32K (FP8, 1 user) | Total (1 user) | KV@32K (FP8, 2 users) | Total (2 users) | Fits 0.90? |
+|-------|---------|---------------------|----------------|----------------------|-----------------|------------|
+| **Qwen3.6-27B** ★ | ~15 GB | 2.0 GB | ~17 GB | 4.0 GB | ~19 GB | ✅ +2.6 GB |
+| Qwen3.5-27B | ~15 GB | ~1.2 GB | ~16 GB | ~2.4 GB | ~17 GB | ✅ +4.6 GB |
+| Gemma 4 26B | ~15 GB | ~1.0 GB | ~16 GB | ~2.0 GB | ~17 GB | ✅ +4.6 GB |
+
+FP8 KV math for Qwen3.6-27B: 2×32×8×128×1 byte = 65,536 bytes/token × 32K = 2.0 GB/user
+
+### Cross-Host Compatibility (DECIDED: same model, different backends)
+
+| Host | Backend | Model | Context | Multi-user | Notes |
+|------|---------|-------|---------|------------|-------|
+| Windows 5090 | Ollama | Qwen3.6-27B (GGUF Q4_K_M) | 128K | Single user | q8_0 KV cache, flash attention |
+| CachyOS 4090 | vLLM | Qwen3.6-27B-Instruct-GPTQ-Int4 | 32K | 2 concurrent | FP8 KV, gpu-memory-utilization=0.90 |
 
 ---
 
@@ -234,56 +313,54 @@ For the top 1-2 candidates:
 
 ## Decision Framework
 
-### Speed Threshold
-Based on our experience:
-- **>50 tok/s**: Excellent — feels instant (Gemma 4 26B baseline)
-- **20-50 tok/s**: Good — acceptable for interactive use
-- **10-20 tok/s**: Marginal — noticeable lag, tolerable for high-quality output
-- **<10 tok/s**: Unacceptable — too slow for interactive coding sessions
+### Selected Path: B+ (Same Model, Different Backends)
 
-### Scoring Matrix (weight × score)
+**Decision made May 22, 2026** — Qwen3.6-27B on both hosts, with backend-appropriate
+optimizations:
 
-| Criterion | Weight | How to Score |
-|-----------|--------|-------------|
-| Generation speed (tok/s) | 25% | >50=5, 35-50=4, 20-35=3, 10-20=2, <10=1 |
-| Coding quality (response correctness) | 25% | Judge from benchmark responses |
-| Tool calling accuracy | 20% | Pass/fail from Step 6 |
-| VRAM fit (100% GPU) | 15% | 100%=5, 95%=4, 90%=3, <90%=1 |
-| Context window achievable | 10% | 256K=5, 128K=4, 65K=3, 32K=2 |
-| License | 5% | Apache 2.0=5, Gemma ToU=3, restrictive=1 |
+- Windows 5090: Ollama (GGUF, 128K context, single user, q8_0 KV)
+- CachyOS 4090: vLLM (GPTQ-Int4, 32K context, 2 concurrent users, FP8 KV)
 
-### Decision Paths
+This is superior to a split-model config because:
+- Same model = same prompting behavior, same tool-calling format, same quirks
+- Avoids maintaining two different model configurations
+- Quality parity across hosts (83.9% LiveCode everywhere)
+- Context difference (128K vs 32K) is acceptable — CachyOS serves office/review (10-25K typical)
 
-**Path A: Single model, both hosts**
-Best outcome. The chosen model must fit 100% GPU on BOTH the 5090 (Windows) and 4090
-(CachyOS). Models eligible: Gemma 4 26B, GPT-OSS 20B, and any future MoE ≤19 GB.
+### Speed Threshold (unchanged)
+- **>50 tok/s**: Excellent — feels instant
+- **20-50 tok/s**: Good — acceptable for interactive use ← **5090 target range**
+- **10-20 tok/s**: Marginal — noticeable lag ← **4090 range (acceptable for server role)**
+- **<10 tok/s**: Unacceptable
 
-If a cross-host model wins, update:
-- `crush-task.ps1` `$DefaultModel` (line 26)
-- `crush-task.sh` `DEFAULT_MODEL` (line 55)
-- `config/crush.json` models.large
-- `copilot-local.cmd` and `copilot-local.sh` (all model references)
-- `install-windows.ps1` and `install-cachyos.sh` (model profiles, descriptions)
-- Create custom Ollama model with Modelfile on both hosts
-- Deploy updated scripts to `C:\Users\Jesse\Documents\CLI\` (Windows)
+### Implementation Checklist (Post-5090 Arrival)
 
-**Path B: Split configuration (5090 model ≠ 4090 model)**
-If a 5090-only model (Qwen3.5-35B, Gemma 4 31B, Qwen3.5-27B) is substantially better:
-- Windows workstation uses the 5090 model
-- CachyOS server keeps Gemma 4 26B (or other 4090-compatible model)
-- `crush.json` squire-server provider keeps its own model list
-- `install-windows.ps1` and `install-cachyos.sh` diverge on model selection
-- `crush-task.ps1` sets `$DefaultModel` to the 5090 model
-- `crush-task.sh` sets `DEFAULT_MODEL` to the 4090 model
-- Complexity cost: two model configs to maintain
+**Windows 5090 (Ollama):**
+1. `ollama pull qwen3.6:27b`
+2. Create custom model: `FROM qwen3.6:27b\nPARAMETER num_ctx 131072`
+3. Update `crush-task.ps1` → `$DefaultModel = "qwen36-128k"`
+4. Update `crush-task.sh` → `DEFAULT_MODEL="qwen36-128k"`
+5. Update `config/crush.json` → models.large.model = "qwen36-128k"
+6. Update `copilot-local.cmd` and `copilot-local.sh` model references
+7. Update `install-windows.ps1` model profiles and descriptions
+8. Run benchmark suite (bench-run.py) to validate speed/quality
 
-**Path C: Keep Gemma 4 26B, just increase context**
-If no candidate beats Gemma 4 on the scoring matrix, use the extra 5090 VRAM for
-a larger context window (128K or 256K) instead of a different model:
-- Create `gemma4-128k` custom model (FROM gemma4:26b, PARAMETER num_ctx 131072)
-- Estimated VRAM at 128K: ~22 GB (fits easily in 30 GB)
-- Update `crush-task.ps1` to use `gemma4-128k` for coding profile
-- Keep `gemma4-65k` for tool-heavy profiles (context is sufficient at 65K)
+**CachyOS 4090 (vLLM):**
+1. Find/verify HuggingFace GPTQ-Int4 quant: `Qwen/Qwen3.6-27B-Instruct-GPTQ-Int4` (or community)
+2. Update `install-cachyos.sh`:
+   - `VLLM_DEFAULT_MODEL` → new HuggingFace model ID
+   - `VLLM_GPU_MEMORY_UTILIZATION` → 0.90
+   - `VLLM_MAX_MODEL_LEN` → 32768
+   - Add `--kv-cache-dtype fp8_e5m2` to ExecStart
+3. Update `config/crush.json` → squire-server model list
+4. Update server model descriptions in `install-cachyos.sh`
+5. Test: 2 concurrent requests at 32K context (verify no OOM)
+
+**Validation criteria:**
+- 5090: ≥25 tok/s at 128K context, 100% GPU, no CPU spill
+- 4090: No OOM with 2×32K concurrent, ≥10 tok/s per user
+- Both: Tool calling works with Crush (Word, PPTX, coding profiles)
+- Both: bench-run.py scores ≥ current Gemma 4 26B baseline (14/15)
 
 ---
 

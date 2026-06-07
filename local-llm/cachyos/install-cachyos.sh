@@ -25,7 +25,7 @@ CRUSH_HOME_DIR="${HOME}/.crush"
 CRUSH_CONFIG_DIR="${HOME}/.config/crush"
 DEFAULT_MODEL_ROOT="${HOME}/.ollama/models"
 VLLM_PORT=8000
-VLLM_DEFAULT_MODEL="btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit"
+VLLM_DEFAULT_MODEL="Qwen/Qwen3.6-27B-Instruct-GPTQ"
 
 STEP_NUMBER=0
 FAILURES=()
@@ -157,6 +157,7 @@ model_description() {
         qwen3:32b) printf '%s' 'Qwen3 32B — creative writing (128k ctx), ~20 GB' ;;
         x/z-image-turbo) printf '%s' 'Z-Image Turbo 6B — image generation, ~12 GB' ;;
         # HuggingFace model IDs (vLLM server mode)
+        Qwen/Qwen3.6-27B-Instruct-GPTQ) printf '%s' 'Qwen3.6 27B GPTQ — primary model (32k ctx, FP8 KV), ~15 GB' ;;
         Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4) printf '%s' 'Qwen2.5-Coder 32B GPTQ — heavy coding, ~18 GB' ;;
         btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit) printf '%s' 'Qwen3-Coder 30B MoE GPTQ — heavy coding (agentic), ~19 GB' ;;
         Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4) printf '%s' 'Qwen2.5-Coder 14B GPTQ — light coding, ~8 GB' ;;
@@ -231,12 +232,10 @@ load_effective_model_config() {
             if [[ "$IS_SERVER_MODE" == true ]]; then
                 # vLLM uses HuggingFace model IDs (GPTQ quantized)
                 SELECTED_MODELS=(
-                    "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit"
+                    "Qwen/Qwen3.6-27B-Instruct-GPTQ"
                     "Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4"
-                    "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B-GPTQ-Int4"
-                    "mistralai/Mistral-Small-3.2-24B-Instruct-2503-GPTQ-Int4"
                 )
-                EFFECTIVE_MODEL_REQUIRED_GB=58
+                EFFECTIVE_MODEL_REQUIRED_GB=24
             else
                 # Ollama (full mode, single-user) uses Ollama tags
                 SELECTED_MODELS=("gemma4:26b" "qwen3:14b" "qwen3:4b" "qwen3-coder:30b")
@@ -651,12 +650,14 @@ ExecStart=${VLLM_VENV}/bin/python -m vllm.entrypoints.openai.api_server \\
     --port \${VLLM_PORT} \\
     --max-model-len \${VLLM_MAX_MODEL_LEN} \\
     --gpu-memory-utilization \${VLLM_GPU_MEMORY_UTILIZATION} \\
+    --kv-cache-dtype \${VLLM_KV_CACHE_DTYPE} \\
     --quantization gptq
 Environment=\"VLLM_MODEL=${VLLM_DEFAULT_MODEL}\"
 Environment=\"VLLM_HOST=0.0.0.0\"
 Environment=\"VLLM_PORT=${VLLM_PORT}\"
 Environment=\"VLLM_MAX_MODEL_LEN=32768\"
-Environment=\"VLLM_GPU_MEMORY_UTILIZATION=0.50\"
+Environment=\"VLLM_GPU_MEMORY_UTILIZATION=0.90\"
+Environment=\"VLLM_KV_CACHE_DTYPE=fp8_e5m2\"
 Restart=on-failure
 RestartSec=10
 

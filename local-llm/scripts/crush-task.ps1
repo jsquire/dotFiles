@@ -8,12 +8,12 @@
     keeping the tool count low so the model can reliably use them all.
 
     Profiles:
-      General     — Word MCP + gh CLI (default — research & document authoring)
-      Coding      — no MCP servers (code tools only)
-      Guided auth — doc-coauthoring skill + Word MCP (structured workflow)
+      Coding      — no MCP servers (code tools + LSP only)
       Code review — Qwen3-Coder model, no MCP (different perspective)
+      General     — Word MCP + gh CLI (research & document authoring)
       Word        — word-mcp only (Word document editing)
       PowerPoint  — pptx-mcp only (PowerPoint editing)
+      Guided auth — doc-coauthoring skill + Word MCP (structured workflow)
       Image       — imagegen-mcp (image generation)
       All         — everything enabled (may degrade with smaller models)
 
@@ -23,10 +23,11 @@
 
 param(
     [ValidateSet("general", "coding", "review", "word", "pptx", "docs", "image", "all")]
-    [string]$Task
+    [string]$Task,
+    [string]$Model
 )
 
-$DefaultModel = "gemma4-65k"
+$DefaultModel = if ($Model) { $Model } else { "qwen36-128k" }
 $ReviewModel  = "qwen3coder-65k"
 
 function Write-CrushConfig {
@@ -48,12 +49,12 @@ function Write-CrushConfig {
             "large" = @{
                 "model" = $Model
                 "provider" = "ollama"
-                "max_tokens" = 8000
+                "max_tokens" = 32000
             }
             "small" = @{
                 "model" = $Model
                 "provider" = "ollama"
-                "max_tokens" = 8000
+                "max_tokens" = 32000
             }
         }
     }
@@ -64,31 +65,39 @@ function Write-CrushConfig {
 # If no task specified, show picker
 if (-not $Task) {
     Write-Host ""
-    Write-Host "  --- Crush Task Profiles ---"
-    Write-Host "  [1] General           (Research and document authoring)"
-    Write-Host "  [2] Coding            (Gemma 4, no MCP servers)"
-    Write-Host "  [3] Guided Authoring  (Guided document authoring workflow)"
-    Write-Host "  [4] Code review       (Qwen3-Coder, no MCP servers)"
-    Write-Host "  [5] Word              (Word MCP only)"
-    Write-Host "  [6] PowerPoint        (PPTX MCP only)"
-    Write-Host "  [7] Image Generation  (HiDream-O1 MCP)"
-    Write-Host "  [8] All tools         (All MCP servers, may be slow)"
+    Write-Host "  --- Coding ---"
+    Write-Host "  [1] Heavy coding        (Qwen3.6 27B, no MCP)"
+    Write-Host "  [2] Light coding        (Qwen3 14B, no MCP)"
+    Write-Host "  [3] Code review         (Qwen3-Coder 30B, no MCP)"
+    Write-Host ""
+    Write-Host "  --- Writing & Documents ---"
+    Write-Host "  [4] General research    (Qwen3.6 27B + Word MCP)"
+    Write-Host "  [5] Word editing        (Qwen3.6 27B + Word MCP)"
+    Write-Host "  [6] PowerPoint          (Qwen3.6 27B + PPTX MCP)"
+    Write-Host "  [7] Guided authoring    (Qwen3.6 27B + doc skill)"
+    Write-Host ""
+    Write-Host "  --- Visual ---"
+    Write-Host "  [8] Image generation    (qwen3:4b + HiDream MCP)"
+    Write-Host ""
+    Write-Host "  --- Everything ---"
+    Write-Host "  [9] All tools           (all MCP, may be slow)"
     Write-Host ""
     $choice = Read-Host "  Select profile [1]"
     if (-not $choice) { $choice = "1" }
 
     switch ($choice) {
-        "1" { $Task = "general" }
-        "2" { $Task = "coding" }
-        "3" { $Task = "docs" }
-        "4" { $Task = "review" }
+        "1" { $Task = "coding" }
+        "2" { $Task = "coding"; $DefaultModel = "qwen3:14b" }
+        "3" { $Task = "review" }
+        "4" { $Task = "general" }
         "5" { $Task = "word" }
         "6" { $Task = "pptx" }
-        "7" { $Task = "image" }
-        "8" { $Task = "all" }
+        "7" { $Task = "docs" }
+        "8" { $Task = "image" }
+        "9" { $Task = "all" }
         default {
-            Write-Host "  Invalid selection, defaulting to general."
-            $Task = "general"
+            Write-Host "  Invalid selection, defaulting to heavy coding."
+            $Task = "coding"
         }
     }
 }
@@ -100,7 +109,7 @@ switch ($Task) {
             "pptx-mcp"     = @{ disabled = $true }
             "imagegen-mcp" = @{ disabled = $true }
         } -Model $DefaultModel
-        Write-Host "  Profile: Coding (no MCP servers)"
+        Write-Host "  Profile: Coding ($DefaultModel, no MCP servers)"
     }
     "general" {
         Write-CrushConfig -McpOverrides @{

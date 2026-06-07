@@ -1,8 +1,8 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set COPILOT_PROVIDER_MAX_PROMPT_TOKENS=14000
-set COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8000
+set COPILOT_PROVIDER_MAX_PROMPT_TOKENS=51200
+set COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=16384
 
 :: If a model was passed as first argument, use it
 if not "%~1"=="" (
@@ -17,34 +17,42 @@ if not "%~1"=="" (
 :: No model specified — show picker
 echo.
 echo   --- Coding ---
-echo   [1] Heavy coding        (gemma4-65k^)
+echo   [1] Heavy coding        (qwen36-128k^)
 echo   [2] Light coding        (qwen3:14b^)
 echo   [3] Code review         (qwen3coder-65k^)
 echo.
 echo   --- Writing ^& Documents ---
-echo   [4] Technical docs      (gemma4-65k^)
-echo   [5] Creative writing    (gemma4-65k^)
-echo   [6] Office documents    (gemma4-65k^)
+echo   [4] Technical docs      (qwen36-128k^)
+echo   [5] Creative writing    (qwen36-128k^)
+echo   [6] Office documents    (qwen36-128k^)
 echo.
 echo   --- Visual ---
 echo   [7] Image generation    (HiDream-O1 via MCP^)
+echo.
+echo   --- Remote ---
+echo   [S] CachyOS server      (Qwen3.6 27B via vLLM^)
 echo.
 set /p choice="  Select task [1]: "
 
 if "%choice%"=="" set choice=1
 
-if "%choice%"=="1" set COPILOT_MODEL=gemma4-65k
+if "%choice%"=="1" set COPILOT_MODEL=qwen36-128k
 if "%choice%"=="2" set COPILOT_MODEL=qwen3:14b
 if "%choice%"=="3" set COPILOT_MODEL=qwen3coder-65k
-if "%choice%"=="4" set COPILOT_MODEL=gemma4-65k
-if "%choice%"=="5" set COPILOT_MODEL=gemma4-65k
-if "%choice%"=="6" set COPILOT_MODEL=gemma4-65k
+if "%choice%"=="4" set COPILOT_MODEL=qwen36-128k
+if "%choice%"=="5" set COPILOT_MODEL=qwen36-128k
+if "%choice%"=="6" set COPILOT_MODEL=qwen36-128k
 if "%choice%"=="7" set COPILOT_MODEL=qwen3:4b
+if /i "%choice%"=="S" (
+    set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
+    set COPILOT_MODEL=Qwen/Qwen3.6-27B-Instruct-GPTQ
+)
 
 :: Set MCP flags based on task category
 :: Coding (1-3): disable all MCP servers — max context for code
 :: Docs (4-6): enable word + pptx, disable imagegen
 :: Image (7): enable imagegen, disable word + pptx
+:: Server (S): disable all MCP (remote, no local MCP)
 set MCP_FLAGS=
 if "%choice%"=="1" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
 if "%choice%"=="2" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
@@ -53,10 +61,11 @@ if "%choice%"=="4" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
 if "%choice%"=="5" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
 if "%choice%"=="6" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
 if "%choice%"=="7" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat
+if /i "%choice%"=="S" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
 
 if not defined COPILOT_MODEL (
     echo   Invalid selection.
-    set COPILOT_MODEL=gemma4-65k
+    set COPILOT_MODEL=qwen36-128k
 )
 
 :: Git safety: block git write operations
@@ -68,5 +77,11 @@ if "%choice%"=="6" set EXTRA_FLAGS=--custom-instructions "D:\personal\dotFiles\l
 
 :launch
 echo   Using model: %COPILOT_MODEL%
-echo.
-ollama launch copilot --model %COPILOT_MODEL% --yes -- %MCP_FLAGS% %GIT_SAFETY% %EXTRA_FLAGS% %1 %2 %3 %4 %5 %6 %7 %8 %9
+if defined COPILOT_PROVIDER_BASE_URL (
+    echo   Remote: %COPILOT_PROVIDER_BASE_URL%
+    echo.
+    copilot --model %COPILOT_MODEL% -- %MCP_FLAGS% %GIT_SAFETY% %EXTRA_FLAGS% %1 %2 %3 %4 %5 %6 %7 %8 %9
+) else (
+    echo.
+    ollama launch copilot --model %COPILOT_MODEL% --yes -- %MCP_FLAGS% %GIT_SAFETY% %EXTRA_FLAGS% %1 %2 %3 %4 %5 %6 %7 %8 %9
+)

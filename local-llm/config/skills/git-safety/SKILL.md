@@ -1,3 +1,8 @@
+---
+name: git-safety
+description: Prevents AI from executing git write operations (add, commit, push, merge, rebase, reset, stash, cherry-pick, revert, tag). Use always — this is a security policy, not a task-specific skill. Blocks any attempt to modify repository history or remote state.
+---
+
 # Git Safety
 
 ## Rule
