@@ -2,8 +2,8 @@
 # copilot-local — Launch GitHub Copilot CLI with local Ollama models
 set -euo pipefail
 
-export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=14000
-export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8000
+export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=51200
+export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=16384
 
 # If a model was passed as first argument (contains ':'), use it directly
 if [[ "${1:-}" == *":"* ]]; then
@@ -16,23 +16,24 @@ fi
 # No model specified — show picker
 echo
 echo "  --- Coding ---"
-echo "  [1] Heavy coding        (gemma4-65k)"
+echo "  [1] Heavy coding        (qwen36-128k)"
 echo "  [2] Light coding        (qwen3:14b)"
 echo "  [3] Code review         (qwen3coder-65k)"
 echo
 echo "  --- Writing & Documents ---"
-echo "  [4] Technical docs      (gemma4-65k)"
-echo "  [5] Creative writing    (gemma4-65k)"
-echo "  [6] Office documents    (gemma4-65k)"
+echo "  [4] Technical docs      (qwen36-128k)"
+echo "  [5] Creative writing    (qwen36-128k)"
+echo "  [6] Office documents    (qwen36-128k)"
 echo
 echo "  --- Visual ---"
 echo "  [7] Image generation    (HiDream-O1 via MCP)"
 echo
+echo "  --- Remote ---"
+echo "  [S] CachyOS server      (Qwen3.6 27B via vLLM)"
+echo
 read -rp "  Select task [1]: " choice
 choice="${choice:-1}"
 
-# Set MCP flags based on task category
-MCP_FLAGS=()
 case "$choice" in
     1|2|3)
         MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp)
@@ -43,15 +44,22 @@ case "$choice" in
     7)
         MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat)
         ;;
+    s|S)
+        MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp)
+        ;;
 esac
 
 case "$choice" in
-    1) export COPILOT_MODEL="gemma4-65k" ;;
+    1) export COPILOT_MODEL="qwen36-128k" ;;
     2) export COPILOT_MODEL="qwen3:14b" ;;
     3) export COPILOT_MODEL="qwen3coder-65k" ;;
-    4|5|6) export COPILOT_MODEL="gemma4-65k" ;;
+    4|5|6) export COPILOT_MODEL="qwen36-128k" ;;
     7) export COPILOT_MODEL="qwen3:4b" ;;
-    *) echo "  Invalid. Using gemma4-65k"; export COPILOT_MODEL="gemma4-65k" ;;
+    s|S)
+        export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
+        export COPILOT_MODEL="Qwen/Qwen3.6-27B-Instruct-GPTQ"
+        ;;
+    *) echo "  Invalid. Using qwen36-128k"; export COPILOT_MODEL="qwen36-128k" ;;
 esac
 
 # Git safety: block git write operations
@@ -72,4 +80,10 @@ fi
 
 echo "  Using model: $COPILOT_MODEL"
 echo
-exec ollama launch copilot --model "$COPILOT_MODEL" --yes -- "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
+if [[ -n "${COPILOT_PROVIDER_BASE_URL:-}" ]]; then
+    # Remote mode: launch copilot directly (skip ollama wrapper)
+    echo "  Remote: $COPILOT_PROVIDER_BASE_URL"
+    exec copilot --model "$COPILOT_MODEL" -- "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
+else
+    exec ollama launch copilot --model "$COPILOT_MODEL" --yes -- "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
+fi

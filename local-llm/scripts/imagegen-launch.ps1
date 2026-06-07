@@ -5,8 +5,8 @@ param(
 )
 
 $env:COPILOT_PROVIDER_BASE_URL = "http://localhost:11434/v1"
-$env:COPILOT_PROVIDER_MAX_PROMPT_TOKENS = "14000"
-$env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS = "8000"
+$env:COPILOT_PROVIDER_MAX_PROMPT_TOKENS = "6000"
+$env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS = "2000"
 $env:COPILOT_MODEL = $Model
 
 $py     = "$env:LOCALAPPDATA\ai-tools\imagegen\.venv\Scripts\python.exe"

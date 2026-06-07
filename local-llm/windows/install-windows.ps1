@@ -22,7 +22,7 @@
 
 .PARAMETER ModelProfile
     GPU/environment profile that determines which models to pull:
-      Desktop — RTX 5090 (32GB). Pulls gemma4:26b, qwen3:14b, qwen3:4b, qwen3-coder:30b (~40 GB).
+      Desktop — RTX 5090 (32GB). Pulls qwen3.6:27b, qwen3:14b, qwen3:4b, qwen3-coder:30b (~40 GB).
       Server  — RTX 4090 (24GB dedicated). Pulls gemma4:26b, qwen3:14b, qwen3:4b, qwen3-coder:30b (~40 GB).
     Ignored in Client mode.
 
@@ -119,7 +119,7 @@ if ($Help) {
 
   GPU PROFILES:
     -ModelProfile Desktop   RTX 5090 (32GB) — 4 models, ~40 GB total:
-                              gemma4-65k          General (256k ctx)
+                              qwen36-128k           Primary (128k ctx, Qwen3.6 27B)
                               qwen3:14b           Light coding
                               qwen3:4b            Image gen profile (VRAM-friendly)
                               qwen3coder-65k      Code review (different perspective)
@@ -198,7 +198,7 @@ $ProfileDefinitions = @{
         Description = "RTX 5090 (32GB) — gaming desktop with IDEs open (~25-27 GB available)"
         RequiredGB = 40
         Models = [ordered]@{
-            "gemma4:26b"                     = $KnownModelDescriptions["gemma4:26b"]
+            "qwen3.6:27b"                    = "Qwen3.6 27B Dense — primary model (262k ctx), ~17 GB"
             "qwen3:14b"                  = $KnownModelDescriptions["qwen3:14b"]
             "qwen3:4b"                   = $KnownModelDescriptions["qwen3:4b"]
             "qwen3-coder:30b"            = "Qwen3-Coder 30B MoE — code review (256k ctx), ~18 GB"
@@ -997,6 +997,7 @@ PARAMETER num_ctx $ctx
             # Create named alias models used by launcher scripts
             Write-Host "  Creating launcher model aliases..." -ForegroundColor White
             $aliasModels = @{
+                "qwen36-128k"      = @{ From = "qwen3.6:27b"; Ctx = 131072 }
                 "gemma4-65k"       = @{ From = "gemma4:26b"; Ctx = 65536 }
                 "qwen3coder-65k"   = @{ From = "qwen3-coder:30b"; Ctx = 65536 }
             }

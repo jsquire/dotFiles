@@ -38,8 +38,11 @@ Single-user AI assistant on Windows with Ollama, Crush, Copilot CLI, MCP, and lo
 ```powershell
 cd local-llm\windows
 
-# Default (RTX 5090)
+# Default (RTX 5090) — models in user profile
 .\install-windows.ps1
+
+# RTX 5090 with secondary storage (recommended)
+.\install-windows.ps1 -ModelPath D:\OllamaModels
 
 # RTX 4090 profile
 .\install-windows.ps1 -ModelProfile Server
@@ -47,6 +50,8 @@ cd local-llm\windows
 # Show all options
 .\install-windows.ps1 -Help
 ```
+
+> **Note:** The default 5090 profile downloads ~46GB of models. Use `-ModelPath` to store them on a fast secondary drive (SSD/NVMe) instead of filling your OS drive. The script sets `OLLAMA_MODELS` environment variable and restarts Ollama automatically.
 
 ### Install Options
 

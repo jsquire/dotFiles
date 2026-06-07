@@ -5,12 +5,12 @@
 # for the selected task, then launches Crush.
 #
 # Profiles:
-#   general — Word MCP + gh CLI (default — research & document authoring)
-#   coding  — no MCP servers (code tools only)
-#   docs    — doc-coauthoring skill + Word MCP (structured workflow)
-#   review  — Qwen2.5-Coder model, no MCP (different perspective)
+#   coding  — no MCP servers (code tools + LSP only)
+#   review  — Qwen3-Coder model, no MCP (different perspective)
+#   general — Word MCP + gh CLI (research & document authoring)
 #   word    — word-mcp only (Word document editing)
 #   pptx    — pptx-mcp only (PowerPoint editing)
+#   docs    — doc-coauthoring skill + Word MCP (structured workflow)
 #   image   — imagegen-mcp (image generation)
 #   all     — everything enabled (may degrade with smaller models)
 set -euo pipefail
@@ -38,12 +38,12 @@ write_crush_config() {
     \"large\": {
       \"model\": \"${model_override}\",
       \"provider\": \"ollama\",
-      \"max_tokens\": 8000
+      \"max_tokens\": 32000
     },
     \"small\": {
       \"model\": \"${model_override}\",
       \"provider\": \"ollama\",
-      \"max_tokens\": 8000
+      \"max_tokens\": 32000
     }
   }"
     fi
@@ -61,36 +61,44 @@ EOF
 }
 
 task="${1:-}"
-DEFAULT_MODEL="gemma4-65k"
+DEFAULT_MODEL="qwen36-128k"
 REVIEW_MODEL="qwen3coder-65k"
 
 if [[ -z "$task" ]]; then
     echo
-    echo "  --- Crush Task Profiles ---"
-    echo "  [1] General           (Research and document authoring)"
-    echo "  [2] Coding            (Gemma 4, no MCP servers)"
-    echo "  [3] Guided Authoring  (Guided document authoring workflow)"
-    echo "  [4] Code review       (Qwen2.5-Coder, no MCP servers)"
-    echo "  [5] Word              (Word MCP only)"
-    echo "  [6] PowerPoint        (PPTX MCP only)"
-    echo "  [7] Image Generation  (HiDream-O1 MCP)"
-    echo "  [8] All tools         (All MCP servers, may be slow)"
+    echo "  --- Coding ---"
+    echo "  [1] Heavy coding        (Qwen3.6 27B, no MCP)"
+    echo "  [2] Light coding        (Qwen3 14B, no MCP)"
+    echo "  [3] Code review         (Qwen3-Coder 30B, no MCP)"
+    echo
+    echo "  --- Writing & Documents ---"
+    echo "  [4] General research    (Qwen3.6 27B + Word MCP)"
+    echo "  [5] Word editing        (Qwen3.6 27B + Word MCP)"
+    echo "  [6] PowerPoint          (Qwen3.6 27B + PPTX MCP)"
+    echo "  [7] Guided authoring    (Qwen3.6 27B + doc skill)"
+    echo
+    echo "  --- Visual ---"
+    echo "  [8] Image generation    (qwen3:4b + HiDream MCP)"
+    echo
+    echo "  --- Everything ---"
+    echo "  [9] All tools           (all MCP, may be slow)"
     echo
     read -rp "  Select profile [1]: " choice
     choice="${choice:-1}"
 
     case "$choice" in
-        1) task="general" ;;
-        2) task="coding" ;;
-        3) task="docs" ;;
-        4) task="review" ;;
+        1) task="coding" ;;
+        2) task="coding"; DEFAULT_MODEL="qwen3:14b" ;;
+        3) task="review" ;;
+        4) task="general" ;;
         5) task="word" ;;
         6) task="pptx" ;;
-        7) task="image" ;;
-        8) task="all" ;;
+        7) task="docs" ;;
+        8) task="image" ;;
+        9) task="all" ;;
         *)
-            echo "  Invalid selection, defaulting to general."
-            task="general"
+            echo "  Invalid selection, defaulting to heavy coding."
+            task="coding"
             ;;
     esac
 fi
@@ -128,7 +136,7 @@ This server edits Word documents via direct OOXML manipulation. Key tools:
 case "$task" in
     coding)
         write_crush_config true true true "" "$DEFAULT_MODEL"
-        echo "  Profile: Coding (no MCP servers)"
+        echo "  Profile: Coding ($DEFAULT_MODEL, no MCP servers)"
         ;;
     general)
         write_crush_config false true true "" "$DEFAULT_MODEL"
@@ -144,7 +152,7 @@ case "$task" in
 Do NOT comment on style, formatting, or naming conventions unless they cause bugs.
 Be direct. If the code is correct, say so briefly."
         write_crush_config true true true "$REVIEW_GUIDE" "$REVIEW_MODEL"
-        echo "  Profile: Code review (Qwen2.5-Coder 14B)"
+        echo "  Profile: Code review (Qwen3-Coder 30B)"
         ;;
     word)
         write_crush_config false true true "$WORD_GUIDE" "$DEFAULT_MODEL"
