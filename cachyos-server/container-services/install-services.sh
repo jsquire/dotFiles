@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 CONTAINER_SERVICES_ROOT="${1:-$SCRIPT_DIR}"
-PIHOLE_ROOT="${2:-/virtualization/pihole}"
+PIHOLE_ROOT="${2:-/srv/squire-server/pihole}"
 SERVICE_UNIT=/etc/systemd/system/squire-server-containers.service
 UPDATE_SERVICE_UNIT=/etc/systemd/system/squire-server-containers-update.service
 TIMER_UNIT=/etc/systemd/system/squire-server-containers-update.timer

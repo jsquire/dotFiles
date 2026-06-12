@@ -49,9 +49,9 @@ IP6="${SERVER_IP_V6:-$(ip -6 addr show dev "$IFACE" scope global 2>/dev/null | g
 
 LOCAL_DOMAIN="${LOCAL_DOMAIN:-local}"
 TZ="${TZ:-America/New_York}"
-PIHOLE_BASE="${PIHOLE_BASE:-/virtualization/pihole}"
-PLEX_BASE="${PLEX_BASE:-/virtualization/plex}"
-PLEX_MEDIA="${PLEX_MEDIA:-/storage/media}"
+PIHOLE_BASE="${PIHOLE_BASE:-/srv/squire-server/pihole}"
+PLEX_BASE="${PLEX_BASE:-/srv/squire-server/plex}"
+PLEX_MEDIA="${PLEX_MEDIA:-/mnt/plex-media}"
 PLEX_TRANSCODE="${PLEX_TRANSCODE:-/mnt/transcode}"
 PLEX_HOSTNAME="${PLEX_HOSTNAME:-Squire-Media}"
 PLEX_UID="${PLEX_UID:-$(id -u plex 2>/dev/null || id -u)}"
