@@ -105,7 +105,7 @@ if [[ -z "$task" ]]; then
     echo
     echo "  --- Big-MoE expert-offload bench (experts->RAM; slower, for models that don't fit) ---"
     echo "  [O1] gpt-oss-120b           (offload, ~65 GB MXFP4)"
-    echo "  [O2] Qwen3-Next-80B-A3B     (offload, needs imported Q4 GGUF)"
+    echo "  [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB)"
     echo
     read -rp "  Select profile [1]: " choice
     choice="${choice:-1}"
