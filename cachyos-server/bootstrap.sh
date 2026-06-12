@@ -8,9 +8,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Must not run as root
 ############################################
 
+usage() {
+    cat >&2 <<'USAGE'
+Usage: ./bootstrap.sh [--full] [options]
+
+Options:
+  --full                     Run the full install (container services + NFS media mount).
+  --install-dir PATH         Install location for container services and service data.
+                             Default: /srv/squire-server
+  --nas-host HOST            UNAS Pro hostname/IP that exports the Plex media pool over NFS.
+  --nas-media-export PATH    NFS export path on the NAS for the Plex media (Group 2) pool.
+  --nas-media-mount PATH     Local mount point for the NAS media export.
+                             Default: /mnt/plex-media
+USAGE
+}
+
 if [[ $EUID -eq 0 ]]; then
     echo "Do not run this script as root. Run as the target user with sudo access."
-    echo "  Usage: ./bootstrap.sh [--full]"
+    usage
     exit 1
 fi
 
@@ -20,17 +35,37 @@ fi
 ############################################
 
 FULL_INSTALL=false
+INSTALL_DIR="/srv/squire-server"
+NAS_HOST=""
+NAS_MEDIA_EXPORT=""
+NAS_MEDIA_MOUNT="/mnt/plex-media"
 
-for arg in "$@"; do
-    case "$arg" in
-        --full) FULL_INSTALL=true ;;
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --full) FULL_INSTALL=true; shift ;;
+        --install-dir)
+            [[ -n "${2:-}" ]] || { echo "--install-dir requires a path" >&2; exit 1; }
+            INSTALL_DIR="$2"; shift 2 ;;
+        --nas-host)
+            [[ -n "${2:-}" ]] || { echo "--nas-host requires a value" >&2; exit 1; }
+            NAS_HOST="$2"; shift 2 ;;
+        --nas-media-export)
+            [[ -n "${2:-}" ]] || { echo "--nas-media-export requires a path" >&2; exit 1; }
+            NAS_MEDIA_EXPORT="$2"; shift 2 ;;
+        --nas-media-mount)
+            [[ -n "${2:-}" ]] || { echo "--nas-media-mount requires a path" >&2; exit 1; }
+            NAS_MEDIA_MOUNT="$2"; shift 2 ;;
         *)
-            echo "Unknown argument: $arg" >&2
-            echo "Usage: ./bootstrap.sh [--full]" >&2
+            echo "Unknown argument: $1" >&2
+            usage
             exit 1
             ;;
     esac
 done
+
+# Strip any trailing slash so path joins stay clean.
+INSTALL_DIR="${INSTALL_DIR%/}"
+NAS_MEDIA_MOUNT="${NAS_MEDIA_MOUNT%/}"
 
 
 ############################################
@@ -123,7 +158,7 @@ sudo pacman -S --needed --noconfirm \
     gnupg \
     gpgme \
     pacman-contrib \
-    cifs-utils \
+    nfs-utils \
     openssh \
     linux-headers \
     dkms \
@@ -203,53 +238,12 @@ fi
 
 
 ############################################
-# ZFS
+# Service groups
 ############################################
 
-if ! command -v zfs &>/dev/null; then
-    sudo pacman -S --needed --noconfirm zfs-utils zfs-dkms 2>/dev/null || \
-        yay -S --needed --noconfirm zfs-dkms zfs-utils
-fi
-
-service_enable_now zfs-import-cache
-service_enable_now zfs-mount
-service_enable_now zfs-share
-service_enable_now zfs-zed
-sudo bash "${SCRIPT_DIR}/zfs/zfs-properties.sh"
-
-
-############################################
-# Samba
-############################################
-
-sudo pacman -S --needed --noconfirm samba
-
-group_ensure share-users
+# virt-admin owns the container-services install tree (see --full below).
 group_ensure virt-admin
-user_ensure_system smbguest
-
-user_in_group "$USER" share-users || sudo usermod -aG share-users "$USER"
 user_in_group "$USER" virt-admin || sudo usermod -aG virt-admin "$USER"
-
-sudo cp "${SCRIPT_DIR}/samba/smb.conf" /etc/samba/smb.conf
-sudo cp "${SCRIPT_DIR}/samba/smbusers" /etc/samba/smbusers
-
-service_enable_now smb
-
-sudo mkdir -p /storage/public /storage/media /storage/media-source /storage/backups
-sudo chmod 2775 /storage /storage/media /storage/media-source /storage/backups
-sudo chmod 2777 /storage/public
-
-# Only set group ownership on freshly-created directories (not recursively on existing data)
-for dir in /storage /storage/media /storage/media-source /storage/backups; do
-    [[ "$(stat -c %G "$dir")" == "share-users" ]] || sudo chgrp share-users "$dir"
-done
-
-if getent group nogroup &>/dev/null; then
-    sudo chown nobody:nogroup /storage/public
-else
-    sudo chown nobody:nobody /storage/public
-fi
 
 
 ############################################
@@ -288,7 +282,6 @@ sudo ufw allow 80/tcp        # Pi-hole admin
 sudo ufw allow 443/tcp       # Pi-hole admin (HTTPS)
 sudo ufw allow 5353/udp      # Avahi / mDNS
 sudo ufw allow 32400/tcp     # Plex
-sudo ufw allow 445/tcp       # Samba (SMB)
 sudo ufw allow 3389/tcp      # xrdp (RDP)
 
 sudo ufw --force enable
@@ -332,13 +325,13 @@ if ! command -v kopia &>/dev/null; then
 fi
 
 # Non-interactive server backup configuration.
-# Repo lives on the external-backups drive; sources are home, /etc, /boot, /virtualization.
+# Repo lives on the external-backups drive; sources are home, /etc, /boot, and the install dir.
 
 KOPIA_REPO="/mnt/external-backups"
 KOPIA_BACKUP_SCRIPT="/usr/local/bin/nightly-backup.sh"
 KOPIA_MANIFEST_DIR="$HOME/.local/share/system-backup/manifests"
 KOPIA_SCHEDULE="02:00:00"
-KOPIA_SOURCES=( "$HOME" "/etc" "/boot" "/virtualization" )
+KOPIA_SOURCES=( "$HOME" "/etc" "/boot" "$INSTALL_DIR" )
 
 # Connect to repository if not already connected
 if sudo test -f /root/.config/kopia/repository.config; then
@@ -431,14 +424,6 @@ systemctl list-unit-files --state=enabled --no-pager > "\${MANIFEST_DIR}/enabled
 
 cp /etc/fstab "\${MANIFEST_DIR}/fstab.txt" || echo "WARNING: Failed to copy fstab"
 
-zpool status > "\${MANIFEST_DIR}/zpool-status.txt.tmp" \\
-    && mv "\${MANIFEST_DIR}/zpool-status.txt.tmp" "\${MANIFEST_DIR}/zpool-status.txt" \\
-    || echo "WARNING: Failed to capture zpool status"
-
-zfs list -o name,mountpoint,compression,atime > "\${MANIFEST_DIR}/zfs-datasets.txt.tmp" \\
-    && mv "\${MANIFEST_DIR}/zfs-datasets.txt.tmp" "\${MANIFEST_DIR}/zfs-datasets.txt" \\
-    || echo "WARNING: Failed to capture ZFS dataset list"
-
 echo "Manifests written to \${MANIFEST_DIR}"
 
 # Create snapshots
@@ -446,7 +431,7 @@ echo "Creating snapshots..."
 kopia snapshot create "\${BACKUP_HOME}"
 kopia snapshot create /etc
 kopia snapshot create /boot
-kopia snapshot create /virtualization
+kopia snapshot create ${INSTALL_DIR}
 
 # Repository maintenance
 echo "Running repository maintenance..."
@@ -539,14 +524,36 @@ fi
 
 
 ############################################
-# Full install: ZFS pools + container services
+# Full install: NFS media mount + container services
 ############################################
 
 if [ "$FULL_INSTALL" = true ]; then
 
-    echo
-    echo "=== Full install: recovering ZFS pools ==="
-    sudo bash "${SCRIPT_DIR}/zfs/recover-pools.sh"
+    ############################################
+    # NFS mount for Plex media (NAS Group 2 pool)
+    ############################################
+
+    if [[ -n "$NAS_HOST" && -n "$NAS_MEDIA_EXPORT" ]]; then
+        echo
+        echo "=== Full install: configuring NFS media mount ==="
+
+        sudo mkdir -p "$NAS_MEDIA_MOUNT"
+
+        nfs_fstab_line="${NAS_HOST}:${NAS_MEDIA_EXPORT}  ${NAS_MEDIA_MOUNT}  nfs  _netdev,x-systemd.automount,noatime,nofail  0  0"
+
+        if ! grep -Eq "[[:space:]]${NAS_MEDIA_MOUNT}[[:space:]]+nfs([[:space:]]|$)" /etc/fstab; then
+            printf '%s\n' "$nfs_fstab_line" | sudo tee -a /etc/fstab >/dev/null
+            sudo systemctl daemon-reload
+        fi
+
+        # Trigger the automount unit so the export is available immediately.
+        sudo systemctl start "$(systemd-escape -p --suffix=automount "$NAS_MEDIA_MOUNT")" 2>/dev/null || true
+    else
+        echo
+        echo "WARNING: --nas-host and/or --nas-media-export not provided."
+        echo "  Skipping NFS media mount. Plex media at $NAS_MEDIA_MOUNT will be unavailable"
+        echo "  until you add an NFS entry to /etc/fstab and re-run with both flags set."
+    fi
 
 
     ############################################
@@ -572,22 +579,20 @@ if [ "$FULL_INSTALL" = true ]; then
         sudo useradd --system --create-home --shell /usr/bin/nologin plex
     fi
 
-    sudo usermod -aG share-users plex
-
 
     ############################################
-    # Virtualization directory structure
+    # Install directory structure
     ############################################
 
-    sudo mkdir -p /virtualization/container-services
-    sudo mkdir -p /virtualization/pihole/{root,log}
-    sudo mkdir -p /virtualization/plex
+    sudo mkdir -p "$INSTALL_DIR/container-services"
+    sudo mkdir -p "$INSTALL_DIR/pihole/"{root,log}
+    sudo mkdir -p "$INSTALL_DIR/plex"
 
-    sudo chgrp virt-admin /virtualization /virtualization/container-services /virtualization/pihole /virtualization/pihole/root /virtualization/pihole/log /virtualization/plex
-    sudo chmod 2775 /virtualization /virtualization/container-services /virtualization/pihole /virtualization/pihole/root /virtualization/pihole/log /virtualization/plex
+    sudo chgrp virt-admin "$INSTALL_DIR" "$INSTALL_DIR/container-services" "$INSTALL_DIR/pihole" "$INSTALL_DIR/pihole/root" "$INSTALL_DIR/pihole/log" "$INSTALL_DIR/plex"
+    sudo chmod 2775 "$INSTALL_DIR" "$INSTALL_DIR/container-services" "$INSTALL_DIR/pihole" "$INSTALL_DIR/pihole/root" "$INSTALL_DIR/pihole/log" "$INSTALL_DIR/plex"
 
-    sudo touch /virtualization/pihole/log/pihole.log
-    sudo chmod 0664 /virtualization/pihole/log/pihole.log
+    sudo touch "$INSTALL_DIR/pihole/log/pihole.log"
+    sudo chmod 0664 "$INSTALL_DIR/pihole/log/pihole.log"
 
 
     ############################################
@@ -595,32 +600,36 @@ if [ "$FULL_INSTALL" = true ]; then
     ############################################
 
     if compgen -G "${SCRIPT_DIR}/container-services/*" >/dev/null; then
-        sudo cp -a "${SCRIPT_DIR}/container-services/." /virtualization/container-services/
+        sudo cp -a "${SCRIPT_DIR}/container-services/." "$INSTALL_DIR/container-services/"
     fi
 
-    sudo find /virtualization/container-services -maxdepth 1 -type f -name '*.sh' -exec chmod 0755 {} +
+    sudo find "$INSTALL_DIR/container-services" -maxdepth 1 -type f -name '*.sh' -exec chmod 0755 {} +
 
 
     ############################################
     # Container systemd units
     ############################################
 
-    service_unit='[Unit]
+    service_unit="[Unit]
 Description=Squire Server Container Services
 After=docker.service
 Requires=docker.service
 
 [Service]
-WorkingDirectory=/virtualization/container-services
-ExecStartPre=/usr/bin/docker compose -f /virtualization/container-services/docker-compose.yml down
-ExecStart=/virtualization/container-services/start-services.sh --force-recreate --build --wait
-ExecStop=/usr/bin/docker compose -f /virtualization/container-services/docker-compose.yml down
+Environment=PIHOLE_BASE=${INSTALL_DIR}/pihole
+Environment=PLEX_BASE=${INSTALL_DIR}/plex
+Environment=PLEX_MEDIA=${NAS_MEDIA_MOUNT}
+Environment=PLEX_TRANSCODE=/mnt/transcode
+WorkingDirectory=${INSTALL_DIR}/container-services
+ExecStartPre=/usr/bin/docker compose -f ${INSTALL_DIR}/container-services/docker-compose.yml down
+ExecStart=${INSTALL_DIR}/container-services/start-services.sh --force-recreate --build --wait
+ExecStop=/usr/bin/docker compose -f ${INSTALL_DIR}/container-services/docker-compose.yml down
 TimeoutSec=120
 KillMode=process
 
 [Install]
 WantedBy=multi-user.target
-'
+"
 
     timer_unit='[Unit]
 Description=Weekly Container Update
@@ -634,16 +643,16 @@ Unit=squire-server-containers-update.service
 WantedBy=timers.target
 '
 
-    update_service_unit='[Unit]
+    update_service_unit="[Unit]
 Description=Update and restart container services
 After=docker.service
 Requires=docker.service
 
 [Service]
 Type=oneshot
-WorkingDirectory=/virtualization/container-services
-ExecStart=/virtualization/container-services/restart-update.sh
-'
+WorkingDirectory=${INSTALL_DIR}/container-services
+ExecStart=${INSTALL_DIR}/container-services/restart-update.sh
+"
 
     daemon_reload_needed=0
 
@@ -671,8 +680,8 @@ ExecStart=/virtualization/container-services/restart-update.sh
 
     echo
     echo 'Full install complete.'
-    echo '- Run /virtualization/container-services/start-services.sh manually the first time to generate .env and provide secrets.'
-    echo '- Run smbpasswd -a plex if the plex account needs Samba access.'
+    echo "- Run ${INSTALL_DIR}/container-services/start-services.sh manually the first time to generate .env and provide secrets."
+    echo "- Ensure the NAS NFS export uid/gid matches the Plex container PUID/PGID so Plex can read media at ${NAS_MEDIA_MOUNT}."
 
 fi
 
@@ -683,5 +692,5 @@ fi
 
 echo
 echo "Bootstrap complete."
-echo "Manual follow-up: run smbpasswd for Samba users and finish Kopia setup from cachyos/backups/."
+echo "Manual follow-up: finish Kopia setup from cachyos/backups/ and verify the NFS media mount."
 echo "Log out and back in for shell and group membership changes."
