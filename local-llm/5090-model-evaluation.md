@@ -445,10 +445,23 @@ speed. This raises the model-size ceiling and frees VRAM for larger context.
   (MXFP4 ~65 GB, Apache 2.0 — `ollama pull gpt-oss:120b`) spread across the 32 GB VRAM + 64 GB
   RAM (96 GB capacity). ~5.1B active params → community precedent ~29 tok/s on a tighter
   24 GB+64 GB box; the 5090 keeps more experts on-GPU (use `--n-cpu-moe N`) so it should match/beat.
-- **Qwen3-Next-80B-A3B:** the only official Ollama tag is **159 GB (full precision)** which does
-  NOT fit 96 GB — import a **Q4_K_M GGUF (~48 GB)** from HuggingFace (`ollama create
-  qwen3next-80b-offload` from a sourced GGUF, `PARAMETER num_gpu 99` + `num_ctx 262144`). Verify
-  the GGUF repo at install time.
+- **Qwen3-Next-80B-A3B-Instruct:** the official Ollama *library* tag is **159 GB (full precision)**
+  which does NOT fit 96 GB, but the **official `Qwen/Qwen3-Next-80B-A3B-Instruct-GGUF` repo publishes
+  a single-file `Q4_K_M` (~45 GB)** that does. The installer pulls it directly via Ollama's HF
+  passthrough (`hf.co/Qwen/Qwen3-Next-80B-A3B-Instruct-GGUF:Q4_K_M`) and bakes the
+  `qwen3next-80b-offload` alias (`num_gpu 99`, `num_ctx 131072`, temp 0.25). Alternate quant
+  (quality-leaning): unsloth `UD-Q4_K_XL` (~43 GB). **Architecture support is upstream:** llama.cpp
+  issue #15940 "Qwen3-Next support" is CLOSED/merged (2025-11-28, GitHub API) and Ollama's library
+  hosts `qwen3-next`, so the bundled `llama-server` engine handles the hybrid arch.
+  - **VERIFIED on-box (2026-06-12, 4090 24GB + 64GB RAM, Ollama 0.30.8):** the `Q4_K_M` GGUF loads with
+    full expert offload — load log shows **CPU expert buffer 44.6 GB**, CUDA weight buffer ~1.3 GB,
+    ~9.2 GB total VRAM at 131K ctx — and generates at **~24 tok/s** (`/api/chat`), matching the offload
+    band. `ollama ps` cosmetically reports "100% GPU" (known quirk; experts are actually in RAM).
+  - **REQUIRED FIX (verified):** the GGUF's embedded chat template renders to an **immediate-EOS empty
+    reply** under Ollama 0.30.8 (`/api/generate` and `/api/chat` both return 1 token, `done=stop`). A
+    raw ChatML prompt generates correctly, confirming the arch works — so the alias **must** bake an
+    explicit ChatML `TEMPLATE` (`<|im_start|>{role}\n{content}<|im_end|>` … `<|im_start|>assistant`).
+    The installer does this for `qwen3next-80b-offload`; without it the model appears mute.
 - **Context:** experts vacating VRAM frees almost the whole 32 GB for KV cache (measured anchor:
   `qwen3-coder:30b` weights 20 GB on-GPU vs 2.8 GB offloaded). 30B-class contenders can run at the
   top of their context (256K); 80B/120b run at all, context bounded by leftover VRAM not weights.
@@ -456,9 +469,10 @@ speed. This raises the model-size ceiling and frees VRAM for larger context.
   token); steady-state generation stays in the ~25–40 tok/s band for low-active-param MoEs.
 
 ### How to use it (launchers + installer)
-- **Installer:** `install-windows.ps1 -TestProfiles` pulls `gpt-oss:120b` and creates the
-  `gptoss-120b-offload` alias (`num_gpu 99`, low temp). Use `-ModelPath` to keep the ~1TB off the
-  OS drive.
+- **Installer:** `install-windows.ps1 -TestProfiles` pulls `gpt-oss:120b` and the official
+  Qwen3-Next-80B-A3B-Instruct `Q4_K_M` GGUF (`hf.co/Qwen/...`), and creates the `gptoss-120b-offload`
+  and `qwen3next-80b-offload` aliases (`num_gpu 99`, low temp). Use `-ModelPath` to keep the ~1TB off
+  the OS drive.
 - **Launchers:** `crush-task` / `copilot-local` expose offload-bench entries **`[O1]` gpt-oss-120b**
   and **`[O2]` Qwen3-Next-80B-A3B**. Selecting one runs `scripts/offload-serve.{ps1,sh} -Action
   start` (stops the managed server, starts a dedicated `ollama serve` with `LLAMA_ARG_CPU_MOE=1`

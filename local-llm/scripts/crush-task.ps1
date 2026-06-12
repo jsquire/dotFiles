@@ -105,7 +105,7 @@ if (-not $Task) {
     Write-Host ""
     Write-Host "  --- Big-MoE expert-offload bench (experts->RAM; slower, for models that don't fit) ---"
     Write-Host "  [O1] gpt-oss-120b           (offload, ~65 GB MXFP4)"
-    Write-Host "  [O2] Qwen3-Next-80B-A3B     (offload, needs imported Q4 GGUF)"
+    Write-Host "  [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB)"
     Write-Host ""
     $choice = Read-Host "  Select profile [1]"
     if (-not $choice) { $choice = "1" }

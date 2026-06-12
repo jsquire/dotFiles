@@ -138,7 +138,8 @@ if ($Help) {
                          (qwen3.6 27B/35B, gemma4 31B, qwen3-coder, glm-4.7-flash,
                          qwen3 8B) and the qwen36-27b-256k/qwen3coder-256k/
                          glm47-flash-198k/etc. launcher aliases, PLUS the gpt-oss:120b
-                         expert-offload bench (gptoss-120b-offload). ~175 GB. Use with
+                         and Qwen3-Next-80B-A3B (Q4_K_M GGUF) expert-offload benches
+                         (gptoss-120b-offload, qwen3next-80b-offload). ~225 GB. Use with
                          -ModelPath to put the ~1TB of models off the OS drive.
     -ModelPath <path>    Custom model storage directory (sets OLLAMA_MODELS env var)
     -SkipModels          Install software only; pull models later with: ollama pull <tag>
@@ -227,7 +228,7 @@ $ProfileDefinitions = @{
     # qwen3.6:35b / gemma4:31b / glm-4.7-flash may differ at install time.
     "Desktop5090Test" = @{
         Description = "RTX 5090 (32GB) — side-by-side model bench (~1TB model storage)"
-        RequiredGB = 175
+        RequiredGB = 225
         Models = [ordered]@{
             "qwen3.6:27b"      = "Qwen3.6 27B Dense — heavy coding default (262k ctx), ~17 GB"
             "qwen3.6:35b"      = "Qwen3.6 35B-A3B MoE — heavy coding bench / multimodal (262k ctx), ~22 GB"
@@ -239,10 +240,11 @@ $ProfileDefinitions = @{
             # launcher's offload mode). gpt-oss:120b is MXFP4-native (~65 GB) and fits the 5090's
             # 96 GB (32 GB VRAM + 64 GB RAM) with offload; Apache 2.0; ~5.1B active params.
             "gpt-oss:120b"     = "gpt-oss-120b MoE (MXFP4) — expert-offload bench (experts->RAM), ~65 GB"
-            # OPTIONAL: Qwen3-Next-80B-A3B. The official Ollama tag is 159 GB (full precision) and does
-            # NOT fit 96 GB. To bench it, import a Q4_K_M GGUF (~48 GB) from HuggingFace manually:
-            #   ollama create qwen3next-80b-offload -f Modelfile   (FROM /path/to/qwen3-next-80b.Q4_K_M.gguf
-            #   + PARAMETER num_ctx 262144 + PARAMETER num_gpu 99). Verify the GGUF repo at install time.
+            # Qwen3-Next-80B-A3B-Instruct offload bench. The official Ollama tag is 159 GB (full
+            # precision) and does NOT fit 96 GB, but the official Qwen GGUF repo publishes a single-file
+            # Q4_K_M (~45 GB) that does. Pulled directly via Ollama's HF passthrough; the offload alias
+            # below is built FROM this tag. Alternate (quality-leaning): unsloth's UD-Q4_K_XL (~43 GB).
+            "hf.co/Qwen/Qwen3-Next-80B-A3B-Instruct-GGUF:Q4_K_M" = "Qwen3-Next-80B-A3B-Instruct (Q4_K_M GGUF) — expert-offload bench, ~45 GB"
         }
     }
 }
@@ -1040,6 +1042,14 @@ PARAMETER num_ctx $ctx
 
             # Create named alias models used by launcher scripts
             Write-Host "  Creating launcher model aliases..." -ForegroundColor White
+            # Explicit ChatML template for the Qwen3-Next offload alias (its GGUF-embedded template
+            # renders to an immediate-EOS empty reply under Ollama 0.30.8 — verified on-box).
+            $qwen3nextChatML = @"
+{{- range `$i, `$_ := .Messages }}<|im_start|>{{ .Role }}
+{{ .Content }}<|im_end|>
+{{ end }}<|im_start|>assistant
+
+"@
             $aliasModels = if ($TestProfiles) {
                 # 5090 launcher tags ([1]-[9] + [H1]-[H5] bench). Coders get lower temp.
                 @{
@@ -1052,6 +1062,12 @@ PARAMETER num_ctx $ctx
                     # GPU; the launcher's offload mode sets LLAMA_ARG_CPU_MOE=1 so the experts spill to
                     # RAM. Lower ctx (128k) keeps KV modest while experts are CPU-resident.
                     "gptoss-120b-offload" = @{ From = "gpt-oss:120b"; Ctx = 131072; Temp = 0.25; Gpu = 99 }
+                    # [O2] Qwen3-Next-80B-A3B-Instruct Q4_K_M GGUF (~45 GB, fits 96 GB via expert offload).
+                    # Verified on-box (4090, Ollama 0.30.8): arch loads + offloads (44.6 GB experts->RAM,
+                    # ~9 GB VRAM @131k ctx, ~24 tok/s). The GGUF's embedded chat template renders to an
+                    # immediate-EOS empty reply under Ollama's engine, so an explicit ChatML TEMPLATE is
+                    # REQUIRED for the /api/chat path used by crush/copilot.
+                    "qwen3next-80b-offload" = @{ From = "hf.co/Qwen/Qwen3-Next-80B-A3B-Instruct-GGUF:Q4_K_M"; Ctx = 131072; Temp = 0.25; Gpu = 99; Template = $qwen3nextChatML }
                 }
             } else {
                 @{
@@ -1070,6 +1086,9 @@ PARAMETER num_ctx $ctx
                 }
                 if ($cfg.ContainsKey("Gpu")) {
                     $modelfileBody += "PARAMETER num_gpu $($cfg.Gpu)`n"
+                }
+                if ($cfg.ContainsKey("Template")) {
+                    $modelfileBody += "TEMPLATE """"""$($cfg.Template)""""""`n"
                 }
                 $modelfileBody | Set-Content $modelfilePath
                 ollama create $alias -f $modelfilePath 2>$null

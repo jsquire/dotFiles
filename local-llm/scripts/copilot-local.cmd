@@ -31,7 +31,7 @@ echo   [7] Image generation    (qwen3:8b + HiDream via MCP^)
 echo.
 echo   --- Big-MoE expert-offload bench (experts-^>RAM; slower, for models that don't fit^) ---
 echo   [O1] gpt-oss-120b           (offload, ~65 GB MXFP4^)
-echo   [O2] Qwen3-Next-80B-A3B     (offload, needs imported Q4 GGUF^)
+echo   [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB^)
 echo.
 echo   --- Remote (CachyOS server — one standing model, switch only when needed) ---
 echo   [S] CachyOS: GLM-4.7-Flash   (default — coding + review + office MCP^)
