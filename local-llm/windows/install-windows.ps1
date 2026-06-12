@@ -97,6 +97,7 @@ param(
     [switch]$SkipModels,
     [switch]$ModelsOnly,
     [switch]$EnableLAN,
+    [switch]$TestProfiles,
 
     [ValidateSet("Dark", "Light")]
     [string]$Theme = "Dark",
@@ -133,6 +134,12 @@ if ($Help) {
   OPTIONS:
     -OllamaHost <url>    Remote Ollama endpoint (required for Client mode)
                          Example: http://192.168.1.100:11434
+    -TestProfiles        RTX 5090 side-by-side bench: installs all 6 contenders
+                         (qwen3.6 27B/35B, gemma4 31B, qwen3-coder, glm-4.7-flash,
+                         qwen3 8B) and the qwen36-27b-256k/qwen3coder-256k/
+                         glm47-flash-198k/etc. launcher aliases, PLUS the gpt-oss:120b
+                         expert-offload bench (gptoss-120b-offload). ~175 GB. Use with
+                         -ModelPath to put the ~1TB of models off the OS drive.
     -ModelPath <path>    Custom model storage directory (sets OLLAMA_MODELS env var)
     -SkipModels          Install software only; pull models later with: ollama pull <tag>
     -ModelsOnly          Skip software installation; only pull/update models
@@ -212,6 +219,30 @@ $ProfileDefinitions = @{
             "qwen3:14b"            = $KnownModelDescriptions["qwen3:14b"]
             "qwen3:4b"             = $KnownModelDescriptions["qwen3:4b"]
             "qwen3-coder:30b"      = "Qwen3-Coder 30B MoE — code review (256k ctx), ~18 GB"
+        }
+    }
+    # 5090 side-by-side test profile (-TestProfiles). ~1TB model storage, so every
+    # contender is installed at once and exposed through the launcher [H1]-[H5] bench.
+    # NOTE: base pull tags below must be validated on the box — exact Ollama tags for
+    # qwen3.6:35b / gemma4:31b / glm-4.7-flash may differ at install time.
+    "Desktop5090Test" = @{
+        Description = "RTX 5090 (32GB) — side-by-side model bench (~1TB model storage)"
+        RequiredGB = 175
+        Models = [ordered]@{
+            "qwen3.6:27b"      = "Qwen3.6 27B Dense — heavy coding default (262k ctx), ~17 GB"
+            "qwen3.6:35b"      = "Qwen3.6 35B-A3B MoE — heavy coding bench / multimodal (262k ctx), ~22 GB"
+            "gemma4:31b"       = "Gemma 4 31B Dense — heavy coding bench / re-test (128k ctx), ~20 GB"
+            "qwen3-coder:30b"  = "Qwen3-Coder 30B-A3B MoE — light coding / review (256k ctx), ~18 GB"
+            "glm-4.7-flash"    = "GLM-4.7-Flash MoE-lite — agentic / all MCP+tools (198k ctx), ~18 GB"
+            "qwen3:8b"         = "Qwen3 8B Dense — image-gen companion (32k ctx), ~5 GB"
+            # Expert-offload bench (experts pushed to system RAM via LLAMA_ARG_CPU_MOE — see the
+            # launcher's offload mode). gpt-oss:120b is MXFP4-native (~65 GB) and fits the 5090's
+            # 96 GB (32 GB VRAM + 64 GB RAM) with offload; Apache 2.0; ~5.1B active params.
+            "gpt-oss:120b"     = "gpt-oss-120b MoE (MXFP4) — expert-offload bench (experts->RAM), ~65 GB"
+            # OPTIONAL: Qwen3-Next-80B-A3B. The official Ollama tag is 159 GB (full precision) and does
+            # NOT fit 96 GB. To bench it, import a Q4_K_M GGUF (~48 GB) from HuggingFace manually:
+            #   ollama create qwen3next-80b-offload -f Modelfile   (FROM /path/to/qwen3-next-80b.Q4_K_M.gguf
+            #   + PARAMETER num_ctx 262144 + PARAMETER num_gpu 99). Verify the GGUF repo at install time.
         }
     }
 }
@@ -359,8 +390,9 @@ function Get-ModelDriveLetter {
 }
 
 function Get-EffectiveModelConfig {
-    $builtIn = $ProfileDefinitions[$ModelProfile]
-    if (Test-Path $CustomModelListPath) {
+    $profileKey = if ($TestProfiles) { "Desktop5090Test" } else { $ModelProfile }
+    $builtIn = $ProfileDefinitions[$profileKey]
+    if ((-not $TestProfiles) -and (Test-Path $CustomModelListPath)) {
         $customModels = [ordered]@{}
         foreach ($line in Get-Content -Path $CustomModelListPath) {
             $trimmed = $line.Trim()
@@ -398,8 +430,8 @@ function Get-EffectiveModelConfig {
     return @{
         Models = $builtIn.Models
         RequiredGB = $builtIn.RequiredGB
-        Label = $ModelProfile
-        Message = "Using $ModelProfile profile models."
+        Label = $profileKey
+        Message = "Using $profileKey profile models."
         IsCustom = $false
     }
 }
@@ -973,11 +1005,23 @@ if ($ShouldPullModels) {
 
             # Set num_ctx on models via Modelfiles (Ollama defaults to 2048)
             Write-Host "  Setting context window (num_ctx) on models..." -ForegroundColor White
-            $numCtxSettings = @{
-                "gemma4:26b"    = 65536
-                "qwen3:14b"     = 16384
-                "qwen3:4b"      = 8192
-                "qwen3-coder:30b" = 65536
+            $numCtxSettings = if ($TestProfiles) {
+                @{
+                    "qwen3.6:27b"     = 262144
+                    "qwen3.6:35b"     = 262144
+                    "gemma4:31b"      = 131072
+                    "qwen3-coder:30b" = 262144
+                    "glm-4.7-flash"   = 202752
+                    "qwen3:8b"        = 32768
+                    "gpt-oss:120b"    = 131072
+                }
+            } else {
+                @{
+                    "gemma4:26b"    = 65536
+                    "qwen3:14b"     = 16384
+                    "qwen3:4b"      = 8192
+                    "qwen3-coder:30b" = 65536
+                }
             }
             foreach ($entry in $numCtxSettings.GetEnumerator()) {
                 $tag = $entry.Key
@@ -996,22 +1040,43 @@ PARAMETER num_ctx $ctx
 
             # Create named alias models used by launcher scripts
             Write-Host "  Creating launcher model aliases..." -ForegroundColor White
-            $aliasModels = @{
-                "qwen36-128k"      = @{ From = "qwen3.6:27b"; Ctx = 131072 }
-                "gemma4-65k"       = @{ From = "gemma4:26b"; Ctx = 65536 }
-                "qwen3coder-65k"   = @{ From = "qwen3-coder:30b"; Ctx = 65536 }
+            $aliasModels = if ($TestProfiles) {
+                # 5090 launcher tags ([1]-[9] + [H1]-[H5] bench). Coders get lower temp.
+                @{
+                    "qwen36-27b-256k"  = @{ From = "qwen3.6:27b";     Ctx = 262144; Temp = 0.25 }
+                    "qwen36-35b-256k"  = @{ From = "qwen3.6:35b";     Ctx = 262144; Temp = 0.25 }
+                    "gemma4-31b-128k"  = @{ From = "gemma4:31b";      Ctx = 131072 }
+                    "qwen3coder-256k"  = @{ From = "qwen3-coder:30b"; Ctx = 262144; Temp = 0.25 }
+                    "glm47-flash-198k" = @{ From = "glm-4.7-flash";   Ctx = 202752; Temp = 0.30 }
+                    # Expert-offload bench alias ([O1]). num_gpu 99 keeps all non-expert layers on the
+                    # GPU; the launcher's offload mode sets LLAMA_ARG_CPU_MOE=1 so the experts spill to
+                    # RAM. Lower ctx (128k) keeps KV modest while experts are CPU-resident.
+                    "gptoss-120b-offload" = @{ From = "gpt-oss:120b"; Ctx = 131072; Temp = 0.25; Gpu = 99 }
+                }
+            } else {
+                @{
+                    "qwen36-128k"      = @{ From = "qwen3.6:27b"; Ctx = 131072 }
+                    "gemma4-65k"       = @{ From = "gemma4:26b"; Ctx = 65536 }
+                    "qwen3coder-65k"   = @{ From = "qwen3-coder:30b"; Ctx = 65536 }
+                }
             }
             foreach ($entry in $aliasModels.GetEnumerator()) {
                 $alias = $entry.Key
                 $cfg   = $entry.Value
                 $modelfilePath = Join-Path $env:TEMP "Modelfile-$alias"
-                @"
-FROM $($cfg.From)
-PARAMETER num_ctx $($cfg.Ctx)
-"@ | Set-Content $modelfilePath
+                $modelfileBody = "FROM $($cfg.From)`nPARAMETER num_ctx $($cfg.Ctx)`n"
+                if ($cfg.ContainsKey("Temp")) {
+                    $modelfileBody += "PARAMETER temperature $($cfg.Temp)`n"
+                }
+                if ($cfg.ContainsKey("Gpu")) {
+                    $modelfileBody += "PARAMETER num_gpu $($cfg.Gpu)`n"
+                }
+                $modelfileBody | Set-Content $modelfilePath
                 ollama create $alias -f $modelfilePath 2>$null
                 if ($LASTEXITCODE -eq 0) {
-                    Write-Info "  $alias → $($cfg.From) @ num_ctx $($cfg.Ctx)"
+                    $tempNote = if ($cfg.ContainsKey("Temp")) { " temp $($cfg.Temp)" } else { "" }
+                    $gpuNote  = if ($cfg.ContainsKey("Gpu"))  { " num_gpu $($cfg.Gpu)" } else { "" }
+                    Write-Info "  $alias → $($cfg.From) @ num_ctx $($cfg.Ctx)$tempNote$gpuNote"
                 }
                 Remove-Item $modelfilePath -ErrorAction SilentlyContinue
             }

@@ -30,6 +30,20 @@ param(
 $DefaultModel = if ($Model) { $Model } else { "qwen36-128k" }
 $ReviewModel  = "qwen3coder-65k"
 
+# 5090 model assignments per task profile
+$ModelByTask = @{
+    coding  = "qwen36-27b-256k"   # heavy coding default (Qwen3.6-27B dense)
+    review  = "qwen3coder-256k"   # Qwen3-Coder 30B-A3B
+    general = "glm47-flash-198k"  # GLM-4.7-Flash for all tool/MCP profiles
+    word    = "glm47-flash-198k"
+    pptx    = "glm47-flash-198k"
+    docs    = "glm47-flash-198k"
+    image   = "qwen3:8b"          # image-gen companion (HiDream)
+    all     = "glm47-flash-198k"
+}
+$SelectedModel = $null
+$OffloadMode = $false
+
 function Write-CrushConfig {
     param(
         [hashtable]$McpOverrides,
@@ -66,41 +80,66 @@ function Write-CrushConfig {
 if (-not $Task) {
     Write-Host ""
     Write-Host "  --- Coding ---"
-    Write-Host "  [1] Heavy coding        (Qwen3.6 27B, no MCP)"
-    Write-Host "  [2] Light coding        (Qwen3 14B, no MCP)"
+    Write-Host "  [1] Heavy coding        (Qwen3.6 27B dense, no MCP)"
+    Write-Host "  [2] Light coding        (Qwen3-Coder 30B, no MCP)"
     Write-Host "  [3] Code review         (Qwen3-Coder 30B, no MCP)"
     Write-Host ""
     Write-Host "  --- Writing & Documents ---"
-    Write-Host "  [4] General research    (Qwen3.6 27B + Word MCP)"
-    Write-Host "  [5] Word editing        (Qwen3.6 27B + Word MCP)"
-    Write-Host "  [6] PowerPoint          (Qwen3.6 27B + PPTX MCP)"
-    Write-Host "  [7] Guided authoring    (Qwen3.6 27B + doc skill)"
+    Write-Host "  [4] General research    (GLM-4.7-Flash + Word MCP)"
+    Write-Host "  [5] Word editing        (GLM-4.7-Flash + Word MCP)"
+    Write-Host "  [6] PowerPoint          (GLM-4.7-Flash + PPTX MCP)"
+    Write-Host "  [7] Guided authoring    (GLM-4.7-Flash + doc skill)"
     Write-Host ""
     Write-Host "  --- Visual ---"
-    Write-Host "  [8] Image generation    (qwen3:4b + HiDream MCP)"
+    Write-Host "  [8] Image generation    (Qwen3 8B + HiDream MCP)"
     Write-Host ""
     Write-Host "  --- Everything ---"
-    Write-Host "  [9] All tools           (all MCP, may be slow)"
+    Write-Host "  [9] All tools           (GLM-4.7-Flash, all MCP, may be slow)"
+    Write-Host ""
+    Write-Host "  --- Heavy-coding bench (coding profile, swap model) ---"
+    Write-Host "  [H1] Qwen3.6 27B dense (default)"
+    Write-Host "  [H2] Qwen3.6 35B-A3B MoE"
+    Write-Host "  [H3] Gemma 4 31B dense"
+    Write-Host "  [H4] Qwen3-Coder 30B-A3B"
+    Write-Host "  [H5] GLM-4.7-Flash"
+    Write-Host ""
+    Write-Host "  --- Big-MoE expert-offload bench (experts->RAM; slower, for models that don't fit) ---"
+    Write-Host "  [O1] gpt-oss-120b           (offload, ~65 GB MXFP4)"
+    Write-Host "  [O2] Qwen3-Next-80B-A3B     (offload, needs imported Q4 GGUF)"
     Write-Host ""
     $choice = Read-Host "  Select profile [1]"
     if (-not $choice) { $choice = "1" }
 
-    switch ($choice) {
-        "1" { $Task = "coding" }
-        "2" { $Task = "coding"; $DefaultModel = "qwen3:14b" }
-        "3" { $Task = "review" }
-        "4" { $Task = "general" }
-        "5" { $Task = "word" }
-        "6" { $Task = "pptx" }
-        "7" { $Task = "docs" }
-        "8" { $Task = "image" }
-        "9" { $Task = "all" }
+    switch ($choice.ToUpper()) {
+        "1"  { $Task = "coding" }
+        "2"  { $Task = "coding"; $SelectedModel = "qwen3coder-256k" }
+        "3"  { $Task = "review" }
+        "4"  { $Task = "general" }
+        "5"  { $Task = "word" }
+        "6"  { $Task = "pptx" }
+        "7"  { $Task = "docs" }
+        "8"  { $Task = "image" }
+        "9"  { $Task = "all" }
+        "H1" { $Task = "coding"; $SelectedModel = "qwen36-27b-256k" }
+        "H2" { $Task = "coding"; $SelectedModel = "qwen36-35b-256k" }
+        "H3" { $Task = "coding"; $SelectedModel = "gemma4-31b-128k" }
+        "H4" { $Task = "coding"; $SelectedModel = "qwen3coder-256k" }
+        "H5" { $Task = "coding"; $SelectedModel = "glm47-flash-198k" }
+        "O1" { $Task = "coding"; $SelectedModel = "gptoss-120b-offload";   $OffloadMode = $true }
+        "O2" { $Task = "coding"; $SelectedModel = "qwen3next-80b-offload"; $OffloadMode = $true }
         default {
             Write-Host "  Invalid selection, defaulting to heavy coding."
             $Task = "coding"
         }
     }
 }
+
+# Resolve the model: explicit -Model wins, then picker selection, then per-task default.
+if (-not $SelectedModel) {
+    $SelectedModel = if ($Model) { $Model } else { $ModelByTask[$Task] }
+}
+$DefaultModel = $SelectedModel
+$ReviewModel  = $SelectedModel
 
 switch ($Task) {
     "coding" {
@@ -241,8 +280,8 @@ Check for: overlapping elements, text overflow, low-contrast text, misaligned co
             "word-mcp"     = @{ disabled = $true }
             "pptx-mcp"     = @{ disabled = $true }
             "imagegen-mcp" = @{ disabled = $false }
-        } -Model "qwen3:4b"
-        Write-Host "  Profile: Image generation (HiDream-O1) — using qwen3:4b for VRAM headroom"
+        } -Model $SelectedModel
+        Write-Host "  Profile: Image generation (HiDream) — using $SelectedModel for VRAM headroom"
     }
     "all" {
         Write-CrushConfig -McpOverrides @{
@@ -257,4 +296,18 @@ Check for: overlapping elements, text overflow, low-contrast text, misaligned co
 Write-Host "  Config: $(Resolve-Path .crush.json)"
 Write-Host ""
 
-crush
+if ($OffloadMode) {
+    # Big-MoE offload mode: run a dedicated Ollama serve with expert CPU-offload, then
+    # restore the managed server when Crush exits. The model alias already carries
+    # num_gpu 99; offload-serve.ps1 sets LLAMA_ARG_CPU_MOE so experts spill to RAM.
+    $offloadScript = Join-Path $PSScriptRoot "offload-serve.ps1"
+    Write-Host "  Offload mode: experts -> system RAM (slower; for models that don't fit)" -ForegroundColor DarkYellow
+    & $offloadScript -Action start
+    try {
+        crush
+    } finally {
+        & $offloadScript -Action stop
+    }
+} else {
+    crush
+}
