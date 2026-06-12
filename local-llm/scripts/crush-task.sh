@@ -63,32 +63,56 @@ EOF
 task="${1:-}"
 DEFAULT_MODEL="qwen36-128k"
 REVIEW_MODEL="qwen3coder-65k"
+SELECTED_MODEL=""
+OFFLOAD_MODE=0
+
+# 5090 model assignments per task profile
+model_for_task() {
+    case "$1" in
+        coding)                 echo "qwen36-27b-256k" ;;   # heavy coding default
+        review)                 echo "qwen3coder-256k" ;;   # Qwen3-Coder 30B-A3B
+        general|word|pptx|docs|all) echo "glm47-flash-198k" ;;  # GLM-4.7-Flash tool/MCP
+        image)                  echo "qwen3:8b" ;;          # image-gen companion
+        *)                      echo "qwen36-27b-256k" ;;
+    esac
+}
 
 if [[ -z "$task" ]]; then
     echo
     echo "  --- Coding ---"
-    echo "  [1] Heavy coding        (Qwen3.6 27B, no MCP)"
-    echo "  [2] Light coding        (Qwen3 14B, no MCP)"
+    echo "  [1] Heavy coding        (Qwen3.6 27B dense, no MCP)"
+    echo "  [2] Light coding        (Qwen3-Coder 30B, no MCP)"
     echo "  [3] Code review         (Qwen3-Coder 30B, no MCP)"
     echo
     echo "  --- Writing & Documents ---"
-    echo "  [4] General research    (Qwen3.6 27B + Word MCP)"
-    echo "  [5] Word editing        (Qwen3.6 27B + Word MCP)"
-    echo "  [6] PowerPoint          (Qwen3.6 27B + PPTX MCP)"
-    echo "  [7] Guided authoring    (Qwen3.6 27B + doc skill)"
+    echo "  [4] General research    (GLM-4.7-Flash + Word MCP)"
+    echo "  [5] Word editing        (GLM-4.7-Flash + Word MCP)"
+    echo "  [6] PowerPoint          (GLM-4.7-Flash + PPTX MCP)"
+    echo "  [7] Guided authoring    (GLM-4.7-Flash + doc skill)"
     echo
     echo "  --- Visual ---"
-    echo "  [8] Image generation    (qwen3:4b + HiDream MCP)"
+    echo "  [8] Image generation    (Qwen3 8B + HiDream MCP)"
     echo
     echo "  --- Everything ---"
-    echo "  [9] All tools           (all MCP, may be slow)"
+    echo "  [9] All tools           (GLM-4.7-Flash, all MCP, may be slow)"
+    echo
+    echo "  --- Heavy-coding bench (coding profile, swap model) ---"
+    echo "  [H1] Qwen3.6 27B dense (default)"
+    echo "  [H2] Qwen3.6 35B-A3B MoE"
+    echo "  [H3] Gemma 4 31B dense"
+    echo "  [H4] Qwen3-Coder 30B-A3B"
+    echo "  [H5] GLM-4.7-Flash"
+    echo
+    echo "  --- Big-MoE expert-offload bench (experts->RAM; slower, for models that don't fit) ---"
+    echo "  [O1] gpt-oss-120b           (offload, ~65 GB MXFP4)"
+    echo "  [O2] Qwen3-Next-80B-A3B     (offload, needs imported Q4 GGUF)"
     echo
     read -rp "  Select profile [1]: " choice
     choice="${choice:-1}"
 
     case "$choice" in
         1) task="coding" ;;
-        2) task="coding"; DEFAULT_MODEL="qwen3:14b" ;;
+        2) task="coding"; SELECTED_MODEL="qwen3coder-256k" ;;
         3) task="review" ;;
         4) task="general" ;;
         5) task="word" ;;
@@ -96,12 +120,24 @@ if [[ -z "$task" ]]; then
         7) task="docs" ;;
         8) task="image" ;;
         9) task="all" ;;
+        [Hh]1) task="coding"; SELECTED_MODEL="qwen36-27b-256k" ;;
+        [Hh]2) task="coding"; SELECTED_MODEL="qwen36-35b-256k" ;;
+        [Hh]3) task="coding"; SELECTED_MODEL="gemma4-31b-128k" ;;
+        [Hh]4) task="coding"; SELECTED_MODEL="qwen3coder-256k" ;;
+        [Hh]5) task="coding"; SELECTED_MODEL="glm47-flash-198k" ;;
+        [Oo]1) task="coding"; SELECTED_MODEL="gptoss-120b-offload";   OFFLOAD_MODE=1 ;;
+        [Oo]2) task="coding"; SELECTED_MODEL="qwen3next-80b-offload"; OFFLOAD_MODE=1 ;;
         *)
             echo "  Invalid selection, defaulting to heavy coding."
             task="coding"
             ;;
     esac
 fi
+
+# Resolve model: explicit picker selection wins, else per-task default.
+if [[ -z "$SELECTED_MODEL" ]]; then SELECTED_MODEL="$(model_for_task "$task")"; fi
+DEFAULT_MODEL="$SELECTED_MODEL"
+REVIEW_MODEL="$SELECTED_MODEL"
 
 PPTX_GUIDE="IMPORTANT: Be concise. Do not explain what you will do — just do it. Minimize output.
 
@@ -188,8 +224,8 @@ Be direct. If the code is correct, say so briefly."
         echo "  Profile: Guided document authoring (doc-coauthoring skill + Word MCP)"
         ;;
     image)
-        write_crush_config true true false "" "qwen3:4b"
-        echo "  Profile: Image generation (HiDream-O1) — using qwen3:4b for VRAM headroom"
+        write_crush_config true true false "" "$SELECTED_MODEL"
+        echo "  Profile: Image generation (HiDream) — using $SELECTED_MODEL for VRAM headroom"
         ;;
     all)
         write_crush_config false false false "" "$DEFAULT_MODEL"
@@ -205,4 +241,16 @@ esac
 echo "  Config: $(pwd)/.crush.json"
 echo
 
-exec crush
+if [[ "$OFFLOAD_MODE" == "1" ]]; then
+    # Big-MoE offload mode: run a dedicated Ollama serve with expert CPU-offload, then
+    # restore the managed server when Crush exits.
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    # shellcheck source=offload-serve.sh
+    source "$SCRIPT_DIR/offload-serve.sh"
+    echo "  Offload mode: experts -> system RAM (slower; for models that don't fit)"
+    offload_start
+    trap 'offload_stop' EXIT
+    crush
+else
+    exec crush
+fi

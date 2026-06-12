@@ -7,38 +7,45 @@
       "type": "openai",
       "models": [
         {
-          "name": "Qwen3.6 27B (Primary)",
-          "id": "qwen36-128k",
+          "name": "Qwen3.6 27B dense (Heavy coding — default)",
+          "id": "qwen36-27b-256k",
+          "context_window": 262144,
+          "default_max_tokens": 32000,
+          "can_reason": true
+        },
+        {
+          "name": "Qwen3.6 35B-A3B MoE (Heavy coding bench)",
+          "id": "qwen36-35b-256k",
+          "context_window": 262144,
+          "default_max_tokens": 32000,
+          "can_reason": true
+        },
+        {
+          "name": "Gemma 4 31B dense (Heavy coding bench — re-test)",
+          "id": "gemma4-31b-128k",
           "context_window": 131072,
           "default_max_tokens": 32000,
           "can_reason": true
         },
         {
-          "name": "Gemma 4 26B (Fallback)",
-          "id": "gemma4-65k",
-          "context_window": 65536,
+          "name": "Qwen3-Coder 30B-A3B (Light coding / review)",
+          "id": "qwen3coder-256k",
+          "context_window": 262144,
           "default_max_tokens": 32000,
           "can_reason": true
         },
         {
-          "name": "Qwen3 14B (Light coding)",
-          "id": "qwen3:14b",
-          "context_window": 16384,
+          "name": "GLM-4.7-Flash (Agentic / all MCP+tools)",
+          "id": "glm47-flash-198k",
+          "context_window": 202752,
+          "default_max_tokens": 32000,
+          "can_reason": true
+        },
+        {
+          "name": "Qwen3 8B (Image gen companion)",
+          "id": "qwen3:8b",
+          "context_window": 32768,
           "default_max_tokens": 8000,
-          "can_reason": true
-        },
-        {
-          "name": "Qwen3 4B (Image gen — VRAM-friendly)",
-          "id": "qwen3:4b",
-          "context_window": 8192,
-          "default_max_tokens": 4000,
-          "can_reason": true
-        },
-        {
-          "name": "Qwen3-Coder 30B (Code review)",
-          "id": "qwen3coder-65k",
-          "context_window": 65536,
-          "default_max_tokens": 32000,
           "can_reason": true
         }
       ]
@@ -50,17 +57,31 @@
       "api_key": "unused",
       "models": [
         {
-          "name": "Qwen3.6 27B (Primary)",
-          "id": "Qwen/Qwen3.6-27B-Instruct-GPTQ",
+          "name": "GLM-4.7-Flash (default — coding + review + office MCP)",
+          "id": "glm-4.7-flash",
           "context_window": 32768,
           "default_max_tokens": 16000,
           "can_reason": true
         },
         {
-          "name": "Qwen2.5-Coder 14B (Light coding)",
-          "id": "Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4",
+          "name": "Qwen3-Coder 30B-A3B (coding-first — requires server switch)",
+          "id": "qwen3-coder",
           "context_window": 32768,
           "default_max_tokens": 16000,
+          "can_reason": true
+        },
+        {
+          "name": "Qwen3.6 35B-A3B (vision — requires server switch)",
+          "id": "qwen3.6-35b",
+          "context_window": 32768,
+          "default_max_tokens": 16000,
+          "can_reason": true
+        },
+        {
+          "name": "Qwen3 4B (image-gen companion — requires server switch)",
+          "id": "qwen3-4b",
+          "context_window": 32768,
+          "default_max_tokens": 8000,
           "can_reason": true
         }
       ]
@@ -170,12 +191,12 @@
   },
   "models": {
     "large": {
-      "model": "qwen36-128k",
+      "model": "qwen36-27b-256k",
       "provider": "ollama",
       "max_tokens": 32000
     },
     "small": {
-      "model": "qwen3:14b",
+      "model": "qwen3coder-256k",
       "provider": "ollama",
       "max_tokens": 8000
     }

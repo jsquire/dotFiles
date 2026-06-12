@@ -12,6 +12,46 @@ upgraded in the future).
 
 ---
 
+## ⚠️ STATUS / CORRECTIONS (2026-06) — READ FIRST
+
+The "Finalized: Qwen3.6-27B on both hosts" decision below is **SUPERSEDED**. It also
+contained a fabricated architecture description and some unverifiable benchmark math.
+Current plan and corrections (authoritative sources flagged):
+
+- **Deliverable for that round was a report**, not a single locked model. The 5090 has
+  ~1TB of model storage, so it now runs a **side-by-side test bench** of contenders
+  exposed through the launcher (`[H1]–[H5]`), not one finalized pick.
+- **5090 task→model mapping (launchers):** heavy coding → `qwen36-27b-256k` (default,
+  dense); light coding & review → `qwen3coder-256k`; general/office/all-tools →
+  `glm47-flash-198k`; image companion → `qwen3:8b`.
+- **CachyOS server default = GLM-4.7-Flash** (`QuantTrio/GLM-4.7-Flash-AWQ`, served as
+  `glm-4.7-flash`), the standing all-rounder for coding + review + office MCP. vLLM
+  serves one model at a time (24 GB), so a **mode switch** (`cachyos-switch-model`)
+  loads coder / vision / image modes on demand. Image mode = HiDream (imagegen.service)
+  + Qwen3-4B companion. **Minimize switching** — GLM covers everyday needs with no swap.
+- **Client launchers mirror the server**: the `squire-server` provider / `[S][C][V][I]`
+  entries derive their ids from the active `--served-model-name`, so they can't drift.
+- **Qwen3.6-27B coding numbers ARE authoritative** (LiveCodeBench 83.9 / SWE-bench
+  Verified 77.2 / Terminal-Bench2 59.3) — sourced from the HF model card via BenchLM's
+  human-curated, provider-exact snapshot (`benchmarkProvenanceStatus: official`, 37/37
+  verified). Only the *architecture* below was wrong (see next point).
+- **Architecture CORRECTION (authoritative — HF config.json):** Qwen3.6-27B is **dense,
+  hybrid linear + full attention, head_dim 256, hidden 5120, 262K → 1.01M context**.
+  The earlier "dense GQA, 8 KV heads, head_dim 128" description was fabricated and the
+  KV-cache math derived from it is unreliable. Treat all KV/VRAM figures below as
+  **UNVERIFIED** until measured on the box.
+- **Gemma 4 disappoints locally** in hands-on Crush + Copilot use (verified: the live
+  default is a 3.8B-active MoE at temp 1, context capped at 65K/262K). It stays only as
+  an optional `[H3]` bench slot (`gemma4-31b-128k`), not a default.
+- **Image: keep HiDream-I1, do NOT adopt FLUX** — FLUX performed noticeably worse than
+  HiDream in a prior hands-on install. Verify the deployed "HiDream-O1-Image-Dev"
+  identity on the box.
+
+Everything below this banner is retained as historical research/methodology; where it
+conflicts with this banner, **this banner wins.**
+
+---
+
 ## Current State (Pre-Upgrade Baseline)
 
 ### Hardware
@@ -83,7 +123,7 @@ community sentiment, and VRAM constraints.
 | Terminal-Bench 2.0 | **59.3%** | N/A | N/A | Alibaba blog |
 | C# community sentiment | "Senior developer feel" | "Surprisingly good" | "Compiles, occasional hallucination" | r/LocalLLaMA May 2026 |
 | Tool calling | "Robust slot filling, context carryover" | Published BFCL 68.5% | Adequate (no published score) | Community reviews |
-| Architecture | Dense 27B, GQA (8 KV heads) | Hybrid 27B | MoE 3.8B active | config.json |
+| Architecture | Dense 27B, hybrid linear+full attn (head_dim 256) | Hybrid 27B | MoE 3.8B active | config.json |
 | Context window | **262K native** | 128K | 256K | Model card |
 | License | Apache 2.0 | Apache 2.0 | Gemma ToU | — |
 
@@ -183,9 +223,10 @@ Note: Qwen3.6-27B not yet listed in arena (too new, April 2026 release)
 | Gemma 4 26B | 18 GB | ~2 GB | ~20 GB | ✅✅ +10 GB | ~4 GB | ~22 GB | ✅✅ |
 | Gemma 4 31B | 20 GB | ~6-8 GB | ~26-28 GB | ✅ ~2 GB | ~12-16 GB | ❌ | ❌ |
 
-Note: Qwen3.6-27B is dense with GQA (8 KV heads / 56 query heads). KV cache is ~14%
-of what a full 56-head model would need. Architecture from config.json: 32 layers,
-num_key_value_heads=8, head_dim=128.
+Note: Qwen3.6-27B is dense with **hybrid linear + full attention** (head_dim 256,
+hidden 5120, 262K → 1.01M native). The earlier "GQA, 8 KV heads, head_dim 128" claim
+was fabricated; the KV figures in this table are **UNVERIFIED** until measured on the
+box. Architecture from HF config.json: dense, hybrid attention, head_dim 256.
 
 ### RTX 4090 (24 GB, vLLM, GPTQ-Int4, FP8 KV cache)
 
@@ -313,19 +354,23 @@ For the top 1-2 candidates:
 
 ## Decision Framework
 
-### Selected Path: B+ (Same Model, Different Backends)
+### Selected Path: 5090 multi-profile bench + GLM-4.7-Flash server (SUPERSEDES B+)
 
-**Decision made May 22, 2026** — Qwen3.6-27B on both hosts, with backend-appropriate
-optimizations:
+> The original "B+ (same model, Qwen3.6-27B on both hosts)" decision is superseded —
+> see the corrections banner at the top. Current plan:
 
-- Windows 5090: Ollama (GGUF, 128K context, single user, q8_0 KV)
-- CachyOS 4090: vLLM (GPTQ-Int4, 32K context, 2 concurrent users, FP8 KV)
-
-This is superior to a split-model config because:
-- Same model = same prompting behavior, same tool-calling format, same quirks
-- Avoids maintaining two different model configurations
-- Quality parity across hosts (83.9% LiveCode everywhere)
-- Context difference (128K vs 32K) is acceptable — CachyOS serves office/review (10-25K typical)
+- **Windows 5090 (Ollama):** install all six contenders (~1TB storage) and expose them
+  through the launcher profiles + `[H1]–[H5]` heavy-coding bench. Heavy-coding default =
+  `qwen36-27b-256k` (dense, authoritative coding numbers); light/review =
+  `qwen3coder-256k`; office/all-tools = `glm47-flash-198k`; image companion = `qwen3:8b`.
+- **CachyOS 4090 (vLLM):** standing default = **GLM-4.7-Flash** (`glm-4.7-flash`), one
+  all-rounder for coding + review + office MCP. `cachyos-switch-model {glm|coder|vision|
+  image}` swaps modes on demand (24 GB holds one at a time). Image mode = HiDream +
+  Qwen3-4B companion. Client `[S][C][V][I]` entries derive ids from the served name.
+- **Rationale for not locking one model:** Gemma 4 disappointed in hands-on use, and the
+  pre-3.6 Qwen benchmark numbers were unverifiable. The bench resolves quality by real
+  use rather than picking blindly. Dense is a soft preference (offset by coding benches +
+  community sentiment), which is why GLM-4.7-Flash (MoE-lite) is acceptable server-side.
 
 ### Speed Threshold (unchanged)
 - **>50 tok/s**: Excellent — feels instant
@@ -364,7 +409,67 @@ This is superior to a split-model config because:
 
 ---
 
-## Reference Data from RTX 4090 Evaluations (May 2026)
+## MoE Expert CPU Offload — run oversized MoE models (VERIFIED 2026-06)
+
+Goal: keep attention/shared tensors + KV cache on the GPU but push a MoE model's **expert
+FFN weights to system RAM**, so a model that does NOT fit in VRAM still runs at usable
+speed. This raises the model-size ceiling and frees VRAM for larger context.
+
+### Authoritative mechanism (llama.cpp)
+- `--cpu-moe` / env `LLAMA_ARG_CPU_MOE=1` → all experts to CPU.
+- `--n-cpu-moe N` / env `LLAMA_ARG_N_CPU_MOE=N` → first N layers' experts to CPU (partial).
+- `-ot/--override-tensor <regex>=CPU` → manual control.
+- Added in llama.cpp PR #15077 (maintainer slaren, merged 2025-08-04). **Ollama exposes no
+  native param** (issue #11772 open since 2025-08; PR #16688 unreviewed).
+
+### Verified on the 4090 test box (Ollama 0.30.7, RTX 4090 + DDR5-4800) — not speculation
+- Ollama 0.30.7's runner **is upstream `llama-server.exe`** (serve log `source=llama_server.go`,
+  `cmd="...llama-server.exe ... --no-mmap ..."`). It **inherits and honors `LLAMA_ARG_CPU_MOE`**
+  from the serve environment. Ollama already injects `--no-mmap`; `GGML_CUDA_NO_PINNED=1` is
+  passed through to avoid CUDA pinning the large CPU-resident experts.
+- Measured, same model + same 32K ctx (`qwen3-coder:30b`, 30B-A3B MoE):
+
+  | Mode | Model VRAM | nvidia-smi used | Eval rate |
+  |------|-----------|-----------------|-----------|
+  | Baseline (full GPU) | 20 GB | 23.2 GB | **190.7 tok/s** |
+  | `LLAMA_ARG_CPU_MOE=1` (experts→CPU) | 2.8 GB | 6.7 GB | **25.0 tok/s** |
+
+- **Interpretation:** offload freed ~16 GB VRAM but cost ~7.6× speed **for a model that already
+  fit** — so offload HURTS models that fit; only use it for models that don't. 25 tok/s at 3B
+  active params is interactive and validates the 80B-**A3B** extrapolation (active params, not
+  total, drive generation speed). Risk to the box: none — process-local env, fully reversible.
+
+### What it buys the 5090 (32 GB VRAM + 64 GB RAM)
+- **Model-size ceiling** shifts from VRAM to system RAM: without offload, 32 GB caps you at
+  dense ≤~27B / MoE ≤~30 GB total; with offload you can additionally run **gpt-oss-120b**
+  (MXFP4 ~65 GB, Apache 2.0 — `ollama pull gpt-oss:120b`) spread across the 32 GB VRAM + 64 GB
+  RAM (96 GB capacity). ~5.1B active params → community precedent ~29 tok/s on a tighter
+  24 GB+64 GB box; the 5090 keeps more experts on-GPU (use `--n-cpu-moe N`) so it should match/beat.
+- **Qwen3-Next-80B-A3B:** the only official Ollama tag is **159 GB (full precision)** which does
+  NOT fit 96 GB — import a **Q4_K_M GGUF (~48 GB)** from HuggingFace (`ollama create
+  qwen3next-80b-offload` from a sourced GGUF, `PARAMETER num_gpu 99` + `num_ctx 262144`). Verify
+  the GGUF repo at install time.
+- **Context:** experts vacating VRAM frees almost the whole 32 GB for KV cache (measured anchor:
+  `qwen3-coder:30b` weights 20 GB on-GPU vs 2.8 GB offloaded). 30B-class contenders can run at the
+  top of their context (256K); 80B/120b run at all, context bounded by leftover VRAM not weights.
+- **Trade-offs:** long-context **prefill is CPU-bound** when experts are on CPU (slower first
+  token); steady-state generation stays in the ~25–40 tok/s band for low-active-param MoEs.
+
+### How to use it (launchers + installer)
+- **Installer:** `install-windows.ps1 -TestProfiles` pulls `gpt-oss:120b` and creates the
+  `gptoss-120b-offload` alias (`num_gpu 99`, low temp). Use `-ModelPath` to keep the ~1TB off the
+  OS drive.
+- **Launchers:** `crush-task` / `copilot-local` expose offload-bench entries **`[O1]` gpt-oss-120b**
+  and **`[O2]` Qwen3-Next-80B-A3B**. Selecting one runs `scripts/offload-serve.{ps1,sh} -Action
+  start` (stops the managed server, starts a dedicated `ollama serve` with `LLAMA_ARG_CPU_MOE=1`
+  + `GGML_CUDA_NO_PINNED=1`), launches the tool, then `-Action stop` restores the managed server.
+- **Why a dedicated serve:** `LLAMA_ARG_CPU_MOE` is GLOBAL to a serve process, so it must never be
+  set on the everyday server (it would slow every model that fits). The offload mode is opt-in only.
+- The stop path kills the `llama-server` runner child too — killing only the parent orphans it and
+  leaks VRAM (verified + handled).
+
+---
+
 
 ### Gemma 4 26B (Current Primary) — Measured on RTX 4090
 
@@ -393,15 +498,22 @@ This is superior to a split-model config because:
 available, it should fit 100% GPU and run significantly faster. **Re-measuring
 speed on 5090 is critical.**
 
-### GLM-4.7-Flash — Retired, Reference Only
+### GLM-4.7-Flash — NOTE: older GLM measurement; GLM-4.7-Flash is now the SERVER default
 
-| Metric | Value |
+The table below was an **older GLM build** measured on the 4090 under Ollama. It is **not**
+GLM-4.7-Flash, which is the current CachyOS server default (`QuantTrio/GLM-4.7-Flash-AWQ`,
+served as `glm-4.7-flash`): MoE-lite (~29.9B, ~3B active), MLA → cheap KV, 198K context,
+MIT-ish open license. Authoritative published numbers (HF card via BenchLM provider-exact):
+SWE-bench Verified 59.2, LiveCodeBench 64.0, τ²-Bench 79.5. Re-measure local speed on the
+box — the figures below do not apply to GLM-4.7-Flash.
+
+| Metric (OLD GLM build, not GLM-4.7-Flash) | Value |
 |--------|-------|
 | Gen speed | 17.3 tok/s (with q8_0 KV fix) |
 | VRAM (65K ctx) | ~23 GB, 89% GPU (after KV cache fix) |
 | Coding score | 10/15 |
 | Bug fix test | Timed out at 180s |
-| Retired because | Slower, lower quality, larger VRAM than Gemma 4 |
+| Retired because | Slower, lower quality, larger VRAM than Gemma 4 (old build) |
 
 ### Published Benchmark Comparison
 

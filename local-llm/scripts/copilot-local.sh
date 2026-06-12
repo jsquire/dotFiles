@@ -16,23 +16,31 @@ fi
 # No model specified — show picker
 echo
 echo "  --- Coding ---"
-echo "  [1] Heavy coding        (qwen36-128k)"
-echo "  [2] Light coding        (qwen3:14b)"
-echo "  [3] Code review         (qwen3coder-65k)"
+echo "  [1] Heavy coding        (qwen36-27b-256k)"
+echo "  [2] Light coding        (qwen3coder-256k)"
+echo "  [3] Code review         (qwen3coder-256k)"
 echo
 echo "  --- Writing & Documents ---"
-echo "  [4] Technical docs      (qwen36-128k)"
-echo "  [5] Creative writing    (qwen36-128k)"
-echo "  [6] Office documents    (qwen36-128k)"
+echo "  [4] Technical docs      (qwen36-27b-256k)"
+echo "  [5] Creative writing    (qwen36-27b-256k)"
+echo "  [6] Office documents    (glm47-flash-198k)"
 echo
 echo "  --- Visual ---"
-echo "  [7] Image generation    (HiDream-O1 via MCP)"
+echo "  [7] Image generation    (qwen3:8b + HiDream via MCP)"
 echo
-echo "  --- Remote ---"
-echo "  [S] CachyOS server      (Qwen3.6 27B via vLLM)"
+echo "  --- Big-MoE expert-offload bench (experts->RAM; slower, for models that don't fit) ---"
+echo "  [O1] gpt-oss-120b           (offload, ~65 GB MXFP4)"
+echo "  [O2] Qwen3-Next-80B-A3B     (offload, needs imported Q4 GGUF)"
+echo
+echo "  --- Remote (CachyOS server — one standing model, switch only when needed) ---"
+echo "  [S] CachyOS: GLM-4.7-Flash   (default — coding + review + office MCP)"
+echo "  [C] CachyOS: Qwen3-Coder     (coding-first — switches server)"
+echo "  [V] CachyOS: Qwen3.6-35B      (vision — switches server)"
+echo "  [I] CachyOS: Image gen        (HiDream + Qwen3-4B — switches server)"
 echo
 read -rp "  Select task [1]: " choice
 choice="${choice:-1}"
+OFFLOAD_MODE=0
 
 case "$choice" in
     1|2|3)
@@ -44,22 +52,50 @@ case "$choice" in
     7)
         MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat)
         ;;
-    s|S)
+    [oO]1|[oO]2)
         MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp)
+        ;;
+    s|S)
+        MCP_FLAGS=(--disable-mcp-server imagegen-mcp)
+        ;;
+    c|C|v|V)
+        MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp)
+        ;;
+    i|I)
+        MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat)
         ;;
 esac
 
 case "$choice" in
-    1) export COPILOT_MODEL="qwen36-128k" ;;
-    2) export COPILOT_MODEL="qwen3:14b" ;;
-    3) export COPILOT_MODEL="qwen3coder-65k" ;;
-    4|5|6) export COPILOT_MODEL="qwen36-128k" ;;
-    7) export COPILOT_MODEL="qwen3:4b" ;;
+    1) export COPILOT_MODEL="qwen36-27b-256k" ;;
+    2) export COPILOT_MODEL="qwen3coder-256k" ;;
+    3) export COPILOT_MODEL="qwen3coder-256k" ;;
+    4|5) export COPILOT_MODEL="qwen36-27b-256k" ;;
+    6) export COPILOT_MODEL="glm47-flash-198k" ;;
+    7) export COPILOT_MODEL="qwen3:8b" ;;
+    [oO]1) export COPILOT_MODEL="gptoss-120b-offload"; OFFLOAD_MODE=1 ;;
+    [oO]2) export COPILOT_MODEL="qwen3next-80b-offload"; OFFLOAD_MODE=1 ;;
     s|S)
+        ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model glm" 2>/dev/null || true
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
-        export COPILOT_MODEL="Qwen/Qwen3.6-27B-Instruct-GPTQ"
+        export COPILOT_MODEL="glm-4.7-flash"
         ;;
-    *) echo "  Invalid. Using qwen36-128k"; export COPILOT_MODEL="qwen36-128k" ;;
+    c|C)
+        ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model coder" 2>/dev/null || true
+        export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
+        export COPILOT_MODEL="qwen3-coder"
+        ;;
+    v|V)
+        ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model vision" 2>/dev/null || true
+        export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
+        export COPILOT_MODEL="qwen3.6-35b"
+        ;;
+    i|I)
+        ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model image" 2>/dev/null || true
+        export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
+        export COPILOT_MODEL="qwen3-4b"
+        ;;
+    *) echo "  Invalid. Using qwen36-27b-256k"; export COPILOT_MODEL="qwen36-27b-256k" ;;
 esac
 
 # Git safety: block git write operations
@@ -84,6 +120,15 @@ if [[ -n "${COPILOT_PROVIDER_BASE_URL:-}" ]]; then
     # Remote mode: launch copilot directly (skip ollama wrapper)
     echo "  Remote: $COPILOT_PROVIDER_BASE_URL"
     exec copilot --model "$COPILOT_MODEL" -- "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
+elif [[ "$OFFLOAD_MODE" == "1" ]]; then
+    # Big-MoE offload mode: dedicated Ollama serve with expert CPU-offload, restored on exit.
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    # shellcheck source=offload-serve.sh
+    source "$SCRIPT_DIR/offload-serve.sh"
+    echo "  Offload mode: experts -> system RAM (slower; for models that don't fit)"
+    offload_start
+    trap 'offload_stop' EXIT
+    ollama launch copilot --model "$COPILOT_MODEL" --yes -- "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
 else
     exec ollama launch copilot --model "$COPILOT_MODEL" --yes -- "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
 fi

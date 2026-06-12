@@ -25,7 +25,10 @@ CRUSH_HOME_DIR="${HOME}/.crush"
 CRUSH_CONFIG_DIR="${HOME}/.config/crush"
 DEFAULT_MODEL_ROOT="${HOME}/.ollama/models"
 VLLM_PORT=8000
-VLLM_DEFAULT_MODEL="Qwen/Qwen3.6-27B-Instruct-GPTQ"
+# Standing default served model (the all-rounder: coding + review + office MCP).
+VLLM_DEFAULT_MODEL="QuantTrio/GLM-4.7-Flash-AWQ"
+VLLM_DEFAULT_SERVED_NAME="glm-4.7-flash"
+VLLM_DEFAULT_QUANT="awq"
 
 STEP_NUMBER=0
 FAILURES=()
@@ -157,6 +160,9 @@ model_description() {
         qwen3:32b) printf '%s' 'Qwen3 32B — creative writing (128k ctx), ~20 GB' ;;
         x/z-image-turbo) printf '%s' 'Z-Image Turbo 6B — image generation, ~12 GB' ;;
         # HuggingFace model IDs (vLLM server mode)
+        QuantTrio/GLM-4.7-Flash-AWQ) printf '%s' 'GLM-4.7-Flash AWQ — standing default: coding + review + office MCP (32k served, MLA KV), ~18 GB' ;;
+        Qwen/Qwen3.6-35B-A3B-Instruct-GPTQ) printf '%s' 'Qwen3.6 35B-A3B GPTQ — vision/multimodal mode (switch), ~22 GB' ;;
+        Qwen/Qwen3-4B-Instruct-2507) printf '%s' 'Qwen3 4B — image-gen companion LLM (co-resides with HiDream), ~8 GB' ;;
         Qwen/Qwen3.6-27B-Instruct-GPTQ) printf '%s' 'Qwen3.6 27B GPTQ — primary model (32k ctx, FP8 KV), ~15 GB' ;;
         Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4) printf '%s' 'Qwen2.5-Coder 32B GPTQ — heavy coding, ~18 GB' ;;
         btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit) printf '%s' 'Qwen3-Coder 30B MoE GPTQ — heavy coding (agentic), ~19 GB' ;;
@@ -230,12 +236,16 @@ load_effective_model_config() {
         server)
             EFFECTIVE_MODEL_REQUIRED_GB=74
             if [[ "$IS_SERVER_MODE" == true ]]; then
-                # vLLM uses HuggingFace model IDs (GPTQ quantized)
+                # vLLM serves ONE model at a time (24GB). GLM-4.7-Flash is the standing
+                # default; the rest are downloaded so the mode-switch (cachyos-switch-model)
+                # can load them on demand without a fresh pull.
                 SELECTED_MODELS=(
-                    "Qwen/Qwen3.6-27B-Instruct-GPTQ"
-                    "Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4"
+                    "QuantTrio/GLM-4.7-Flash-AWQ"
+                    "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit"
+                    "Qwen/Qwen3.6-35B-A3B-Instruct-GPTQ"
+                    "Qwen/Qwen3-4B-Instruct-2507"
                 )
-                EFFECTIVE_MODEL_REQUIRED_GB=24
+                EFFECTIVE_MODEL_REQUIRED_GB=70
             else
                 # Ollama (full mode, single-user) uses Ollama tags
                 SELECTED_MODELS=("gemma4:26b" "qwen3:14b" "qwen3:4b" "qwen3-coder:30b")
@@ -651,8 +661,11 @@ ExecStart=${VLLM_VENV}/bin/python -m vllm.entrypoints.openai.api_server \\
     --max-model-len \${VLLM_MAX_MODEL_LEN} \\
     --gpu-memory-utilization \${VLLM_GPU_MEMORY_UTILIZATION} \\
     --kv-cache-dtype \${VLLM_KV_CACHE_DTYPE} \\
-    --quantization gptq
+    --served-model-name \${VLLM_SERVED_NAME} \\
+    --quantization \${VLLM_QUANTIZATION}
 Environment=\"VLLM_MODEL=${VLLM_DEFAULT_MODEL}\"
+Environment=\"VLLM_SERVED_NAME=${VLLM_DEFAULT_SERVED_NAME}\"
+Environment=\"VLLM_QUANTIZATION=${VLLM_DEFAULT_QUANT}\"
 Environment=\"VLLM_HOST=0.0.0.0\"
 Environment=\"VLLM_PORT=${VLLM_PORT}\"
 Environment=\"VLLM_MAX_MODEL_LEN=32768\"
@@ -667,9 +680,9 @@ WantedBy=multi-user.target
             if printf '%s' "$vllm_service_content" | run_privileged tee "$local_vllm_service" >/dev/null; then
                 run_privileged systemctl daemon-reload
                 success "Created vLLM service at $local_vllm_service"
-                info "Default model: ${VLLM_DEFAULT_MODEL}"
+                info "Default model: ${VLLM_DEFAULT_MODEL} (served as '${VLLM_DEFAULT_SERVED_NAME}')"
                 info "Listening on: 0.0.0.0:${VLLM_PORT}"
-                info "To change model: sudo systemctl edit vllm → set VLLM_MODEL"
+                info "To switch modes: cachyos-switch-model {glm|coder|vision|image}"
             else
                 add_failure "Failed to create vLLM systemd service."
             fi
@@ -778,6 +791,137 @@ WantedBy=multi-user.target
             else
                 info "ufw is not installed — skipping image gen firewall."
             fi
+
+            step "Configure model-switch mechanism (cachyos-switch-model)"
+            # vLLM holds ONE model at a time in 24GB. GLM-4.7-Flash (vllm.service) is the
+            # standing default; coder/vision/image modes are loaded on demand via templated
+            # vllm@<mode>.service instances + the existing imagegen.service (HiDream).
+            VLLM_VENV="${HOME}/.local/share/vllm-env"
+            run_privileged mkdir -p /etc/vllm/modes
+
+            # Wrapper: builds the vLLM args from the mode env-file (quantization optional).
+            local vllm_serve_wrapper="#!/usr/bin/env bash
+set -euo pipefail
+VENV=\"${VLLM_VENV}\"
+args=(
+    --model \"\${VLLM_MODEL}\"
+    --host \"\${VLLM_HOST:-0.0.0.0}\"
+    --port \"\${VLLM_PORT:-${VLLM_PORT}}\"
+    --max-model-len \"\${VLLM_MAX_MODEL_LEN:-32768}\"
+    --gpu-memory-utilization \"\${VLLM_GPU_MEMORY_UTILIZATION:-0.90}\"
+    --kv-cache-dtype \"\${VLLM_KV_CACHE_DTYPE:-fp8_e5m2}\"
+    --served-model-name \"\${VLLM_SERVED_NAME}\"
+)
+if [[ -n \"\${VLLM_QUANTIZATION:-}\" ]]; then
+    args+=(--quantization \"\${VLLM_QUANTIZATION}\")
+fi
+exec \"\${VENV}/bin/python\" -m vllm.entrypoints.openai.api_server \"\${args[@]}\"
+"
+            if printf '%s' "$vllm_serve_wrapper" | run_privileged tee /usr/local/bin/cachyos-vllm-serve >/dev/null; then
+                run_privileged chmod 0755 /usr/local/bin/cachyos-vllm-serve
+                success "Created /usr/local/bin/cachyos-vllm-serve"
+            else
+                add_failure "Failed to create cachyos-vllm-serve wrapper."
+            fi
+
+            # Templated vLLM service: instance name = mode, config from /etc/vllm/modes/<mode>.env
+            local vllm_template_service="/etc/systemd/system/vllm@.service"
+            local vllm_template_content="[Unit]
+Description=vLLM Inference Server (%i mode)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$(whoami)
+EnvironmentFile=/etc/vllm/modes/%i.env
+ExecStart=/usr/local/bin/cachyos-vllm-serve
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+"
+            printf '%s' "$vllm_template_content" | run_privileged tee "$vllm_template_service" >/dev/null \
+                && success "Created vllm@.service template" \
+                || add_failure "Failed to create vllm@.service template."
+
+            # Mode env-files. coder/vision get full VRAM; image companion shares with HiDream.
+            local coder_env="VLLM_MODEL=btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit
+VLLM_SERVED_NAME=qwen3-coder
+VLLM_QUANTIZATION=gptq
+VLLM_HOST=0.0.0.0
+VLLM_PORT=${VLLM_PORT}
+VLLM_MAX_MODEL_LEN=32768
+VLLM_GPU_MEMORY_UTILIZATION=0.90
+VLLM_KV_CACHE_DTYPE=fp8_e5m2
+"
+            local vision_env="VLLM_MODEL=Qwen/Qwen3.6-35B-A3B-Instruct-GPTQ
+VLLM_SERVED_NAME=qwen3.6-35b
+VLLM_QUANTIZATION=gptq
+VLLM_HOST=0.0.0.0
+VLLM_PORT=${VLLM_PORT}
+VLLM_MAX_MODEL_LEN=32768
+VLLM_GPU_MEMORY_UTILIZATION=0.90
+VLLM_KV_CACHE_DTYPE=fp8_e5m2
+"
+            # Image companion: small, unquantized (no VLLM_QUANTIZATION), low util to leave
+            # VRAM for HiDream (imagegen.service) which runs alongside it.
+            local image_env="VLLM_MODEL=Qwen/Qwen3-4B-Instruct-2507
+VLLM_SERVED_NAME=qwen3-4b
+VLLM_HOST=0.0.0.0
+VLLM_PORT=${VLLM_PORT}
+VLLM_MAX_MODEL_LEN=32768
+VLLM_GPU_MEMORY_UTILIZATION=0.25
+VLLM_KV_CACHE_DTYPE=fp8_e5m2
+"
+            printf '%s' "$coder_env"  | run_privileged tee /etc/vllm/modes/coder.env  >/dev/null
+            printf '%s' "$vision_env" | run_privileged tee /etc/vllm/modes/vision.env >/dev/null
+            printf '%s' "$image_env"  | run_privileged tee /etc/vllm/modes/image.env  >/dev/null
+            success "Wrote mode env-files (coder, vision, image) to /etc/vllm/modes"
+
+            # The switch CLI (also invoked over ssh by the client launchers).
+            local switch_script="#!/usr/bin/env bash
+set -euo pipefail
+mode=\"\${1:-glm}\"
+SUDO=\"\"
+[[ \$EUID -ne 0 ]] && SUDO=\"sudo\"
+stop_all() {
+    \$SUDO systemctl stop vllm.service vllm@coder.service vllm@vision.service vllm@image.service imagegen.service 2>/dev/null || true
+}
+case \"\$mode\" in
+    glm)    stop_all; \$SUDO systemctl start vllm.service ;;
+    coder)  stop_all; \$SUDO systemctl start vllm@coder.service ;;
+    vision) stop_all; \$SUDO systemctl start vllm@vision.service ;;
+    image)  stop_all; \$SUDO systemctl start imagegen.service; \$SUDO systemctl start vllm@image.service ;;
+    *) echo \"Unknown mode: \$mode (use: glm|coder|vision|image)\" >&2; exit 1 ;;
+esac
+echo \"cachyos-switch-model: now in '\$mode' mode\"
+"
+            if printf '%s' "$switch_script" | run_privileged tee /usr/local/bin/cachyos-switch-model >/dev/null; then
+                run_privileged chmod 0755 /usr/local/bin/cachyos-switch-model
+                success "Created /usr/local/bin/cachyos-switch-model"
+            else
+                add_failure "Failed to create cachyos-switch-model."
+            fi
+
+            # Passwordless sudo for the switch (so client ssh can flip modes non-interactively).
+            local switch_user; switch_user="$(whoami)"
+            local sudoers_line="${switch_user} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@vision.service, /usr/bin/systemctl stop vllm@vision.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
+            if printf '%s\n' "$sudoers_line" | run_privileged tee /etc/sudoers.d/cachyos-vllm-switch >/dev/null; then
+                run_privileged chmod 0440 /etc/sudoers.d/cachyos-vllm-switch
+                if run_privileged visudo -c -f /etc/sudoers.d/cachyos-vllm-switch >/dev/null 2>&1; then
+                    success "Configured passwordless systemctl for mode switching"
+                else
+                    run_privileged rm -f /etc/sudoers.d/cachyos-vllm-switch
+                    add_warning "sudoers validation failed; removed drop-in. Mode switch will prompt for a password."
+                fi
+            else
+                add_warning "Could not write sudoers drop-in for mode switching."
+            fi
+
+            run_privileged systemctl daemon-reload
+            info "Standing default: GLM-4.7-Flash (vllm.service). Switch with: cachyos-switch-model {glm|coder|vision|image}"
         else
             # ── Ollama (full mode, single-user, localhost only) ────────────────
             step "Install Ollama"
@@ -940,7 +1084,9 @@ with open('$crush_config_dest', 'w') as f:
         if command_exists comfyui || [[ -d "${HOME}/.local/share/ComfyUI" ]]; then
             info "ComfyUI appears to be installed already."
         else
-            info "ComfyUI provides local image generation (FLUX, SD3.5, Z-Image)."
+            info "ComfyUI is an optional general image-gen UI. NOTE: this project's"
+            info "image model is HiDream-I1 (served via imagegen.service); FLUX is NOT used"
+            info "(it performed worse than HiDream in hands-on testing)."
             info "On Linux (headless server), ComfyUI is best installed manually."
             info "  Desktop: https://www.comfy.org/download"
             info "  Manual:  git clone https://github.com/comfyanonymous/ComfyUI && pip install -r requirements.txt"
@@ -1241,8 +1387,8 @@ elif [[ "$IS_SERVER_MODE" == true ]]; then
     printf '%b\n' "  CachyOS client install:"
     printf '%b\n' "    ./install-cachyos.sh --mode client --ollama-host http://${local_ip}:${VLLM_PORT}/v1"
     printf '%b\n' ""
-    printf '%b\n' "  Switch model:"
-    printf '%b\n' "    sudo systemctl edit vllm  →  set VLLM_MODEL=<model-id>"
+    printf '%b\n' "  Switch model (one mode at a time — GLM is the standing default):"
+    printf '%b\n' "    cachyos-switch-model glm | coder | vision | image"
     printf '%b\n' "    sudo systemctl restart vllm"
     printf '%b\n' ""
     printf '%b\n' "${COLOR_CYAN}──────────────────────────────────────────────────────────────${COLOR_RESET}"
