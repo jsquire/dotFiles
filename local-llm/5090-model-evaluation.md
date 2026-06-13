@@ -482,6 +482,66 @@ speed. This raises the model-size ceiling and frees VRAM for larger context.
 - The stop path kills the `llama-server` runner child too — killing only the parent orphans it and
   leaks VRAM (verified + handled).
 
+### Evaluated and rejected — too large even for offload
+
+- **Kimi K2.7-Code (Moonshot AI)** — evaluated 2026-06-13, **REJECTED for all local hosts.**
+  - *What it is (authoritative — official `config.json` + `LICENSE`):* DeepSeek-V3-class MoE
+    (`model_type kimi_k25`, arch `DeepseekV3ForCausalLM`): hidden 7168, **61 layers, 384 routed + 1
+    shared experts**, 8/tok, MLA attention, 256K ctx (YaRN), multimodal vision tower, native INT4 —
+    consistent with **1T total / ~32B active**. License **Modified MIT** (open/permissive).
+  - *Size (authoritative GGUF file sizes, `freakyskittle/kimi-k2.7-code-GGUF`):* smallest existing quant
+    **TQ1_0 = 203 GB** (1-bit ternary, severe quality loss); TQ2_0 = 248 GB; BF16 = 1912 GB.
+  - *Fit verdict:* does **NOT** fit any host even with full expert CPU offload — 5090 = 96 GB
+    (32 VRAM + 64 RAM), 4090/server ≈ 88 GB; the 203 GB floor is ~2.1–2.3× over, and a usable Q4
+    (~500 GB+) needs ~250 GB+ RAM. For a 1T MoE the experts are ~95% of weights, so offload can't
+    rescue it (64 GB RAM ceiling blown ~3×). Only viable via hosted API → out of self-hosted scope and
+    would send code to a third party (against our data-handling rule). **No launcher/installer change.**
+  - *Community claims (non-authoritative, AI-summarized — flagged):* secondary blogs assert it "beats
+    Opus 4.8 on agentic coding" / +20–30% coding vs K2.6; NOT verified against a primary benchmark.
+
+### Closest-to-frontier MoEs that fit the 5090 — and why we stop at native/4-bit (2026-06-13)
+
+After rejecting Kimi K2.7-Code, we surveyed which top-tier agentic-coding MoEs *do* fit the 5090's
+**96 GB** (32 GB VRAM + 64 GB RAM) with expert CPU offload. Fit rule: total weights ≤ ~90 GB (leaves
+headroom for KV + on-GPU non-expert layers). **All sizes below are authoritative** — exact GGUF file
+sizes from the HuggingFace API (2026-06-13), not estimates.
+
+| Model | Total / active | Best quant that fits 96 GB | Size | Precision quality | License |
+|---|---|---|---|---|---|
+| **gpt-oss-120b** | 120B / ~5.1B | native MXFP4 (~58 GB) | **58–65 GB** | **native — no loss** | Apache 2.0 |
+| **Qwen3-Next-80B-A3B-Instruct** | 80B / 3B | Q4_K_M / Q5_K_M | **45–53 GB** | good (4–5 bit) | Apache 2.0 |
+| Qwen3-235B-A22B-Instruct-2507 | 235B / 22B | UD-Q2_K_XL 83 GB · Q3_K_S 94.5 GB | 83–94 GB | **2–3 bit — degraded** | Apache 2.0 |
+| MiniMax-M2.7 | ~230B / ~10B | UD-Q2_K_XL 70 GB · UD-Q3_K_M 94 GB | 70–94 GB | **2–3 bit — degraded** | other |
+
+**Does NOT fit at usable quality** (authoritative sizes): GLM-4.6 (355B) — only sub-2-bit fits (UD-TQ1_0
+78 GB / IQ1_M 100 GB); no full **GLM-4.7** GGUF exists (only GLM-4.7-Flash, already used).
+Qwen3-Coder-480B-A35B, DeepSeek-V3.x, Kimi K2.7-Code — all exceed 96 GB at every quant.
+
+#### Decision: we do NOT add the 2–3 bit frontier models (`[O3]/[O4]` rejected)
+
+Local coding here has already been **disappointing at full/native precision** (Gemma 4 in Crush +
+Copilot). Squeezing a 235B / 230B model down to **2–3 bit** to fit 96 GB is the opposite of what that
+feedback calls for — heavy quantization degrades exactly the instruction-following and code-correctness
+that were already weak. Bigger raw parameter count does **not** rescue a 2-bit model; it typically lands
+**below** a smaller model run at native/4-bit precision. Therefore:
+
+- **gpt-oss-120b** is the **only 100B+ model that fits at NATIVE precision (MXFP4, no loss)** → it is
+  already the realistic frontier ceiling on this hardware, wired as `[O1]`.
+- A 2-bit Qwen3-235B / MiniMax-M2.7 would almost certainly perform **worse** than the native-precision
+  `[O1]` gpt-oss-120b and the 4-bit `[O2]` Qwen3-Next-80B for real coding — not worth ~155 GB of storage,
+  install complexity, or bench time.
+
+**Conclusion:** The offload roster stays at **`[O1]` gpt-oss-120b (native MXFP4)** and **`[O2]`
+Qwen3-Next-80B-A3B (Q4_K_M)** — the two largest models that fit at quality precision (≥4-bit / native).
+Nothing closer to Kimi K2.7 fits the 5090 without dropping to 2-bit, which is rejected on quality grounds.
+**No new launcher/installer profiles.**
+
+> *Caveat — sourcing:* the **GGUF sizes above are authoritative** (HF API). Coding/SWE-bench numbers seen
+> in web search for these models (e.g. GLM-4.7 ~85.7, Qwen3-235B ~81.1, gpt-oss-120b ~80.9) are
+> **AI-aggregated, non-authoritative** and were NOT relied on for this decision. The 70–94 GB models also
+> can't be safely loaded on the 4090 (88 GB), so any empirical 2-bit re-test would be a 5090 task — but
+> it is **not** planned.
+
 ---
 
 
