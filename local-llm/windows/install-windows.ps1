@@ -134,12 +134,14 @@ if ($Help) {
   OPTIONS:
     -OllamaHost <url>    Remote Ollama endpoint (required for Client mode)
                          Example: http://192.168.1.100:11434
-    -TestProfiles        RTX 5090 side-by-side bench: installs all 6 contenders
-                         (qwen3.6 27B/35B, gemma4 31B, qwen3-coder, glm-4.7-flash,
-                         qwen3 8B) and the qwen36-27b-256k/qwen3coder-256k/
-                         glm47-flash-198k/etc. launcher aliases, PLUS the gpt-oss:120b
+    -TestProfiles        RTX 5090 side-by-side bench: installs the heavy-coding contenders
+                         (qwen3.6 27B+MTP/35B, gemma4 31B, qwen3-coder, glm-4.7-flash,
+                         qwen3 8B + the §K/§L additions North Mini Code 1.0, Nemotron
+                         Cascade 2 30B-A3B, Ornith-1.0-35B) and their launcher aliases
+                         (qwen36-27b-256k/qwen3coder-256k/glm47-flash-198k/northmini-code-256k/
+                         nemotron-c2-256k/ornith-35b-256k/etc.), PLUS the gpt-oss:120b
                          and Qwen3-Next-80B-A3B (Q4_K_M GGUF) expert-offload benches
-                         (gptoss-120b-offload, qwen3next-80b-offload). ~225 GB. Use with
+                         (gptoss-120b-offload, qwen3next-80b-offload). ~290 GB. Use with
                          -ModelPath to put the ~1TB of models off the OS drive.
     -ModelPath <path>    Custom model storage directory (sets OLLAMA_MODELS env var)
     -SkipModels          Install software only; pull models later with: ollama pull <tag>
@@ -228,13 +230,24 @@ $ProfileDefinitions = @{
     # qwen3.6:35b / gemma4:31b / glm-4.7-flash may differ at install time.
     "Desktop5090Test" = @{
         Description = "RTX 5090 (32GB) — side-by-side model bench (~1TB model storage)"
-        RequiredGB = 225
+        RequiredGB = 290
         Models = [ordered]@{
-            "qwen3.6:27b"      = "Qwen3.6 27B Dense — heavy coding default (262k ctx), ~17 GB"
+            # Qwen3.6 27B heavy-coding default — repointed to the unsloth MTP GGUF (multi-token-prediction
+            # head). Same weights/quality as qwen3.6:27b dense; if Ollama's engine drives the MTP head it is
+            # a free speculative speedup, otherwise it runs as the standard dense model. Verify on box.
+            "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M" = "Qwen3.6 27B (+MTP head) — heavy coding default (256k ctx), ~16 GB"
             "qwen3.6:35b"      = "Qwen3.6 35B-A3B MoE — heavy coding bench / multimodal (262k ctx), ~22 GB"
             "gemma4:31b"       = "Gemma 4 31B Dense — heavy coding bench / re-test (128k ctx), ~20 GB"
             "qwen3-coder:30b"  = "Qwen3-Coder 30B-A3B MoE — light coding / review (256k ctx), ~18 GB"
             "glm-4.7-flash"    = "GLM-4.7-Flash MoE-lite — agentic / all MCP+tools (198k ctx), ~18 GB"
+            # New agentic-coding bench candidates (2026-06-27 research sweep, §K/§L). All fit VRAM-resident
+            # at Q4 on the 32 GB 5090; pulled via Ollama's HF passthrough. North Mini Code = Cohere coding
+            # specialist (cohere2moe, Apache 2.0). Nemotron Cascade 2 = NVIDIA reasoning+agentic MoE
+            # (nemotron_h_moe, NVIDIA Open License) — verify the hybrid arch loads in Ollama's engine at
+            # bring-up. Ornith-1.0-35B = MIT agentic-coding specialist (qwen35moe, reasoning + tool-calls).
+            "hf.co/unsloth/North-Mini-Code-1.0-GGUF:UD-Q4_K_M" = "North Mini Code 1.0 (Cohere) — agentic-coding bench (256k ctx), ~18 GB"
+            "hf.co/bartowski/nvidia_Nemotron-Cascade-2-30B-A3B-GGUF:Q4_K_M" = "Nemotron Cascade 2 30B-A3B (NVIDIA) — reasoning/agentic bench (256k ctx), ~23 GB"
+            "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M" = "Ornith-1.0-35B (MIT) — agentic-coding reasoning bench (256k ctx), ~20 GB"
             "qwen3:8b"         = "Qwen3 8B Dense — image-gen companion (32k ctx), ~5 GB"
             # Expert-offload bench (experts pushed to system RAM via LLAMA_ARG_CPU_MOE — see the
             # launcher's offload mode). gpt-oss:120b is MXFP4-native (~65 GB) and fits the 5090's
@@ -1051,13 +1064,21 @@ PARAMETER num_ctx $ctx
 
 "@
             $aliasModels = if ($TestProfiles) {
-                # 5090 launcher tags ([1]-[9] + [H1]-[H5] bench). Coders get lower temp.
+                # 5090 launcher tags ([1]-[9] + [H1]-[H8] bench). Coders get lower temp; reasoning models
+                # (Nemotron Cascade 2, Ornith) get a higher temp per vendor guidance.
                 @{
-                    "qwen36-27b-256k"  = @{ From = "qwen3.6:27b";     Ctx = 262144; Temp = 0.25 }
+                    "qwen36-27b-256k"  = @{ From = "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.25 }
                     "qwen36-35b-256k"  = @{ From = "qwen3.6:35b";     Ctx = 262144; Temp = 0.25 }
                     "gemma4-31b-128k"  = @{ From = "gemma4:31b";      Ctx = 131072 }
                     "qwen3coder-256k"  = @{ From = "qwen3-coder:30b"; Ctx = 262144; Temp = 0.25 }
                     "glm47-flash-198k" = @{ From = "glm-4.7-flash";   Ctx = 202752; Temp = 0.30 }
+                    # New agentic-coding bench aliases ([H6]-[H8], §K/§L). Native context is larger (North
+                    # 500k, Nemotron 1M, Ornith 256k) but capped at 256k here for a controlled bench + KV
+                    # sanity on 32 GB VRAM. North Mini Code is an instruct coder (low temp); Nemotron
+                    # Cascade 2 and Ornith are reasoning models (<think>) tuned warmer per their cards.
+                    "northmini-code-256k"  = @{ From = "hf.co/unsloth/North-Mini-Code-1.0-GGUF:UD-Q4_K_M"; Ctx = 262144; Temp = 0.25 }
+                    "nemotron-c2-256k"     = @{ From = "hf.co/bartowski/nvidia_Nemotron-Cascade-2-30B-A3B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
+                    "ornith-35b-256k"      = @{ From = "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
                     # Expert-offload bench alias ([O1]). num_gpu 99 keeps all non-expert layers on the
                     # GPU; the launcher's offload mode sets LLAMA_ARG_CPU_MOE=1 so the experts spill to
                     # RAM. Lower ctx (128k) keeps KV modest while experts are CPU-resident.

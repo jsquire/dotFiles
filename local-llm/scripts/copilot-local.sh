@@ -5,11 +5,29 @@ set -euo pipefail
 export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=51200
 export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=16384
 
+# Friendly labels for the launch-identity banner — keyed on the resolved alias so the banner is
+# correct for every path (picker slot, direct first-arg, or default fallback). Doubles as the
+# human-readable registry of the bench roster.
+declare -A MODEL_LABEL=(
+    [qwen36-27b-256k]="Qwen3.6 27B (+MTP)"
+    [qwen36-35b-256k]="Qwen3.6 35B-A3B MoE"
+    [gemma4-31b-128k]="Gemma 4 31B dense"
+    [qwen3coder-256k]="Qwen3-Coder 30B-A3B"
+    [glm47-flash-198k]="GLM-4.7-Flash"
+    [northmini-code-256k]="North Mini Code 1.0"
+    [nemotron-c2-256k]="Nemotron Cascade 2 30B-A3B"
+    [ornith-35b-256k]="Ornith-1.0-35B"
+    [gptoss-120b-offload]="gpt-oss-120b (offload)"
+    [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (offload)"
+    [qwen3:8b]="Qwen3 8B"
+)
+model_label() { echo "${MODEL_LABEL[$1]:-$1}"; }
+
 # If a model was passed as first argument (contains ':'), use it directly
 if [[ "${1:-}" == *":"* ]]; then
     COPILOT_MODEL="$1"
     shift
-    echo "  Using model: $COPILOT_MODEL"
+    echo "  ▶ $(model_label "$COPILOT_MODEL")  ·  alias=$COPILOT_MODEL"
     exec ollama launch copilot --model "$COPILOT_MODEL" --yes -- "$@"
 fi
 
@@ -27,6 +45,17 @@ echo "  [6] Office documents    (glm47-flash-198k)"
 echo
 echo "  --- Visual ---"
 echo "  [7] Image generation    (qwen3:8b + HiDream via MCP)"
+echo
+echo "  ══ EXPERIMENTAL · models under evaluation ════════════════"
+echo "  --- Heavy-coding bench (VRAM-resident; swap model, all MCP off) ---"
+echo "  [H1] Qwen3.6 27B+MTP        (qwen36-27b-256k)"
+echo "  [H2] Qwen3.6 35B-A3B MoE    (qwen36-35b-256k)"
+echo "  [H3] Gemma 4 31B dense      (gemma4-31b-128k)"
+echo "  [H4] Qwen3-Coder 30B-A3B    (qwen3coder-256k)"
+echo "  [H5] GLM-4.7-Flash          (glm47-flash-198k)"
+echo "  [H6] North Mini Code 1.0    (northmini-code-256k)"
+echo "  [H7] Nemotron Cascade 2 30B (nemotron-c2-256k)"
+echo "  [H8] Ornith-1.0-35B         (ornith-35b-256k)"
 echo
 echo "  --- Big-MoE expert-offload bench (experts->RAM; slower, for models that don't fit) ---"
 echo "  [O1] gpt-oss-120b           (offload, ~65 GB MXFP4)"
@@ -55,6 +84,9 @@ case "$choice" in
     [oO]1|[oO]2)
         MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp)
         ;;
+    [Hh][1-8])
+        MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp)
+        ;;
     s|S)
         MCP_FLAGS=(--disable-mcp-server imagegen-mcp)
         ;;
@@ -75,6 +107,14 @@ case "$choice" in
     7) export COPILOT_MODEL="qwen3:8b" ;;
     [oO]1) export COPILOT_MODEL="gptoss-120b-offload"; OFFLOAD_MODE=1 ;;
     [oO]2) export COPILOT_MODEL="qwen3next-80b-offload"; OFFLOAD_MODE=1 ;;
+    [Hh]1) export COPILOT_MODEL="qwen36-27b-256k" ;;
+    [Hh]2) export COPILOT_MODEL="qwen36-35b-256k" ;;
+    [Hh]3) export COPILOT_MODEL="gemma4-31b-128k" ;;
+    [Hh]4) export COPILOT_MODEL="qwen3coder-256k" ;;
+    [Hh]5) export COPILOT_MODEL="glm47-flash-198k" ;;
+    [Hh]6) export COPILOT_MODEL="northmini-code-256k" ;;
+    [Hh]7) export COPILOT_MODEL="nemotron-c2-256k" ;;
+    [Hh]8) export COPILOT_MODEL="ornith-35b-256k" ;;
     s|S)
         ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model glm" 2>/dev/null || true
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
@@ -114,7 +154,13 @@ if [[ "$choice" == "6" ]]; then
     EXTRA_FLAGS=(--custom-instructions "$SCRIPT_DIR/../config/pptx-instructions.md")
 fi
 
-echo "  Using model: $COPILOT_MODEL"
+case "$choice" in
+    [Hh]*) SLOT="[${choice^^}] experimental · heavy bench" ;;
+    [Oo]*) SLOT="[${choice^^}] experimental · offload bench" ;;
+    [1-9]) SLOT="[$choice] task profile" ;;
+    *)     SLOT="" ;;
+esac
+echo "  ▶ $(model_label "$COPILOT_MODEL")  ·  alias=$COPILOT_MODEL${SLOT:+  ·  $SLOT}"
 echo
 if [[ -n "${COPILOT_PROVIDER_BASE_URL:-}" ]]; then
     # Remote mode: launch copilot directly (skip ollama wrapper)

@@ -96,12 +96,16 @@ if [[ -z "$task" ]]; then
     echo "  --- Everything ---"
     echo "  [9] All tools           (GLM-4.7-Flash, all MCP, may be slow)"
     echo
+    echo "  ══ EXPERIMENTAL · models under evaluation ════════════════"
     echo "  --- Heavy-coding bench (coding profile, swap model) ---"
     echo "  [H1] Qwen3.6 27B dense (default)"
     echo "  [H2] Qwen3.6 35B-A3B MoE"
     echo "  [H3] Gemma 4 31B dense"
     echo "  [H4] Qwen3-Coder 30B-A3B"
     echo "  [H5] GLM-4.7-Flash"
+    echo "  [H6] North Mini Code 1.0    (Cohere, agentic coding)"
+    echo "  [H7] Nemotron Cascade 2 30B (NVIDIA, reasoning/agentic)"
+    echo "  [H8] Ornith-1.0-35B         (MIT, agentic-coding reasoning)"
     echo
     echo "  --- Big-MoE expert-offload bench (experts->RAM; slower, for models that don't fit) ---"
     echo "  [O1] gpt-oss-120b           (offload, ~65 GB MXFP4)"
@@ -125,6 +129,9 @@ if [[ -z "$task" ]]; then
         [Hh]3) task="coding"; SELECTED_MODEL="gemma4-31b-128k" ;;
         [Hh]4) task="coding"; SELECTED_MODEL="qwen3coder-256k" ;;
         [Hh]5) task="coding"; SELECTED_MODEL="glm47-flash-198k" ;;
+        [Hh]6) task="coding"; SELECTED_MODEL="northmini-code-256k" ;;
+        [Hh]7) task="coding"; SELECTED_MODEL="nemotron-c2-256k" ;;
+        [Hh]8) task="coding"; SELECTED_MODEL="ornith-35b-256k" ;;
         [Oo]1) task="coding"; SELECTED_MODEL="gptoss-120b-offload";   OFFLOAD_MODE=1 ;;
         [Oo]2) task="coding"; SELECTED_MODEL="qwen3next-80b-offload"; OFFLOAD_MODE=1 ;;
         *)
@@ -138,6 +145,24 @@ fi
 if [[ -z "$SELECTED_MODEL" ]]; then SELECTED_MODEL="$(model_for_task "$task")"; fi
 DEFAULT_MODEL="$SELECTED_MODEL"
 REVIEW_MODEL="$SELECTED_MODEL"
+
+# Friendly labels for the launch-identity banner (keyed on the resolved alias; doubles as the
+# human-readable bench roster registry).
+declare -A MODEL_LABEL=(
+    [qwen36-27b-256k]="Qwen3.6 27B (+MTP)"
+    [qwen36-35b-256k]="Qwen3.6 35B-A3B MoE"
+    [gemma4-31b-128k]="Gemma 4 31B dense"
+    [qwen3coder-256k]="Qwen3-Coder 30B-A3B"
+    [glm47-flash-198k]="GLM-4.7-Flash"
+    [northmini-code-256k]="North Mini Code 1.0"
+    [nemotron-c2-256k]="Nemotron Cascade 2 30B-A3B"
+    [ornith-35b-256k]="Ornith-1.0-35B"
+    [gptoss-120b-offload]="gpt-oss-120b (offload)"
+    [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (offload)"
+)
+MODEL_FRIENDLY="${MODEL_LABEL[$DEFAULT_MODEL]:-$DEFAULT_MODEL}"
+echo
+echo "  ▶ $MODEL_FRIENDLY  ·  alias=$DEFAULT_MODEL"
 
 PPTX_GUIDE="IMPORTANT: Be concise. Do not explain what you will do — just do it. Minimize output.
 

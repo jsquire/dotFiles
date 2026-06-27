@@ -257,6 +257,7 @@ sudo pacman -S --needed --noconfirm \
     python-cryptography \
     python-dbus \
     python-gobject \
+    python-platformdirs \
     python-xdg
 
 if [ ! -d "$HOME/.local/lib/secretsd" ]; then
@@ -272,8 +273,17 @@ cp "$HOME/.local/lib/secretsd/systemd/secretsd.service" "$HOME/.config/systemd/u
 cp "$HOME/.local/lib/secretsd/dbus/org.freedesktop.secrets.service" "$HOME/.local/share/dbus-1/services/"
 
 if [ "$(ps -p 1 -o comm=)" = "systemd" ]; then
-    systemctl --user daemon-reload
-    systemctl --user enable --now secretsd
+    export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
+
+    if [ -S "${XDG_RUNTIME_DIR}/bus" ]; then
+        systemctl --user daemon-reload
+        systemctl --user enable --now secretsd
+    else
+        echo "NOTICE: User D-Bus socket not yet available at ${XDG_RUNTIME_DIR}/bus."
+        echo "        secretsd will be enabled and start on next login."
+        systemctl --user enable secretsd 2>/dev/null || true
+    fi
 fi
 
 
@@ -306,12 +316,11 @@ fi
 # Install Node + Global Tooling
 ############################################
 
-if ! nvm which default &>/dev/null; then
-    nvm install --lts
-    nvm alias default 'lts/*'
-fi
-
-nvm use default
+# Install (or upgrade to) the latest Node release and make it the
+# default. 'node' resolves to the newest available version each run.
+nvm install node
+nvm alias default node
+nvm use node
 
 npm install -g npm
 
@@ -378,7 +387,13 @@ fi
 sudo pacman -S --needed --noconfirm \
     python \
     python-pip \
-    python-virtualenv
+    python-virtualenv \
+    uv
+
+# Install the latest uv-managed CPython (version-qualified python3.x in
+# ~/.local/bin). The Arch 'python' package above stays as the system
+# python/python3; uv uses this managed build for uv-created venvs.
+uv python install
 
 
 ############################################
