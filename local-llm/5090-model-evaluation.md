@@ -1,5 +1,30 @@
 # RTX 5090 Model Evaluation Plan
 
+> ## ⇄ MACHINE CONTEXT UPDATE — now running ON the 5090 (2026-06-27)
+>
+> **The session has moved onto the new 5090 box. "Here" / local / current = the 5090 workstation;
+> the old 4090 box is now the "server baseline" → it becomes the CachyOS/Linux vLLM server.** This
+> re-frames the "pre-upgrade / 4090 = current" language throughout this doc. Inspection only — **no
+> installs done** (bring-up is a separate, not-yet-executed task).
+>
+> **Verified "here" hardware (on-box 2026-06-27):** RTX **5090, 32 GB VRAM** (driver 610.62) · Ryzen 9
+> **9950X3D2** (16C/32T) · **64 GB** DDR5-6000 (MSI X870E CARBON WIFI, **2 of 4 DIMM slots free, 128 GB
+> max**) · storage C: 4 TB / **V: empty 1 TB SN850X** / D: 164 GB / Z: 14.9 TB *(backup — ineligible)* ·
+> Win 11 Pro b28000 · **Ollama not installed yet**.
+>
+> **Role mapping going forward:** *here/local* = 5090 + Ollama (Windows); the **§B set is the live local
+> daily driver**, with **Qwen3.6-27B dense** the heavy-coding default (replacing Gemma 4, which lived on
+> the 4090). *server baseline* = the 4090 box (24 GB + Ryzen 9 7900X + 64 GB DDR5-4800) → **CachyOS vLLM**
+> (its 24 GB already matches the server sizing below — no change). **Model storage target:
+> `OLLAMA_MODELS=V:\ollama`** (1 TB SN850X, off the OS drive).
+>
+> **Offload envelope is now LIVE:** 32 GB VRAM + 64 GB RAM = **96 GB** real (the §G "fits 96 GB"
+> findings now describe this machine). The 128 GB analysis stays hypothetical, but the board confirms
+> it's physically possible (2 free slots); the ROI verdict — *skip 128 GB for our profiles* — is unchanged.
+>
+> Below: any "Current Primary / measured on RTX 4090 / pre-upgrade" content is **historical**, and the
+> 4090 it refers to is now the **server-baseline** box, not the local daily driver.
+
 ## Purpose
 
 This is a standalone prompt/plan for evaluating model options after upgrading the
@@ -55,10 +80,12 @@ conflicts with this banner, **this banner wins.**
 ## Current State (Pre-Upgrade Baseline)
 
 ### Hardware
-| Host | GPU | VRAM | Role |
-|------|-----|------|------|
-| Windows workstation | RTX 4090 → **RTX 5090** | 24 GB → **32 GB** | Desktop, primary dev |
-| CachyOS server (squire) | RTX 4090 | 24 GB | Headless inference server |
+> *Updated 2026-06-27 — the upgrade is complete; arrows below resolved to the live state.*
+
+| Host | GPU | VRAM | CPU / RAM | Role |
+|------|-----|------|-----------|------|
+| Windows workstation (**"here" / local**) | **RTX 5090** | **32 GB** | Ryzen 9 9950X3D2 / 64 GB DDR5-6000 | Desktop, primary dev — **LIVE** |
+| **Server baseline** (squire) | RTX 4090 | 24 GB | Ryzen 9 7900X / 64 GB DDR5-4800 | → CachyOS/Linux vLLM headless inference server |
 
 ### Software Stack
 - **Backend**: Ollama (with vendored llama.cpp)
@@ -545,7 +572,7 @@ Nothing closer to Kimi K2.7 fits the 5090 without dropping to 2-bit, which is re
 ---
 
 
-### Gemma 4 26B (Current Primary) — Measured on RTX 4090
+### Gemma 4 26B (former 4090 primary — now SERVER-BASELINE box) — Measured on RTX 4090
 
 | Metric | Value |
 |--------|-------|

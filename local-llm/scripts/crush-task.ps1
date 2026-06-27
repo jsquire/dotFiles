@@ -96,12 +96,16 @@ if (-not $Task) {
     Write-Host "  --- Everything ---"
     Write-Host "  [9] All tools           (GLM-4.7-Flash, all MCP, may be slow)"
     Write-Host ""
+    Write-Host "  ══ EXPERIMENTAL · models under evaluation ════════════════"
     Write-Host "  --- Heavy-coding bench (coding profile, swap model) ---"
     Write-Host "  [H1] Qwen3.6 27B dense (default)"
     Write-Host "  [H2] Qwen3.6 35B-A3B MoE"
     Write-Host "  [H3] Gemma 4 31B dense"
     Write-Host "  [H4] Qwen3-Coder 30B-A3B"
     Write-Host "  [H5] GLM-4.7-Flash"
+    Write-Host "  [H6] North Mini Code 1.0    (Cohere, agentic coding)"
+    Write-Host "  [H7] Nemotron Cascade 2 30B (NVIDIA, reasoning/agentic)"
+    Write-Host "  [H8] Ornith-1.0-35B         (MIT, agentic-coding reasoning)"
     Write-Host ""
     Write-Host "  --- Big-MoE expert-offload bench (experts->RAM; slower, for models that don't fit) ---"
     Write-Host "  [O1] gpt-oss-120b           (offload, ~65 GB MXFP4)"
@@ -125,6 +129,9 @@ if (-not $Task) {
         "H3" { $Task = "coding"; $SelectedModel = "gemma4-31b-128k" }
         "H4" { $Task = "coding"; $SelectedModel = "qwen3coder-256k" }
         "H5" { $Task = "coding"; $SelectedModel = "glm47-flash-198k" }
+        "H6" { $Task = "coding"; $SelectedModel = "northmini-code-256k" }
+        "H7" { $Task = "coding"; $SelectedModel = "nemotron-c2-256k" }
+        "H8" { $Task = "coding"; $SelectedModel = "ornith-35b-256k" }
         "O1" { $Task = "coding"; $SelectedModel = "gptoss-120b-offload";   $OffloadMode = $true }
         "O2" { $Task = "coding"; $SelectedModel = "qwen3next-80b-offload"; $OffloadMode = $true }
         default {
@@ -134,12 +141,31 @@ if (-not $Task) {
     }
 }
 
+# Friendly labels for the launch-identity banner (keyed on the resolved alias; doubles as the
+# human-readable bench roster registry).
+$ModelLabel = @{
+    "qwen36-27b-256k"       = "Qwen3.6 27B (+MTP)"
+    "qwen36-35b-256k"       = "Qwen3.6 35B-A3B MoE"
+    "gemma4-31b-128k"       = "Gemma 4 31B dense"
+    "qwen3coder-256k"       = "Qwen3-Coder 30B-A3B"
+    "glm47-flash-198k"      = "GLM-4.7-Flash"
+    "northmini-code-256k"   = "North Mini Code 1.0"
+    "nemotron-c2-256k"      = "Nemotron Cascade 2 30B-A3B"
+    "ornith-35b-256k"       = "Ornith-1.0-35B"
+    "gptoss-120b-offload"   = "gpt-oss-120b (offload)"
+    "qwen3next-80b-offload" = "Qwen3-Next-80B-A3B (offload)"
+}
+
 # Resolve the model: explicit -Model wins, then picker selection, then per-task default.
 if (-not $SelectedModel) {
     $SelectedModel = if ($Model) { $Model } else { $ModelByTask[$Task] }
 }
 $DefaultModel = $SelectedModel
 $ReviewModel  = $SelectedModel
+
+$ModelFriendly = if ($ModelLabel.ContainsKey($DefaultModel)) { $ModelLabel[$DefaultModel] } else { $DefaultModel }
+Write-Host ""
+Write-Host "  ▶ $ModelFriendly  ·  alias=$DefaultModel" -ForegroundColor Cyan
 
 switch ($Task) {
     "coding" {

@@ -1,0 +1,290 @@
+{
+  "id": "a2087ac4-f1dd-4b9d-aee5-41e199a01a6b",
+  "version": "1.0",
+  "name": "My Visual Studio extensions",
+  "description": "A collection of my Visual Studio extensions",
+  "extensions": [
+    {
+      "vsixId": "MarkdownEditor2022.2347dc70-1875-4775-bf48-f2b9fdfee8d4",
+      "name": "Markdown Editor v2",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.MarkdownEditor2",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/MarkdownEditor2/2.0.405/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "9def4441-acfd-4dd6-bffd-4531a57dee37",
+      "name": "Insert Guid",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.insertguid",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/insertguid/1.3.14/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "fc4e241f-57de-4032-9c89-527984c0a0ae",
+      "name": "Image Optimizer (64-bit)",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.ImageOptimizer64bit",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/ImageOptimizer64bit/6.0.71/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "TomlEditor.4e804652-a783-473b-827f-6e41f5a48b9b",
+      "name": "TOML Editor",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.TomlEditor",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/TomlEditor/1.0.61/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "f8c241c7-5ff0-425a-935d-5739a9d69bed",
+      "name": "Microsoft Child Process Debugging Power Tool 2022\u002B",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=vsdbgplat.MicrosoftChildProcessDebuggingPowerTool2022",
+      "downloadUrl": "https://vsdbgplat.gallery.vsassets.io:443/_apis/public/gallery/publisher/vsdbgplat/extension/MicrosoftChildProcessDebuggingPowerTool2022/1.6.1/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "6e1b31b9-e1c1-4697-9b0a-e638eece7765",
+      "name": "Web Compiler 2022\u002B",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=Failwyn.WebCompiler64",
+      "downloadUrl": "https://failwyn.gallery.vsassets.io:443/_apis/public/gallery/publisher/Failwyn/extension/WebCompiler64/1.14.15/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "8751f103-e71b-4491-b4a2-791dfec437be",
+      "name": "TypeScript Definition Generator 2026 (fork)",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=LucaZoffoli.TypeScriptDefinitionGenerator2026",
+      "downloadUrl": "https://lucazoffoli.gallery.vsassets.io:443/_apis/public/gallery/publisher/LucaZoffoli/extension/TypeScriptDefinitionGenerator2026/1.7/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "43b35fe0-1f30-48de-887a-68256474202a",
+      "name": "ResXManager",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=TomEnglert.ResXManager",
+      "downloadUrl": "https://tomenglert.gallery.vsassets.io:443/_apis/public/gallery/publisher/TomEnglert/extension/ResXManager/1.105.6740.0/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "dac582ef-fc73-42f6-ad45-afaad93d88a4",
+      "name": "Trailing Whitespace Visualizer",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.TrailingWhitespace64",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/TrailingWhitespace64/2.6.125/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "E1019027-EE37-4B1A-AD4C-25CAA92CA2D5",
+      "name": "Spell Check My Code (VS2022 and Later)",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=EWoodruff.VisualStudioSpellCheckerVS2022andLater",
+      "downloadUrl": "https://ewoodruff.gallery.vsassets.io:443/_apis/public/gallery/publisher/EWoodruff/extension/VisualStudioSpellCheckerVS2022andLater/2026.6.5.0/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "a7b534ac-949b-40f9-a795-deb511823941",
+      "name": "Open Command Line",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.OpenCommandLine64",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/OpenCommandLine64/2.6.14/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "e99dde0e-e023-410d-bc5d-3f76db71e3f0",
+      "name": "Open in Visual Studio Code",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.OpeninVisualStudioCode",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/OpeninVisualStudioCode/1.4.63/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "Microsoft.SingleProjectMSIXPackagingTools.Dev17",
+      "name": "Single-project MSIX Packaging Tools for VS 2022-26",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=ProjectReunion.MicrosoftSingleProjectMSIXPackagingToolsDev17",
+      "downloadUrl": "https://projectreunion.gallery.vsassets.io:443/_apis/public/gallery/publisher/ProjectReunion/extension/MicrosoftSingleProjectMSIXPackagingToolsDev17/1.7.251221100/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "f7198797-d75d-4a7b-93c6-7bb56907735b",
+      "name": "Font Sizer 2.0",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.FontSizer2",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/FontSizer2/1.0.13/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "3a7b4930-a5fb-46ec-a9b8-9610c8f953b8",
+      "name": "File Icons",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.FileIcons",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/FileIcons/2.8.244/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "5783ce1f-b23d-4e84-87a4-6b2cbe9e0602",
+      "name": "Bundler \u0026 Minifier 2022\u002B",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=Failwyn.BundlerMinifier64",
+      "downloadUrl": "https://failwyn.gallery.vsassets.io:443/_apis/public/gallery/publisher/Failwyn/extension/BundlerMinifier64/2.9.11/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "ea5c68d6-cdae-4e79-bd46-2a39e95bb256",
+      "name": "File Differ",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.FileDiffer",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/FileDiffer/3.0.53/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "SourceServerBrowser.a0ae12f7-dfcd-4299-82a1-74c87b0f8008",
+      "name": "Source Server Browser Power Tool 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=vsdbgplat.MicrosoftSourceServerBrowserPowerTool2022",
+      "downloadUrl": "https://vsdbgplat.gallery.vsassets.io:443/_apis/public/gallery/publisher/vsdbgplat/extension/MicrosoftSourceServerBrowserPowerTool2022/1.1.0/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "ProductivityPowerPack2022.0d5b9d71-e118-46de-a20c-555176e53900",
+      "name": "Productivity Power Tools 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=VisualStudioPlatformTeam.ProductivityPowerPack2022",
+      "downloadUrl": "https://visualstudioplatformteam.gallery.vsassets.io:443/_apis/public/gallery/publisher/VisualStudioPlatformTeam/extension/ProductivityPowerPack2022/17.0/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "MFA20CC7-7C8E-4E41-B258-539C067E5649",
+      "name": "Open in Markdown Monster",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=GregTrevellick.OpeninMarkdownMonster",
+      "downloadUrl": "https://gregtrevellick.gallery.vsassets.io:443/_apis/public/gallery/publisher/GregTrevellick/extension/OpeninMarkdownMonster/1.2.19/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "13a2ec1a-6b20-46a9-af99-b1064b00c9a8",
+      "name": "Editor Enhancements",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.EditorEnhancements64",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/EditorEnhancements64/1.0.35/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "DarkTheme2019.7fa839e2-b938-4b1c-9277-edaebe6fdeb5",
+      "name": "Dark Theme (2019)",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.DarkTheme2019",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/DarkTheme2019/1.0.6/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "InlineColorPicker.nokola.preview64bit",
+      "name": "Inline Color Picker - x64 Preview",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=NikolaMSFT.InlineColorPickerX64Preview",
+      "downloadUrl": "https://nikolamsft.gallery.vsassets.io:443/_apis/public/gallery/publisher/NikolaMSFT/extension/InlineColorPickerX64Preview/2.3/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "SyntacticLineCompression2022.4452fb8f-b348-49eb-9499-76669d3f9c75",
+      "name": "Shrink Empty Lines 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=VisualStudioPlatformTeam.SyntacticLineCompression2022",
+      "downloadUrl": "https://visualstudioplatformteam.gallery.vsassets.io:443/_apis/public/gallery/publisher/VisualStudioPlatformTeam/extension/SyntacticLineCompression2022/17.0/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "SolutionErrorVisualizer2022.a392f96b-6b33-4b53-b4bb-3376a05f986c",
+      "name": "Solution Error Visualizer 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=VisualStudioPlatformTeam.SolutionErrorVisualizer2022",
+      "downloadUrl": "https://visualstudioplatformteam.gallery.vsassets.io:443/_apis/public/gallery/publisher/VisualStudioPlatformTeam/extension/SolutionErrorVisualizer2022/17.0/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "AlignAssignments2022.41858b2d-ff0b-4a43-80b0-f1b2d6084935",
+      "name": "Align Assignments 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=VisualStudioPlatformTeam.AlignAssignment2022",
+      "downloadUrl": "https://visualstudioplatformteam.gallery.vsassets.io:443/_apis/public/gallery/publisher/VisualStudioPlatformTeam/extension/AlignAssignment2022/17.0/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "Microsoft.VisualStudio.LiveShare.2022",
+      "name": "Live Share 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MS-vsliveshare.vsls-vs-2022",
+      "downloadUrl": "https://ms-vsliveshare.gallery.vsassets.io:443/_apis/public/gallery/publisher/MS-vsliveshare/extension/vsls-vs-2022/1.0.5949.0/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "7def6c01-a05e-42e6-953d-3fdea1891737",
+      "name": "HLSL Tools for Visual Studio",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=TimGJones.HLSLToolsforVisualStudio",
+      "downloadUrl": "https://timgjones.gallery.vsassets.io:443/_apis/public/gallery/publisher/TimGJones/extension/HLSLToolsforVisualStudio/1.1.304/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "PeekHelp2022.51f43c96-8220-43bf-a922-390a361e7640",
+      "name": "Peek Help 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=VisualStudioPlatformTeam.PeekHelp2022",
+      "downloadUrl": "https://visualstudioplatformteam.gallery.vsassets.io:443/_apis/public/gallery/publisher/VisualStudioPlatformTeam/extension/PeekHelp2022/17.0/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "GitDiffMargin..5ef9f816-d9ce-45cd-a8fa-cd67a807df0e",
+      "name": "Git Diff Margin",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=LaurentKempe.GitDiffMargin",
+      "downloadUrl": "https://laurentkempe.gallery.vsassets.io:443/_apis/public/gallery/publisher/LaurentKempe/extension/GitDiffMargin/3.12.1/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "BringBackPlusMinus.df70f44d-aa57-41d0-be41-cb41c5c1f366",
+      "name": "Bring Back Plus/Minus",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MarcoGoertz.BringBackPlusMinus",
+      "downloadUrl": "https://marcogoertz.gallery.vsassets.io:443/_apis/public/gallery/publisher/MarcoGoertz/extension/BringBackPlusMinus/1.1/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "FixMixedTabs2022.9f1d3050-b986-4b10-ae36-97c6efc5e968",
+      "name": "Fix Mixed Tabs 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=VisualStudioPlatformTeam.FixMixedTabs2022",
+      "downloadUrl": "https://visualstudioplatformteam.gallery.vsassets.io:443/_apis/public/gallery/publisher/VisualStudioPlatformTeam/extension/FixMixedTabs2022/17.0/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "DoubleClickMaximize2022.050825c2-33a4-4b7d-b3af-bd46bd99a265",
+      "name": "Double-Click Maximize 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=VisualStudioPlatformTeam.Double-ClickMaximize2022",
+      "downloadUrl": "https://visualstudioplatformteam.gallery.vsassets.io:443/_apis/public/gallery/publisher/VisualStudioPlatformTeam/extension/Double-ClickMaximize2022/17.0/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "f646ea44-feb2-4168-802a-80c9b64bb8bb",
+      "name": "GhostDoc Community for VS2017 and Later",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=sergeb.GhostDoc",
+      "downloadUrl": "https://sergeb.gallery.vsassets.io:443/_apis/public/gallery/publisher/sergeb/extension/GhostDoc/2022.3.24160/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "4974d92e-e0ac-462a-ae65-73a000503802",
+      "name": "Image Sprites",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.ImageSprites64",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/ImageSprites64/1.5.64/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "MatchMargin2022.d85a25b5-f7b3-46a9-997e-a2d669dc2c93",
+      "name": "Match Margin 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=VisualStudioPlatformTeam.MatchMargin2022",
+      "downloadUrl": "https://visualstudioplatformteam.gallery.vsassets.io:443/_apis/public/gallery/publisher/VisualStudioPlatformTeam/extension/MatchMargin2022/17.0/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "65dd734b-180a-4c67-b245-56de889637e1",
+      "name": "VSColorOutput64",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MikeWard-AnnArbor.VSColorOutput64",
+      "downloadUrl": "https://mikeward-annarbor.gallery.vsassets.io:443/_apis/public/gallery/publisher/MikeWard-AnnArbor/extension/VSColorOutput64/2023.4/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "CopyAsHtml2022.42374550-426a-400e-96f9-237682e8dea6",
+      "name": "Copy As Html 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=VisualStudioPlatformTeam.CopyAsHtml2022",
+      "downloadUrl": "https://visualstudioplatformteam.gallery.vsassets.io:443/_apis/public/gallery/publisher/VisualStudioPlatformTeam/extension/CopyAsHtml2022/17.0.4/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "A274A0E2-E41E-40CC-A694-8D5D14BBD2D0",
+      "name": "ML.NET Model Builder 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MLNET.ModelBuilder2022",
+      "downloadUrl": "https://mlnet.gallery.vsassets.io:443/_apis/public/gallery/publisher/MLNET/extension/ModelBuilder2022/17.19.2.2511501/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "7f30a50b-8211-40cf-b881-bd1eb2866478",
+      "name": "HTML Snippet Pack",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.HTMLSnippetPack",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/HTMLSnippetPack/1.1.14/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "0c8bd9fa-77d5-4563-ab57-9e01608c3d05",
+      "name": "Tweaks 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.Tweaks2022",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/Tweaks2022/1.1.143/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "4F193BD4-B46A-4268-9DFC-3247EB49651B",
+      "name": "Visual Studio Iconizer for Visual Studio 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=OlegTarasov.Iconizer2022",
+      "downloadUrl": "https://olegtarasov.gallery.vsassets.io:443/_apis/public/gallery/publisher/OlegTarasov/extension/Iconizer2022/1.26/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "TimeStampMargin2022.255e8b14-4a53-4eb7-89a7-7ab741c1f612",
+      "name": "Time Stamp Margin 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=VisualStudioPlatformTeam.TimeStampMargin2022",
+      "downloadUrl": "https://visualstudioplatformteam.gallery.vsassets.io:443/_apis/public/gallery/publisher/VisualStudioPlatformTeam/extension/TimeStampMargin2022/17.0/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "7badbb47-7faf-4264-b15d-3b6b23da44fe",
+      "name": "MSBuild Editor",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=mhutch.MSBuildEditor",
+      "downloadUrl": "https://mhutch.gallery.vsassets.io:443/_apis/public/gallery/publisher/mhutch/extension/MSBuildEditor/2.9.524.37316/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "d48e8f25-661b-4970-8b66-03f051ba5fc3",
+      "name": "Add New File (64-bit)",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.AddNewFile64",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/AddNewFile64/4.1.8/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "CopyNice.1f9c7576-432f-484b-bfd1-4ce7f6f4ccf4",
+      "name": "Copy Nice",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=MadsKristensen.CopyNice",
+      "downloadUrl": "https://madskristensen.gallery.vsassets.io:443/_apis/public/gallery/publisher/MadsKristensen/extension/CopyNice/1.0.7/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    },
+    {
+      "vsixId": "MiddleClickScroll2022.263a3239-a004-40e6-b790-4fd371832c85",
+      "name": "Middle Click Scroll 2022",
+      "moreInfoUrl": "https://marketplace.visualstudio.com/items?itemName=VisualStudioPlatformTeam.MiddleClickScroll2022",
+      "downloadUrl": "https://visualstudioplatformteam.gallery.vsassets.io:443/_apis/public/gallery/publisher/VisualStudioPlatformTeam/extension/MiddleClickScroll2022/17.0/assetbyname/Microsoft.VisualStudio.Ide.Payload?redirect=true\u0026update=true"
+    }
+  ]
+}
