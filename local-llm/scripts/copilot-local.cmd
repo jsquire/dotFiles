@@ -41,7 +41,7 @@ echo   [H7] Nemotron Cascade 2 30B (nemotron-c2-256k^)
 echo   [H8] Ornith-1.0-35B         (ornith-35b-256k^)
 echo.
 echo   --- Big-MoE expert-offload bench (experts-^>RAM; slower, for models that don't fit^) ---
-echo   [O1] gpt-oss-120b           (offload, ~65 GB MXFP4^)
+echo   --- Big-MoE expert-offload bench (experts-^>RAM; partial offload, slower^) ---
 echo   [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB^)
 echo.
 echo   --- Remote (CachyOS server — one standing model, switch only when needed) ---
@@ -69,8 +69,6 @@ if /i "%choice%"=="H5" set COPILOT_MODEL=glm47-flash-198k
 if /i "%choice%"=="H6" set COPILOT_MODEL=northmini-code-256k
 if /i "%choice%"=="H7" set COPILOT_MODEL=nemotron-c2-256k
 if /i "%choice%"=="H8" set COPILOT_MODEL=ornith-35b-256k
-if /i "%choice%"=="O1" set COPILOT_MODEL=gptoss-120b-offload
-if /i "%choice%"=="O1" set OFFLOAD=1
 if /i "%choice%"=="O2" set COPILOT_MODEL=qwen3next-80b-offload
 if /i "%choice%"=="O2" set OFFLOAD=1
 if /i "%choice%"=="S" (
@@ -109,7 +107,6 @@ if "%choice%"=="6" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
 if "%choice%"=="7" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat
 :: Heavy-coding bench (H1-H8): disable all MCP servers — max context for code
 if /i "%choice:~0,1%"=="H" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
-if /i "%choice%"=="O1" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
 if /i "%choice%"=="O2" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
 if /i "%choice%"=="S" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
 if /i "%choice%"=="C" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
@@ -139,8 +136,7 @@ if /i "%COPILOT_MODEL%"=="glm47-flash-198k"      set "MODEL_LABEL=GLM-4.7-Flash"
 if /i "%COPILOT_MODEL%"=="northmini-code-256k"   set "MODEL_LABEL=North Mini Code 1.0"
 if /i "%COPILOT_MODEL%"=="nemotron-c2-256k"      set "MODEL_LABEL=Nemotron Cascade 2 30B-A3B"
 if /i "%COPILOT_MODEL%"=="ornith-35b-256k"       set "MODEL_LABEL=Ornith-1.0-35B"
-if /i "%COPILOT_MODEL%"=="gptoss-120b-offload"   set "MODEL_LABEL=gpt-oss-120b (offload)"
-if /i "%COPILOT_MODEL%"=="qwen3next-80b-offload" set "MODEL_LABEL=Qwen3-Next-80B-A3B (offload)"
+if /i "%COPILOT_MODEL%"=="qwen3next-80b-offload" set "MODEL_LABEL=Qwen3-Next-80B-A3B (partial offload)"
 if /i "%COPILOT_MODEL%"=="qwen3:8b"              set "MODEL_LABEL=Qwen3 8B"
 
 :: Tier/slot hint for the banner, derived from the menu choice (empty on the direct-arg path).
@@ -157,9 +153,9 @@ if defined COPILOT_PROVIDER_BASE_URL (
     copilot --model %COPILOT_MODEL% -- %MCP_FLAGS% %GIT_SAFETY% %EXTRA_FLAGS% %1 %2 %3 %4 %5 %6 %7 %8 %9
 ) else (
     if defined OFFLOAD (
-        echo   Offload mode: experts -^> system RAM ^(slower; for models that don't fit^)
+        echo   Offload mode: experts -^> system RAM ^(partial; slower than VRAM-resident^)
         echo.
-        powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0offload-serve.ps1" -Action start
+        powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0offload-serve.ps1" -Action start -NCpuMoe 24
         set "COPILOT_PROVIDER_BASE_URL=http://localhost:11434/v1"
         copilot --model %COPILOT_MODEL% -- %MCP_FLAGS% %GIT_SAFETY% %EXTRA_FLAGS% %1 %2 %3 %4 %5 %6 %7 %8 %9
         powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0offload-serve.ps1" -Action stop

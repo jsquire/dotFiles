@@ -26,11 +26,22 @@
     0 (default) = offload ALL experts to CPU (LLAMA_ARG_CPU_MOE=1).
     >0          = offload only the first N layers' experts (LLAMA_ARG_N_CPU_MOE=N), the
                   partial-offload tuning knob to claw back speed once a model almost fits.
+
+.PARAMETER RequiredFreeGB
+    Minimum free physical RAM (GB) required before an offload serve will start. The experts
+    that spill to RAM must fit alongside everything already in use; on a 64 GB box with an IDE
+    open, full offload (~45-55 GB) does not fit and would thrash swap. Guards against that.
+    Default 15 (sized for [O2] partial offload ~13 GB spill). Use -Force to override.
+
+.PARAMETER Force
+    Skip the RAM-headroom guard and start the offload serve regardless of free RAM.
 #>
 param(
     [Parameter(Mandatory)][ValidateSet("start", "stop")]
     [string]$Action,
-    [int]$NCpuMoe = 0
+    [int]$NCpuMoe = 0,
+    [int]$RequiredFreeGB = 15,
+    [switch]$Force
 )
 
 $ErrorActionPreference = "SilentlyContinue"
@@ -61,7 +72,38 @@ function Wait-OllamaApi {
     return $false
 }
 
+function Resolve-OllamaModelsEnv {
+    # The bare `ollama serve` (NOT the tray app) finds its model store via the OLLAMA_MODELS
+    # environment variable; the tray app's GUI "Model location" setting does NOT propagate to a
+    # non-tray serve. If the ambient env doesn't already carry OLLAMA_MODELS (e.g. this script was
+    # launched from a process that started before the var was persisted), resolve it from the
+    # persisted User (then Machine) value so the offload/restored serve serves the same models as
+    # the managed server. (Caveat: if the model location was set ONLY via the tray GUI and never as
+    # an env var, there is no env-accessible source and Ollama's default path is used.)
+    if (-not $env:OLLAMA_MODELS) {
+        $persisted = [Environment]::GetEnvironmentVariable('OLLAMA_MODELS', 'User')
+        if (-not $persisted) { $persisted = [Environment]::GetEnvironmentVariable('OLLAMA_MODELS', 'Machine') }
+        if ($persisted) {
+            $env:OLLAMA_MODELS = $persisted
+            Write-Host "  [offload] Resolved OLLAMA_MODELS from persisted env: $persisted" -ForegroundColor DarkGray
+        }
+    }
+}
+
 if ($Action -eq "start") {
+    # RAM-headroom guard: the experts spill to system RAM; if there isn't enough free, the
+    # offload serve thrashes the pagefile. Abort early with a clear message instead. (-Force skips.)
+    if (-not $Force) {
+        $os = Get-CimInstance Win32_OperatingSystem
+        $freeGB = [math]::Round($os.FreePhysicalMemory / 1MB, 1)
+        if ($freeGB -lt $RequiredFreeGB) {
+            Write-Host "  [offload] ABORT: only $freeGB GB RAM free; need >= $RequiredFreeGB GB for offload." -ForegroundColor Red
+            Write-Host "  [offload] Close heavy apps (IDE/browser) and retry, or pass -Force to override." -ForegroundColor Red
+            exit 1
+        }
+        Write-Host "  [offload] RAM check OK: $freeGB GB free (>= $RequiredFreeGB GB)." -ForegroundColor DarkGray
+    }
+
     Write-Host "  [offload] Stopping managed Ollama server..." -ForegroundColor DarkYellow
     Stop-OllamaProcesses
 
@@ -70,6 +112,8 @@ if ($Action -eq "start") {
     $env:OLLAMA_FLASH_ATTENTION = "1"
     $env:OLLAMA_KV_CACHE_TYPE   = "q8_0"
     $env:OLLAMA_KEEP_ALIVE      = "5m"
+    # Ensure the dedicated offload serve finds the model store (see Resolve-OllamaModelsEnv).
+    Resolve-OllamaModelsEnv
     # Required for offload: avoid CUDA trying to pin the large CPU-resident expert tensors.
     $env:GGML_CUDA_NO_PINNED    = "1"
 
@@ -96,10 +140,32 @@ if ($Action -eq "start") {
 elseif ($Action -eq "stop") {
     Write-Host "  [offload] Stopping offload server, restoring managed Ollama..." -ForegroundColor DarkYellow
     Stop-OllamaProcesses
-    if (Test-Path $OllamaApp) {
-        Start-Process -FilePath $OllamaApp
+
+    # Clear the offload-only env so the restored serve runs as the normal (fully-on-GPU) server.
+    Remove-Item Env:LLAMA_ARG_CPU_MOE   -ErrorAction SilentlyContinue
+    Remove-Item Env:LLAMA_ARG_N_CPU_MOE -ErrorAction SilentlyContinue
+    Remove-Item Env:GGML_CUDA_NO_PINNED -ErrorAction SilentlyContinue
+
+    # Restore the standard managed tuning + model store for whichever serve comes up next.
+    $env:OLLAMA_HOST            = "127.0.0.1"
+    $env:OLLAMA_FLASH_ATTENTION = "1"
+    $env:OLLAMA_KV_CACHE_TYPE   = "q8_0"
+    $env:OLLAMA_KEEP_ALIVE      = "5m"
+    Resolve-OllamaModelsEnv
+
+    # Prefer the desktop app (it owns the tray/GUI), but it does NOT reliably re-spawn the serve
+    # subprocess when launched this way, which can leave Ollama down after an offload session. So
+    # verify the API actually comes up and fall back to starting `ollama serve` directly.
+    if (Test-Path $OllamaApp) { Start-Process -FilePath $OllamaApp }
+    if (Wait-OllamaApi -Seconds 20) {
+        Write-Host "  [offload] Managed Ollama restarted." -ForegroundColor Green
     } else {
+        Write-Host "  [offload] Tray did not bring up the serve; starting 'ollama serve' directly..." -ForegroundColor DarkYellow
         Start-Process -FilePath $OllamaExe -ArgumentList "serve" -WindowStyle Hidden
+        if (Wait-OllamaApi -Seconds 20) {
+            Write-Host "  [offload] Managed Ollama restored (direct serve)." -ForegroundColor Green
+        } else {
+            Write-Host "  [offload] WARNING: Ollama did not come back up; start it manually." -ForegroundColor Red
+        }
     }
-    Write-Host "  [offload] Managed Ollama restarted." -ForegroundColor Green
 }
