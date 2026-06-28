@@ -495,6 +495,25 @@ speed. This raises the model-size ceiling and frees VRAM for larger context.
 - **Trade-offs:** long-context **prefill is CPU-bound** when experts are on CPU (slower first
   token); steady-state generation stays in the ~25–40 tok/s band for low-active-param MoEs.
 
+### Long-session real-world impact — prefill, not generation, is the bottleneck (measured)
+
+Offload's headline gen rate (~25–66 tok/s) hides the actual long-session cost: **prefill** (prompt
+processing) is CPU-bound once experts live in RAM, and prefill — not generation — dominates multi-hour
+coding sessions where every turn re-reads a large, growing context.
+
+- **Measured on-box** (4090, Ollama 0.30.10, `qwen3-coder:30b` A3B, 29.4K-token prompt): full-GPU
+  **prefill 5340 tok/s / gen 94** vs CPU-offload **prefill 835 / gen 27** — a **6.4× prefill / 3.5× gen**
+  penalty. Generation slowdown is annoying; the prefill slowdown is what stalls a session.
+- **Prefix-cache invalidation makes it worse:** complex edits (insertions mid-file, refactors) change
+  early tokens, invalidating the KV prefix cache and forcing a **cold re-prefill** of the whole context
+  every turn — so each turn pays full prefill, not just on the delta.
+- **Active-param extrapolation, ~60K ctx per turn (prefill only):** VRAM-resident ~11s ·
+  Qwen3-Next A3B ~70s · gpt-oss-120b ~110s · MiniMax A10B ~3.5min · Qwen3-235B A22B ~8min. Penalty
+  scales ~linearly with active params, so big-active-param offload models are unusable for iterative work.
+- **Conclusion:** for long, complex sessions, **128 GB RAM does not help** and worsens the big-model
+  path. **VRAM-residency / low active-param count is what matters** — the 5090's 32 GB VRAM is the real
+  long-session lever, not more system RAM. Reinforces dropping `[O1]` and keeping `[O2]` low-active-param.
+
 ### How to use it (launchers + installer)
 > **UPDATE 2026-06-28 — `[O1]` gpt-oss-120b DROPPED.** Post-deploy calibration showed it can't run
 > concurrent with a real IDE on the 64 GB box (~35 GB experts→RAM even at partial offload), so the weights

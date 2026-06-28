@@ -117,6 +117,7 @@ param(
     [switch]$ModelsOnly,
     [switch]$EnableLAN,
     [switch]$TestProfiles,
+    [switch]$SkipWslNetworking,
 
     [string]$SquireServerIP = "192.168.1.99",
     [string]$SquireSSHTarget = "jesse@192.168.1.99",
@@ -174,6 +175,7 @@ if ($Help) {
     -SkipModels          Install software only; pull models later with: ollama pull <tag>
     -ModelsOnly          Skip software installation; only pull/update models
     -EnableLAN           Set OLLAMA_HOST=0.0.0.0 so other machines can connect
+    -SkipWslNetworking   Don't configure WSL2 mirrored networking (.wslconfig)
     -Theme <Dark|Light>  Shortcut icon theme (default: Dark)
                          Dark  = white icons (for dark taskbar/Start Menu)
                          Light = dark icons (for light taskbar/Start Menu)
@@ -437,6 +439,65 @@ function Add-NonFatalWarning {
     param([string]$Message)
     $script:Warnings += $Message
     Write-Warn $Message
+}
+
+function Set-WslMirroredNetworking {
+    # Enable WSL2 mirrored networking so distros (e.g. CachyOS) reach the host's
+    # 127.0.0.1:11434 Ollama as localhost:11434 — no need to bind Ollama to 0.0.0.0.
+    # Authoritative: MS Learn wsl-config — networkingMode=mirrored, requires Win11 22H2
+    # (build 22621)+, config at %UserProfile%\.wslconfig. Idempotent; backs up existing.
+    $build = [int](Get-CimInstance Win32_OperatingSystem).BuildNumber
+    if ($build -lt 22621) {
+        Add-NonFatalWarning "WSL mirrored networking needs Windows 11 22H2 (build 22621+); this is $build. Skipping."
+        return
+    }
+    if (-not (Test-CommandExists "wsl")) {
+        Write-Info "wsl.exe not found — skipping WSL mirrored networking (no WSL installed)."
+        return
+    }
+
+    $wslConfig = Join-Path $env:USERPROFILE ".wslconfig"
+    $needsMirror = $true
+    if (Test-Path $wslConfig) {
+        $content = Get-Content $wslConfig -Raw
+        if ($content -match '(?im)^\s*networkingMode\s*=\s*mirrored\s*$') {
+            Write-Info ".wslconfig already sets networkingMode=mirrored."
+            $needsMirror = $false
+        }
+    }
+
+    if ($needsMirror) {
+        $lines = if (Test-Path $wslConfig) { @(Get-Content $wslConfig) } else { @() }
+        if (Test-Path $wslConfig) {
+            $backup = "$wslConfig.bak"
+            Copy-Item $wslConfig $backup -Force
+            Write-Info "Backed up existing .wslconfig to $backup"
+        }
+        # Drop any existing networkingMode line, then ensure a [wsl2] section carries mirrored.
+        $lines = $lines | Where-Object { $_ -notmatch '(?i)^\s*networkingMode\s*=' }
+        if ($lines -match '(?im)^\s*\[wsl2\]\s*$') {
+            $out = New-Object System.Collections.Generic.List[string]
+            foreach ($l in $lines) {
+                $out.Add($l)
+                if ($l -match '(?im)^\s*\[wsl2\]\s*$') { $out.Add("networkingMode=mirrored") }
+            }
+            $lines = $out
+        } else {
+            $lines = @("[wsl2]", "networkingMode=mirrored") + $lines
+        }
+        Set-Content -Path $wslConfig -Value $lines -Encoding UTF8
+        Write-Success "Wrote networkingMode=mirrored to $wslConfig"
+    }
+
+    # Mirrored takes effect only after the WSL VM restarts; this kills ALL distros (incl. docker-desktop).
+    Write-Warn "Applying needs 'wsl --shutdown', which stops ALL distros including docker-desktop."
+    $ans = Read-Host "  Run 'wsl --shutdown' now to apply mirrored networking? [y/N]"
+    if ($ans -match '^(y|yes)$') {
+        wsl --shutdown
+        Write-Success "WSL shut down — mirrored networking applies on next launch."
+    } else {
+        Write-Info "Run 'wsl --shutdown' when ready to apply (then relaunch your distro)."
+    }
 }
 
 function Get-ResolvedModelRoot {
@@ -727,6 +788,16 @@ if ($ShouldInstallSoftware) {
             }
         } catch {
             Add-NonFatalWarning "Could not set Macrium Reflect backup exclusion for $ModelBlobsPath. Re-run elevated if you want this exclusion."
+        }
+
+        # ── Step: WSL mirrored networking ────────────────────────────────
+
+        if ($SkipWslNetworking) {
+            Write-Info "Skipping WSL mirrored networking (-SkipWslNetworking)."
+        } else {
+            Write-Step "Configure WSL mirrored networking"
+            Write-Info "Mirrored mode lets WSL distros reach the host's Ollama via localhost:11434 (no LAN bind)."
+            Set-WslMirroredNetworking
         }
     }
 
