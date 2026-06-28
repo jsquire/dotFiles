@@ -46,8 +46,8 @@ Current plan and corrections (authoritative sources flagged):
 - **Deliverable for that round was a report**, not a single locked model. The 5090 has
   ~1TB of model storage, so it now runs a **side-by-side test bench** of contenders
   exposed through the launcher (`[H1]–[H5]`), not one finalized pick.
-- **5090 task→model mapping (launchers):** heavy coding → `qwen36-27b-256k` (default,
-  dense); light coding & review → `qwen3coder-256k`; general/office/all-tools →
+- **5090 task→model mapping (launchers):** heavy coding → `qwen36-27b-212k` (default,
+  dense); light coding & review → `qwen3coder-144k`; general/office/all-tools →
   `glm47-flash-198k`; image companion → `qwen3:8b`.
 - **CachyOS server default = GLM-4.7-Flash** (`QuantTrio/GLM-4.7-Flash-AWQ`, served as
   `glm-4.7-flash`), the standing all-rounder for coding + review + office MCP. vLLM
@@ -388,8 +388,8 @@ For the top 1-2 candidates:
 
 - **Windows 5090 (Ollama):** install all six contenders (~1TB storage) and expose them
   through the launcher profiles + `[H1]–[H5]` heavy-coding bench. Heavy-coding default =
-  `qwen36-27b-256k` (dense, authoritative coding numbers); light/review =
-  `qwen3coder-256k`; office/all-tools = `glm47-flash-198k`; image companion = `qwen3:8b`.
+  `qwen36-27b-212k` (dense, authoritative coding numbers); light/review =
+  `qwen3coder-144k`; office/all-tools = `glm47-flash-198k`; image companion = `qwen3:8b`.
 - **CachyOS 4090 (vLLM):** standing default = **GLM-4.7-Flash** (`glm-4.7-flash`), one
   all-rounder for coding + review + office MCP. `cachyos-switch-model {glm|coder|vision|
   image}` swaps modes on demand (24 GB holds one at a time). Image mode = HiDream +

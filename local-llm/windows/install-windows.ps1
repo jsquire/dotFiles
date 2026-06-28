@@ -22,9 +22,22 @@
 
 .PARAMETER ModelProfile
     GPU/environment profile that determines which models to pull:
-      Desktop — RTX 5090 (32GB). Pulls qwen3.6:27b, qwen3:14b, qwen3:4b, qwen3-coder:30b (~40 GB).
-      Server  — RTX 4090 (24GB dedicated). Pulls gemma4:26b, qwen3:14b, qwen3:4b, qwen3-coder:30b (~40 GB).
-    Ignored in Client mode.
+      Desktop — (default) RTX 5090 (32GB). Pulls the six production models
+                (Qwen3.6 27B+MTP, Qwen3.6 35B-A3B, Gemma 4 31B, Qwen3-Coder 30B,
+                GLM-4.7-Flash, Qwen3 8B) (~100 GB) — coherent with config\crush.json.
+      Server  — RTX 4090 (24GB). Same production roster fallback (~100 GB); contexts
+                are tuned for 32GB and may spill to CPU on 24GB.
+    -TestProfiles installs the same roster PLUS the heavy-coding + expert-offload
+    bench contenders. Ignored in Client mode.
+
+.PARAMETER SquireServerIP
+    IP/host of the CachyOS vLLM "Squire Server" used by the launcher Remote
+    [S]/[C]/[V]/[I] options and the crush.json squire-server provider. Default:
+    192.168.1.99.
+
+.PARAMETER SquireSSHTarget
+    SSH target (user@host or ssh-config alias) the launcher uses to call
+    'cachyos-switch-model' on the Squire Server. Default: jesse@192.168.1.99.
 
 .PARAMETER OllamaHost
     Remote Ollama endpoint for Client mode (for example:
@@ -72,6 +85,11 @@
     Full install with Ollama models stored on D:.
 
 .EXAMPLE
+    .\install-windows.ps1 -TestProfiles -DataRoot V:\ollama
+    Full install with ALL large AI-stack data (models, image-gen, MCP venvs, HF cache)
+    stored under V:\ollama instead of the OS drive.
+
+.EXAMPLE
     .\install-windows.ps1 -SkipModels
     Install software only; pull models later.
 
@@ -94,10 +112,14 @@ param(
 
     [string]$OllamaHost,
     [string]$ModelPath,
+    [string]$DataRoot,
     [switch]$SkipModels,
     [switch]$ModelsOnly,
     [switch]$EnableLAN,
     [switch]$TestProfiles,
+
+    [string]$SquireServerIP = "192.168.1.99",
+    [string]$SquireSSHTarget = "jesse@192.168.1.99",
 
     [ValidateSet("Dark", "Light")]
     [string]$Theme = "Dark",
@@ -119,17 +141,16 @@ if ($Help) {
     -Mode Client    Install client tools only (Crush, Copilot CLI, uv, MCP). Requires -OllamaHost.
 
   GPU PROFILES:
-    -ModelProfile Desktop   RTX 5090 (32GB) — 4 models, ~40 GB total:
-                              qwen36-128k           Primary (128k ctx, Qwen3.6 27B)
-                              qwen3:14b           Light coding
-                              qwen3:4b            Image gen profile (VRAM-friendly)
-                              qwen3coder-65k      Code review (different perspective)
+    -ModelProfile Desktop   (default) RTX 5090 (32GB) — the six production models, ~100 GB:
+                              qwen36-27b-212k     Heavy coding default (Qwen3.6 27B+MTP)
+                              qwen36-35b-256k     Heavy coding / multimodal (Qwen3.6 35B-A3B)
+                              gemma4-31b-128k     Heavy coding / general (Gemma 4 31B)
+                              qwen3coder-144k     Light coding / review (Qwen3-Coder 30B)
+                              glm47-flash-198k    Agentic / all MCP+tools (GLM-4.7-Flash)
+                              qwen3:8b            Image-gen companion
 
-    -ModelProfile Server    RTX 4090 (24GB dedicated) — 4 models, ~40 GB total:
-                              gemma4-65k           General (256k ctx)
-                              qwen3:14b            Light coding
-                              qwen3:4b             Image gen profile (VRAM-friendly)
-                              qwen3coder-65k       Code review (different perspective)
+    -ModelProfile Server    RTX 4090 (24GB) — same production roster fallback (~100 GB);
+                              contexts are tuned for 32GB and may spill to CPU on 24GB.
 
   OPTIONS:
     -OllamaHost <url>    Remote Ollama endpoint (required for Client mode)
@@ -138,12 +159,18 @@ if ($Help) {
                          (qwen3.6 27B+MTP/35B, gemma4 31B, qwen3-coder, glm-4.7-flash,
                          qwen3 8B + the §K/§L additions North Mini Code 1.0, Nemotron
                          Cascade 2 30B-A3B, Ornith-1.0-35B) and their launcher aliases
-                         (qwen36-27b-256k/qwen3coder-256k/glm47-flash-198k/northmini-code-256k/
+                         (qwen36-27b-212k/qwen3coder-144k/glm47-flash-198k/northmini-code-256k/
                          nemotron-c2-256k/ornith-35b-256k/etc.), PLUS the gpt-oss:120b
                          and Qwen3-Next-80B-A3B (Q4_K_M GGUF) expert-offload benches
                          (gptoss-120b-offload, qwen3next-80b-offload). ~290 GB. Use with
                          -ModelPath to put the ~1TB of models off the OS drive.
     -ModelPath <path>    Custom model storage directory (sets OLLAMA_MODELS env var)
+    -DataRoot <path>     Put ALL large AI-stack data off the OS drive under one root:
+                         <root>\models (Ollama), <root>\ai-tools (image-gen + MCP
+                         venvs), <root>\hf-cache (HuggingFace cache / HF_HOME).
+                         Sets AI_TOOLS_DIR + HF_HOME. uv/Python stay on C: (excluded).
+                         -ModelPath still overrides just the models subpath.
+                         Example: -DataRoot V:\ollama
     -SkipModels          Install software only; pull models later with: ollama pull <tag>
     -ModelsOnly          Skip software installation; only pull/update models
     -EnableLAN           Set OLLAMA_HOST=0.0.0.0 so other machines can connect
@@ -165,10 +192,14 @@ if ($Help) {
     ─────────        ────────                              ──────────────
     Ollama           System service (winget)               Yes
     ComfyUI Desktop  (removed — replaced by diffusers+FastAPI image gen service)
-    Image Gen        %LOCALAPPDATA%\ai-tools\imagegen       No
+    Image Gen        <DataRoot>\ai-tools\imagegen           No
+                     (default %LOCALAPPDATA%\ai-tools\imagegen)
     Crush            winget portable                       No
     uv + Python      %USERPROFILE%\.local\bin              No
-    MCP venvs        %LOCALAPPDATA%\ai-tools\mcp-*        No
+    MCP venvs        <DataRoot>\ai-tools\mcp-*              No
+                     (default %LOCALAPPDATA%\ai-tools\mcp-*)
+    HF model cache   <DataRoot>\hf-cache (HF_HOME)          No
+                     (default %USERPROFILE%\.cache\huggingface)
     copilot-local    %USERPROFILE%\Documents\CLI           No
     Config           %USERPROFILE%\.config\crush           No
 
@@ -189,40 +220,71 @@ $ErrorActionPreference = "Stop"
 
 $LocalAppData   = $env:LOCALAPPDATA
 $UserProfile    = $env:USERPROFILE
-$AiToolsDir     = Join-Path $LocalAppData "ai-tools"
+
+# ── Data root ────────────────────────────────────────────────────────────────
+# When -DataRoot is set, large AI-stack artifacts live under it instead of the OS
+# drive: Ollama models (<DataRoot>\models), image-gen repo+venv and MCP venvs
+# (<DataRoot>\ai-tools), and the HuggingFace cache (<DataRoot>\hf-cache = HF_HOME).
+# uv and its managed Python are intentionally EXCLUDED (standalone tool, not AI
+# stack). When -DataRoot is omitted, everything falls back to the LocalAppData /
+# default-cache behavior (backward compatible). Runtime consumers (imagegen server,
+# MCP client, launch scripts) read the AI_TOOLS_DIR + HF_HOME env vars the installer
+# sets below, with a LocalAppData fallback.
+if (-not [string]::IsNullOrWhiteSpace($DataRoot)) {
+    $AiToolsRoot = $DataRoot
+    $HFCacheDir  = Join-Path $DataRoot "hf-cache"
+    if ([string]::IsNullOrWhiteSpace($ModelPath)) {
+        $ModelPath = Join-Path $DataRoot "models"
+    }
+} else {
+    $AiToolsRoot = $LocalAppData
+    $HFCacheDir  = $null
+}
+$AiToolsDir     = Join-Path $AiToolsRoot "ai-tools"
 $CrushDir       = Join-Path $UserProfile ".config\crush"
+# OPTIONAL override: if a user drops a `config\ollama-models.txt` in place (see the
+# shipped .example), the installer pulls those tags instead of the profile's models.
+# Absent by default, so the built-in profile roster is authoritative.
 $CustomModelListPath = Join-Path $PSScriptRoot "..\config\ollama-models.txt"
 $DefaultModelRoot = Join-Path $UserProfile ".ollama\models"
 $script:Warnings = @()
 
 # Known model descriptions for progress display
 $KnownModelDescriptions = @{
-    "gemma4:26b"                     = "Gemma 4 26B MoE — general (256k ctx), ~17 GB"
-    "qwen3:14b"                      = "Qwen3 14B — light coding profile (131k ctx), ~9 GB"
-    "qwen3:4b"                       = "Qwen3 4B — image gen profile, VRAM-friendly (32k ctx), ~2.5 GB"
-    "qwen2.5-coder:14b"             = "Qwen2.5-Coder 14B — code review profile (32k ctx), ~9 GB"
+    "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M" = "Qwen3.6 27B (+MTP head) — heavy coding default (212k ctx), ~16 GB"
+    "qwen3.6:35b"     = "Qwen3.6 35B-A3B MoE — heavy coding / multimodal (256k ctx), ~22 GB"
+    "gemma4:31b"      = "Gemma 4 31B Dense — heavy coding / general (128k ctx), ~20 GB"
+    "qwen3-coder:30b" = "Qwen3-Coder 30B-A3B MoE — light coding / review (144k ctx), ~18 GB"
+    "glm-4.7-flash"   = "GLM-4.7-Flash MoE-lite — agentic / all MCP+tools (198k ctx), ~18 GB"
+    "qwen3:8b"        = "Qwen3 8B Dense — image-gen companion (32k ctx), ~5 GB"
+}
+
+# Production roster — the six daily models exposed in config\crush.json + the launcher
+# Tier-1 profiles. The default (non -TestProfiles) install pulls exactly these and builds
+# the matching aliases (see $ProductionAliases below), so a generic install is coherent
+# with crush.json. -TestProfiles is a SUPERSET that adds the bench/offload contenders.
+$ProductionModels = [ordered]@{
+    "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M" = $KnownModelDescriptions["hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M"]
+    "qwen3.6:35b"     = $KnownModelDescriptions["qwen3.6:35b"]
+    "gemma4:31b"      = $KnownModelDescriptions["gemma4:31b"]
+    "qwen3-coder:30b" = $KnownModelDescriptions["qwen3-coder:30b"]
+    "glm-4.7-flash"   = $KnownModelDescriptions["glm-4.7-flash"]
+    "qwen3:8b"        = $KnownModelDescriptions["qwen3:8b"]
 }
 
 $ProfileDefinitions = @{
     "Desktop" = @{
-        Description = "RTX 5090 (32GB) — gaming desktop with IDEs open (~25-27 GB available)"
-        RequiredGB = 40
-        Models = [ordered]@{
-            "qwen3.6:27b"                    = "Qwen3.6 27B Dense — primary model (262k ctx), ~17 GB"
-            "qwen3:14b"                  = $KnownModelDescriptions["qwen3:14b"]
-            "qwen3:4b"                   = $KnownModelDescriptions["qwen3:4b"]
-            "qwen3-coder:30b"            = "Qwen3-Coder 30B MoE — code review (256k ctx), ~18 GB"
-        }
+        Description = "RTX 5090 (32GB) — the six production models (coherent with crush.json + launchers)"
+        RequiredGB = 100
+        Models = $ProductionModels
     }
     "Server" = @{
-        Description = "RTX 4090 (24GB) — dedicated server, full VRAM"
-        RequiredGB = 40
-        Models = [ordered]@{
-            "gemma4:26b"             = $KnownModelDescriptions["gemma4:26b"]
-            "qwen3:14b"            = $KnownModelDescriptions["qwen3:14b"]
-            "qwen3:4b"             = $KnownModelDescriptions["qwen3:4b"]
-            "qwen3-coder:30b"      = "Qwen3-Coder 30B MoE — code review (256k ctx), ~18 GB"
-        }
+        # The real model server is the CachyOS/vLLM box (install-cachyos.sh); this Windows
+        # profile is a coherent fallback that mirrors the Desktop production roster. Contexts
+        # are 32GB-calibrated, so on a 24GB card the larger-ctx aliases may spill to CPU.
+        Description = "RTX 4090 (24GB) — production roster fallback (contexts tuned for 32GB; may spill on 24GB)"
+        RequiredGB = 100
+        Models = $ProductionModels
     }
     # 5090 side-by-side test profile (-TestProfiles). ~1TB model storage, so every
     # contender is installed at once and exposed through the launcher [H1]-[H5] bench.
@@ -520,13 +582,29 @@ if ($ShouldPullModels) {
 
 if ($ShouldInstallSoftware) {
 
+    # ── Step: Configure data-root storage ────────────────────────────────
+    # Set AI_TOOLS_DIR + HF_HOME so this run (and future tools) place the image-gen
+    # repo/venv, MCP venvs, and the HuggingFace cache under -DataRoot instead of C:.
+    # Setting them here (before the image-gen step) ensures the in-run snapshot
+    # download honors HF_HOME. uv/Python stay on the OS drive (excluded by design).
+    if (-not [string]::IsNullOrWhiteSpace($DataRoot)) {
+        Write-Step "Configure data-root storage ($DataRoot)"
+        Write-Info "AI-stack artifacts (models, image-gen, MCP venvs, HF cache) will live under $DataRoot."
+        Write-Info "uv and its managed Python stay on the OS drive (standalone tool, not part of the AI stack)."
+        foreach ($d in @($AiToolsDir, $HFCacheDir)) {
+            if ($d -and -not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
+        }
+        Set-UserEnvironmentVariable -Name "AI_TOOLS_DIR" -Value $AiToolsDir
+        Set-UserEnvironmentVariable -Name "HF_HOME" -Value $HFCacheDir
+    }
+
     # ── Step: uv (Python toolchain manager) ──────────────────────────────
 
     Write-Step "Install uv (Python toolchain manager)"
     Write-Info "uv manages Python versions and virtual environments without touching system Python."
     Write-Info "Installed as a winget portable package (no admin required)."
 
-    Install-WinGetPackage -Id "astral-sh.uv" -Name "uv" -Critical
+    Install-WinGetPackage -Id "astral-sh.uv" -Name "uv" -Critical | Out-Null
 
     # Refresh PATH — winget portable packages add to PATH via WinGet\Links
     $wingetLinks = Join-Path $LocalAppData "Microsoft\WinGet\Links"
@@ -635,11 +713,22 @@ if ($ShouldInstallSoftware) {
 
         try {
             $registryPath = "HKLM:\SYSTEM\CurrentControlSet\Control\BackupRestore\FilesNotToSnapshotMacriumImage"
-            if (-not (Test-Path $registryPath)) {
-                New-Item -Path $registryPath -Force | Out-Null
+            # Idempotent: if the exclusion is already set to this value, skip the write.
+            # This avoids a spurious "could not set" warning on unelevated re-runs where
+            # the value already exists (the HKLM write needs elevation, but isn't needed).
+            $existingExcl = $null
+            if (Test-Path $registryPath) {
+                $existingExcl = (Get-ItemProperty -Path $registryPath -Name "OllamaModels" -ErrorAction SilentlyContinue).OllamaModels
             }
-            New-ItemProperty -Path $registryPath -Name "OllamaModels" -Value $ModelBlobsPath -PropertyType String -Force | Out-Null
-            Write-Success "Set backup exclusion: OllamaModels = $ModelBlobsPath"
+            if ($existingExcl -eq $ModelBlobsPath) {
+                Write-Info "Backup exclusion already set: OllamaModels = $ModelBlobsPath"
+            } else {
+                if (-not (Test-Path $registryPath)) {
+                    New-Item -Path $registryPath -Force | Out-Null
+                }
+                New-ItemProperty -Path $registryPath -Name "OllamaModels" -Value $ModelBlobsPath -PropertyType String -Force | Out-Null
+                Write-Success "Set backup exclusion: OllamaModels = $ModelBlobsPath"
+            }
         } catch {
             Add-NonFatalWarning "Could not set Macrium Reflect backup exclusion for $ModelBlobsPath. Re-run elevated if you want this exclusion."
         }
@@ -651,7 +740,7 @@ if ($ShouldInstallSoftware) {
     Write-Info "Crush is the terminal-based AI agent with MCP support, LSP context, and multi-provider."
     Write-Info "Installed as a winget portable package (no admin required)."
 
-    Install-WinGetPackage -Id "charmbracelet.crush" -Name "Crush" -Critical
+    Install-WinGetPackage -Id "charmbracelet.crush" -Name "Crush" -Critical | Out-Null
 
     if ($IsClientMode) {
         Write-Info "Client mode uses remote Ollama at $OllamaHost."
@@ -664,23 +753,29 @@ if ($ShouldInstallSoftware) {
     Write-Info "MCP servers installed as uv tools — accessible via 'uvx' command."
 
     $mcpTools = @(
-        @{ Package = "ppt-mcp";         Python = $null;  Desc = "PowerPoint COM automation" }
+        @{ Package = "ppt-mcp";         Python = "3.12"; Desc = "PowerPoint COM automation" }
         @{ Package = "docx-mcp-server"; Python = "3.12"; Desc = "Word OOXML editing" }
     )
 
+    # Snapshot already-installed uv tools so we can skip redundant re-installs.
+    $installedTools = (uv tool list 2>$null) -join "`n"
     foreach ($tool in $mcpTools) {
-        Write-Host "  Installing $($tool.Desc)..." -ForegroundColor White
-        $uvArgs = @("tool", "install", $tool.Package)
-        if ($tool.Python) {
-            $uvArgs += "--python"
-            $uvArgs += $tool.Python
+        if ($installedTools -match "(?m)^\s*$([regex]::Escape($tool.Package))\s") {
+            Write-Info "$($tool.Package) already installed — skipping."
+            continue
         }
-        uv @uvArgs 2>&1 | Out-Null
+        Write-Host "  Installing $($tool.Desc)..." -ForegroundColor White
+        # --force overwrites orphaned executable shims left by older/aborted installs;
+        # without it uv exits non-zero with "Executable already exists". Capture output
+        # so a real failure is reported instead of being silently swallowed.
+        $uvArgs = @("tool", "install", $tool.Package, "--python", $tool.Python, "--force")
+        $uvOutput = uv @uvArgs 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Success "$($tool.Package) ready."
         } else {
-            Write-Warn "$($tool.Package) install failed."
-            $script:Failures += "MCP: $($tool.Package)"
+            $errTail = (($uvOutput | Select-Object -Last 3) -join " | ").Trim()
+            Write-Warn "$($tool.Package) install failed: $errTail"
+            $script:Failures += "MCP: $($tool.Package) ($errTail)"
         }
     }
 
@@ -701,15 +796,15 @@ if ($ShouldInstallSoftware) {
         } else {
             # Expand template placeholders for this platform
             $crushContent = Get-Content $crushConfigSource -Raw
-            $expandedLocalAppData = ($LocalAppData -replace '\\', '/') # forward slashes for JSON
-            $expandedConfigDir = ($crushConfigDir -replace '\\', '/')
+            $expandedLocalAppData = ($AiToolsRoot -replace '\\', '/') # ai-tools root (DataRoot or LocalAppData), fwd slashes for JSON
+            $expandedConfigDir = ($CrushDir -replace '\\', '/')
             $crushContent = $crushContent -replace '__LOCALAPPDATA__', $expandedLocalAppData
             $crushContent = $crushContent -replace '__VENV_BIN__', '.venv/Scripts'
             $crushContent = $crushContent -replace '__EXE_SUFFIX__', '.exe'
             $crushContent = $crushContent -replace '__EXE__', '.exe'
             $crushContent = $crushContent -replace '__CONFIG_DIR__', $expandedConfigDir
             $crushContent = $crushContent -replace '__IMAGEGEN_HOST__', '127.0.0.1'
-            $crushContent = $crushContent -replace '__SQUIRE_SERVER_IP__', '127.0.0.1'
+            $crushContent = $crushContent -replace '__SQUIRE_SERVER_IP__', $SquireServerIP
             Set-Content -Path $crushConfigDest -Value $crushContent -Encoding UTF8
             Write-Success "Deployed crush.json to $crushConfigDest"
             Write-Info "Local Ollama is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
@@ -766,8 +861,8 @@ if ($ShouldInstallSoftware) {
             Write-Info "Copilot MCP config already exists at $copilotMcpDest — skipping (won't overwrite)."
         } else {
             $mcpContent = Get-Content $copilotMcpSource -Raw
-            $expandedLocalAppData = ($LocalAppData -replace '\\', '/')
-            $expandedConfigDir = ($crushConfigDir -replace '\\', '/')
+            $expandedLocalAppData = ($AiToolsRoot -replace '\\', '/') # ai-tools root (DataRoot or LocalAppData)
+            $expandedConfigDir = ($CrushDir -replace '\\', '/')
             $mcpContent = $mcpContent -replace '__LOCALAPPDATA__', $expandedLocalAppData
             $mcpContent = $mcpContent -replace '__VENV_BIN__', '.venv/Scripts'
             $mcpContent = $mcpContent -replace '__EXE_SUFFIX__', '.exe'
@@ -785,8 +880,8 @@ if ($ShouldInstallSoftware) {
 
     if ($IsFullMode) {
         Write-Step "Set up Image Generation service (HiDream-O1-Image-Dev)"
-        $imagegenVenv = "$env:LOCALAPPDATA\ai-tools\imagegen\.venv"
-        $imagegenDir = "$env:LOCALAPPDATA\ai-tools\imagegen"
+        $imagegenDir = Join-Path $AiToolsDir "imagegen"
+        $imagegenVenv = Join-Path $imagegenDir ".venv"
         $imagegenRepoDir = "$imagegenDir\HiDream-O1-Image"
         $imagegenScript = "$PSScriptRoot\imagegen-server.py"
         $imagegenStart = "$PSScriptRoot\imagegen-start.cmd"
@@ -797,6 +892,39 @@ if ($ShouldInstallSoftware) {
             & git clone --depth 1 https://github.com/HiDream-ai/HiDream-O1-Image.git $imagegenRepoDir
         } else {
             Write-Info "HiDream-O1-Image repo already present."
+        }
+
+        # Make flash-attention optional in the cloned pipeline (idempotent). Upstream
+        # pipeline.py hardcodes use_flash_attn=True, which hard-asserts flash_attn is
+        # installed (qwen3_vl_transformers.py). flash_attn has no practical Windows build
+        # for Blackwell/torch-cu128, so patch the fresh clone to fall back to the standard
+        # SDPA attention path. Re-applied on every clone (the patch lives only in the
+        # working copy, never upstream). On Linux/CachyOS flash_attn IS installed, so the
+        # same conditional simply keeps using flash attention.
+        $pipelineFile = "$imagegenRepoDir\models\pipeline.py"
+        if (Test-Path $pipelineFile) {
+            $pipelineSrc = [System.IO.File]::ReadAllText($pipelineFile)
+            if ($pipelineSrc -notmatch '_FLASH_ATTN_AVAILABLE') {
+                $detect = @'
+# Patched by dotFiles local-llm installer: make flash-attention optional.
+# Upstream hardcodes use_flash_attn=True, which hard-asserts flash_attn is installed
+# (qwen3_vl_transformers.py). On platforms without flash_attn (e.g. Windows), fall
+# back to the standard SDPA attention path instead of crashing.
+try:
+    from .qwen3_vl_transformers import _flash_attn_func as _FAF
+    _FLASH_ATTN_AVAILABLE = _FAF is not None
+except Exception:
+    _FLASH_ATTN_AVAILABLE = False
+
+TIMESTEP_TOKEN_NUM = 1
+'@
+                $pipelineSrc = $pipelineSrc -replace '(?m)^TIMESTEP_TOKEN_NUM = 1\r?$', ($detect -replace "`r`n", "`n")
+                $pipelineSrc = $pipelineSrc -replace '"use_flash_attn": True,', '"use_flash_attn": _FLASH_ATTN_AVAILABLE,'
+                [System.IO.File]::WriteAllText($pipelineFile, $pipelineSrc, (New-Object System.Text.UTF8Encoding $false))
+                Write-Info "Patched pipeline.py: flash-attention is now optional (SDPA fallback when flash_attn is absent)."
+            } else {
+                Write-Info "pipeline.py flash-attention patch already applied."
+            }
         }
 
         if (Test-Path "$imagegenVenv\Scripts\python.exe") {
@@ -812,10 +940,18 @@ if ($ShouldInstallSoftware) {
             Write-Info "Image generation venv created."
         }
 
-        # Download model weights if not cached
-        Write-Info "Ensuring HiDream-O1-Image-Dev model is cached (35GB, may take a few minutes)..."
-        & "$imagegenVenv\Scripts\python.exe" -c "from huggingface_hub import snapshot_download; snapshot_download('HiDream-ai/HiDream-O1-Image-Dev')" 2>$null
-        Write-Info "Model cached."
+        # Download model weights if not cached (idempotent: skip if the snapshot
+        # already exists, so re-runs don't re-verify ~35 GB). Progress is shown
+        # (no 2>$null) so a real download doesn't look stalled.
+        $hfHubRoot = if ($HFCacheDir) { Join-Path $HFCacheDir "hub" } else { Join-Path $env:USERPROFILE ".cache\huggingface\hub" }
+        $hidreamSnapshots = Join-Path $hfHubRoot "models--HiDream-ai--HiDream-O1-Image-Dev\snapshots"
+        if ((Test-Path $hidreamSnapshots) -and (Get-ChildItem $hidreamSnapshots -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+            Write-Info "HiDream-O1-Image-Dev already cached — skipping download."
+        } else {
+            Write-Info "Ensuring HiDream-O1-Image-Dev model is cached (35GB, may take a few minutes)..."
+            & "$imagegenVenv\Scripts\python.exe" -c "from huggingface_hub import snapshot_download; snapshot_download('HiDream-ai/HiDream-O1-Image-Dev')"
+            Write-Info "Model cached."
+        }
 
         # Copy server script and start script to ai-tools directory
         Copy-Item $imagegenScript "$imagegenDir\imagegen-server.py" -Force -ErrorAction SilentlyContinue
@@ -827,7 +963,7 @@ if ($ShouldInstallSoftware) {
     # ── Step: Set up imagegen MCP client (fastmcp wrapper) ────────────────
 
     Write-Step "Set up imagegen MCP client"
-    $mcpImagegenDir = "$env:LOCALAPPDATA\ai-tools\mcp-imagegen"
+    $mcpImagegenDir = Join-Path $AiToolsDir "mcp-imagegen"
     $mcpImagegenScript = Join-Path $PSScriptRoot "..\mcp\imagegen-mcp-server.py"
     $mcpImagegenVenv = "$mcpImagegenDir\.venv"
 
@@ -865,8 +1001,13 @@ if ($ShouldInstallSoftware) {
         if (-not (Test-Path $cliDir)) {
             New-Item -ItemType Directory -Path $cliDir -Force | Out-Null
         }
-        Copy-Item -Path $launcherSource -Destination $launcherDest -Force
-        Write-Success "Deployed copilot-local.cmd to $launcherDest"
+        # Substitute the Squire Server placeholders so the Remote [S]/[C]/[V]/[I] options work.
+        # BOM-free write — a UTF-8 BOM at the top of a .cmd makes cmd.exe choke on the first line.
+        $launcherContent = Get-Content $launcherSource -Raw
+        $launcherContent = $launcherContent -replace '__SQUIRE_SERVER_IP__', $SquireServerIP
+        $launcherContent = $launcherContent -replace '__SQUIRE_SSH_TARGET__', $SquireSSHTarget
+        [System.IO.File]::WriteAllText($launcherDest, $launcherContent, (New-Object System.Text.UTF8Encoding($false)))
+        Write-Success "Deployed copilot-local.cmd to $launcherDest (server IP $SquireServerIP, ssh $SquireSSHTarget)"
 
         # Ensure Documents\CLI is on PATH
         $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
@@ -897,6 +1038,26 @@ if ($ShouldInstallSoftware) {
         Write-Success "Deployed crush-task.ps1 to $crushDest"
     } else {
         Write-Warn "Crush task script not found at $crushSource — skipping."
+    }
+
+    # ── Step: Deploy offload-serve helper ─────────────────────────────────
+    # Both copilot-local.cmd (O1/O2 offload profiles) and crush-task.ps1 invoke this helper from
+    # their own directory (%~dp0 / $PSScriptRoot = Documents\CLI), so it must be deployed alongside
+    # them or the offload profiles fail with a missing-file error.
+
+    Write-Step "Deploy offload-serve helper"
+    $offloadSource = Join-Path $PSScriptRoot "..\scripts\offload-serve.ps1"
+    $offloadDest = Join-Path $UserProfile "Documents\CLI\offload-serve.ps1"
+
+    if (Test-Path $offloadSource) {
+        $cliDir = Split-Path $offloadDest
+        if (-not (Test-Path $cliDir)) {
+            New-Item -ItemType Directory -Path $cliDir -Force | Out-Null
+        }
+        Copy-Item -Path $offloadSource -Destination $offloadDest -Force
+        Write-Success "Deployed offload-serve.ps1 to $offloadDest"
+    } else {
+        Write-Warn "Offload helper not found at $offloadSource — skipping."
     }
 
     # ── Step: Create Start Menu shortcuts ─────────────────────────────────
@@ -1006,6 +1167,13 @@ if ($ShouldPullModels) {
             foreach ($entry in $EffectiveModelConfig.Models.GetEnumerator()) {
                 $tag  = $entry.Key
                 $desc = $entry.Value
+                # Idempotent: skip if the model is already present (avoids re-pulling
+                # the full set on every run — pulls only what is actually missing).
+                ollama show $tag *> $null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Info "$tag already present — skipping pull."
+                    continue
+                }
                 Write-Host "  Pulling $tag" -ForegroundColor White
                 Write-Info $desc
                 ollama pull $tag
@@ -1020,23 +1188,20 @@ if ($ShouldPullModels) {
 
             # Set num_ctx on models via Modelfiles (Ollama defaults to 2048)
             Write-Host "  Setting context window (num_ctx) on models..." -ForegroundColor White
-            $numCtxSettings = if ($TestProfiles) {
-                @{
-                    "qwen3.6:27b"     = 262144
-                    "qwen3.6:35b"     = 262144
-                    "gemma4:31b"      = 131072
-                    "qwen3-coder:30b" = 262144
-                    "glm-4.7-flash"   = 202752
-                    "qwen3:8b"        = 32768
-                    "gpt-oss:120b"    = 131072
-                }
-            } else {
-                @{
-                    "gemma4:26b"    = 65536
-                    "qwen3:14b"     = 16384
-                    "qwen3:4b"      = 8192
-                    "qwen3-coder:30b" = 65536
-                }
+            # Production base-tag contexts (shared by default + -TestProfiles). These set
+            # num_ctx on the raw library base tags; the launcher aliases below re-affirm it.
+            # qwen3.6:27b base tag is intentionally absent — the Models map repoints it to the
+            # MTP hf.co tag, so the library base is never pulled; its ctx is set on the alias.
+            $numCtxSettings = @{
+                "qwen3.6:35b"     = 262144
+                "gemma4:31b"      = 131072
+                "qwen3-coder:30b" = 147456
+                "glm-4.7-flash"   = 202752
+                "qwen3:8b"        = 32768
+            }
+            if ($TestProfiles) {
+                # Offload bench base (experts -> RAM via the launcher's offload mode).
+                $numCtxSettings["gpt-oss:120b"] = 131072
             }
             foreach ($entry in $numCtxSettings.GetEnumerator()) {
                 $tag = $entry.Key
@@ -1063,39 +1228,36 @@ PARAMETER num_ctx $ctx
 {{ end }}<|im_start|>assistant
 
 "@
-            $aliasModels = if ($TestProfiles) {
-                # 5090 launcher tags ([1]-[9] + [H1]-[H8] bench). Coders get lower temp; reasoning models
-                # (Nemotron Cascade 2, Ornith) get a higher temp per vendor guidance.
-                @{
-                    "qwen36-27b-256k"  = @{ From = "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.25 }
-                    "qwen36-35b-256k"  = @{ From = "qwen3.6:35b";     Ctx = 262144; Temp = 0.25 }
-                    "gemma4-31b-128k"  = @{ From = "gemma4:31b";      Ctx = 131072 }
-                    "qwen3coder-256k"  = @{ From = "qwen3-coder:30b"; Ctx = 262144; Temp = 0.25 }
-                    "glm47-flash-198k" = @{ From = "glm-4.7-flash";   Ctx = 202752; Temp = 0.30 }
-                    # New agentic-coding bench aliases ([H6]-[H8], §K/§L). Native context is larger (North
-                    # 500k, Nemotron 1M, Ornith 256k) but capped at 256k here for a controlled bench + KV
-                    # sanity on 32 GB VRAM. North Mini Code is an instruct coder (low temp); Nemotron
-                    # Cascade 2 and Ornith are reasoning models (<think>) tuned warmer per their cards.
-                    "northmini-code-256k"  = @{ From = "hf.co/unsloth/North-Mini-Code-1.0-GGUF:UD-Q4_K_M"; Ctx = 262144; Temp = 0.25 }
-                    "nemotron-c2-256k"     = @{ From = "hf.co/bartowski/nvidia_Nemotron-Cascade-2-30B-A3B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
-                    "ornith-35b-256k"      = @{ From = "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
-                    # Expert-offload bench alias ([O1]). num_gpu 99 keeps all non-expert layers on the
-                    # GPU; the launcher's offload mode sets LLAMA_ARG_CPU_MOE=1 so the experts spill to
-                    # RAM. Lower ctx (128k) keeps KV modest while experts are CPU-resident.
-                    "gptoss-120b-offload" = @{ From = "gpt-oss:120b"; Ctx = 131072; Temp = 0.25; Gpu = 99 }
-                    # [O2] Qwen3-Next-80B-A3B-Instruct Q4_K_M GGUF (~45 GB, fits 96 GB via expert offload).
-                    # Verified on-box (4090, Ollama 0.30.8): arch loads + offloads (44.6 GB experts->RAM,
-                    # ~9 GB VRAM @131k ctx, ~24 tok/s). The GGUF's embedded chat template renders to an
-                    # immediate-EOS empty reply under Ollama's engine, so an explicit ChatML TEMPLATE is
-                    # REQUIRED for the /api/chat path used by crush/copilot.
-                    "qwen3next-80b-offload" = @{ From = "hf.co/Qwen/Qwen3-Next-80B-A3B-Instruct-GGUF:Q4_K_M"; Ctx = 131072; Temp = 0.25; Gpu = 99; Template = $qwen3nextChatML }
-                }
-            } else {
-                @{
-                    "qwen36-128k"      = @{ From = "qwen3.6:27b"; Ctx = 131072 }
-                    "gemma4-65k"       = @{ From = "gemma4:26b"; Ctx = 65536 }
-                    "qwen3coder-65k"   = @{ From = "qwen3-coder:30b"; Ctx = 65536 }
-                }
+            # Production launcher aliases (the six daily models in crush.json + the Tier-1
+            # menus). Built on EVERY install — default AND -TestProfiles — so a generic
+            # install is coherent with crush.json. Coders get lower temp; GLM slightly higher.
+            $aliasModels = @{
+                # Calibrated on-box 2026-06-27 (5090, q8 KV): this dense Qwen3.6-27B-MTP has heavy KV.
+                # 256k=29.24GB (only 2.6GB free); user chose 212k (217088) = ~27.9GB (~3.9GB free on the
+                # live 3x4K rig) as the always-on default. Alias suffix matches the real context.
+                "qwen36-27b-212k"  = @{ From = "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M"; Ctx = 217088; Temp = 0.25 }
+                "qwen36-35b-256k"  = @{ From = "qwen3.6:35b";     Ctx = 262144; Temp = 0.25 }
+                "gemma4-31b-128k"  = @{ From = "gemma4:31b";      Ctx = 131072 }
+                # Calibrated on-box 2026-06-27 (5090, q8 KV): qwen3-coder:30b is 48-layer full-attention
+                # (heaviest KV) — 256k=31.39GB spills (~0.1GB free). User chose 144k (147456) = ~28.8GB
+                # (~3.1GB free). Alias suffix matches the real context.
+                "qwen3coder-144k"  = @{ From = "qwen3-coder:30b"; Ctx = 147456; Temp = 0.25 }
+                "glm47-flash-198k" = @{ From = "glm-4.7-flash";   Ctx = 202752; Temp = 0.30 }
+            }
+            if ($TestProfiles) {
+                # -TestProfiles SUPERSET: heavy-coding bench ([H6]-[H8]) + expert-offload bench
+                # ([O1]/[O2]). Native context is larger (North 500k, Nemotron 1M, Ornith 256k) but
+                # capped at 256k here for a controlled bench + KV sanity on 32 GB VRAM. North Mini Code
+                # is an instruct coder (low temp); Nemotron Cascade 2 and Ornith are reasoning models
+                # (<think>) tuned warmer per their cards. Offload aliases set num_gpu 99 (non-expert
+                # layers on GPU; the launcher's offload mode sets LLAMA_ARG_CPU_MOE=1 to spill experts
+                # to RAM). Qwen3-Next needs an explicit ChatML TEMPLATE — its GGUF-embedded template
+                # renders to an immediate-EOS empty reply under Ollama's engine (verified on-box).
+                $aliasModels["northmini-code-256k"]   = @{ From = "hf.co/unsloth/North-Mini-Code-1.0-GGUF:UD-Q4_K_M"; Ctx = 262144; Temp = 0.25 }
+                $aliasModels["nemotron-c2-256k"]      = @{ From = "hf.co/bartowski/nvidia_Nemotron-Cascade-2-30B-A3B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
+                $aliasModels["ornith-35b-256k"]       = @{ From = "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
+                $aliasModels["gptoss-120b-offload"]   = @{ From = "gpt-oss:120b"; Ctx = 131072; Temp = 0.25; Gpu = 99 }
+                $aliasModels["qwen3next-80b-offload"] = @{ From = "hf.co/Qwen/Qwen3-Next-80B-A3B-Instruct-GGUF:Q4_K_M"; Ctx = 131072; Temp = 0.25; Gpu = 99; Template = $qwen3nextChatML }
             }
             foreach ($entry in $aliasModels.GetEnumerator()) {
                 $alias = $entry.Key

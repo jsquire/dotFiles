@@ -69,11 +69,11 @@ OFFLOAD_MODE=0
 # 5090 model assignments per task profile
 model_for_task() {
     case "$1" in
-        coding)                 echo "qwen36-27b-256k" ;;   # heavy coding default
-        review)                 echo "qwen3coder-256k" ;;   # Qwen3-Coder 30B-A3B
+        coding)                 echo "qwen36-27b-212k" ;;   # heavy coding default
+        review)                 echo "qwen3coder-144k" ;;   # Qwen3-Coder 30B-A3B
         general|word|pptx|docs|all) echo "glm47-flash-198k" ;;  # GLM-4.7-Flash tool/MCP
         image)                  echo "qwen3:8b" ;;          # image-gen companion
-        *)                      echo "qwen36-27b-256k" ;;
+        *)                      echo "qwen36-27b-212k" ;;
     esac
 }
 
@@ -116,7 +116,7 @@ if [[ -z "$task" ]]; then
 
     case "$choice" in
         1) task="coding" ;;
-        2) task="coding"; SELECTED_MODEL="qwen3coder-256k" ;;
+        2) task="coding"; SELECTED_MODEL="qwen3coder-144k" ;;
         3) task="review" ;;
         4) task="general" ;;
         5) task="word" ;;
@@ -124,10 +124,10 @@ if [[ -z "$task" ]]; then
         7) task="docs" ;;
         8) task="image" ;;
         9) task="all" ;;
-        [Hh]1) task="coding"; SELECTED_MODEL="qwen36-27b-256k" ;;
+        [Hh]1) task="coding"; SELECTED_MODEL="qwen36-27b-212k" ;;
         [Hh]2) task="coding"; SELECTED_MODEL="qwen36-35b-256k" ;;
         [Hh]3) task="coding"; SELECTED_MODEL="gemma4-31b-128k" ;;
-        [Hh]4) task="coding"; SELECTED_MODEL="qwen3coder-256k" ;;
+        [Hh]4) task="coding"; SELECTED_MODEL="qwen3coder-144k" ;;
         [Hh]5) task="coding"; SELECTED_MODEL="glm47-flash-198k" ;;
         [Hh]6) task="coding"; SELECTED_MODEL="northmini-code-256k" ;;
         [Hh]7) task="coding"; SELECTED_MODEL="nemotron-c2-256k" ;;
@@ -149,10 +149,10 @@ REVIEW_MODEL="$SELECTED_MODEL"
 # Friendly labels for the launch-identity banner (keyed on the resolved alias; doubles as the
 # human-readable bench roster registry).
 declare -A MODEL_LABEL=(
-    [qwen36-27b-256k]="Qwen3.6 27B (+MTP)"
+    [qwen36-27b-212k]="Qwen3.6 27B (+MTP)"
     [qwen36-35b-256k]="Qwen3.6 35B-A3B MoE"
     [gemma4-31b-128k]="Gemma 4 31B dense"
-    [qwen3coder-256k]="Qwen3-Coder 30B-A3B"
+    [qwen3coder-144k]="Qwen3-Coder 30B-A3B"
     [glm47-flash-198k]="GLM-4.7-Flash"
     [northmini-code-256k]="North Mini Code 1.0"
     [nemotron-c2-256k]="Nemotron Cascade 2 30B-A3B"

@@ -3,8 +3,14 @@
 :: Creates a uv venv on first run, installs dependencies, then starts the server.
 
 setlocal
-set VENV_DIR=%LOCALAPPDATA%\ai-tools\imagegen\.venv
-set REPO_DIR=%LOCALAPPDATA%\ai-tools\imagegen\HiDream-O1-Image
+:: Force UTF-8 stdio so transformers' startup logging (which prints non-ASCII, e.g. emoji)
+:: doesn't crash on the legacy cp1252 Windows console (UnicodeEncodeError).
+set "PYTHONUTF8=1"
+:: Honor AI_TOOLS_DIR (set by the installer when -DataRoot is used); otherwise
+:: fall back to the default %LOCALAPPDATA%\ai-tools location.
+if not defined AI_TOOLS_DIR set "AI_TOOLS_DIR=%LOCALAPPDATA%\ai-tools"
+set "VENV_DIR=%AI_TOOLS_DIR%\imagegen\.venv"
+set "REPO_DIR=%AI_TOOLS_DIR%\imagegen\HiDream-O1-Image"
 set SCRIPT_DIR=%~dp0
 
 :: Check for uv

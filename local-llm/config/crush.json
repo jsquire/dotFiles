@@ -8,7 +8,7 @@
       "models": [
         {
           "name": "Qwen3.6 27B dense (Heavy coding — default)",
-          "id": "qwen36-27b-256k",
+          "id": "qwen36-27b-212k",
           "context_window": 262144,
           "default_max_tokens": 32000,
           "can_reason": true
@@ -29,7 +29,7 @@
         },
         {
           "name": "Qwen3-Coder 30B-A3B (Light coding / review)",
-          "id": "qwen3coder-256k",
+          "id": "qwen3coder-144k",
           "context_window": 262144,
           "default_max_tokens": 32000,
           "can_reason": true
@@ -191,12 +191,12 @@
   },
   "models": {
     "large": {
-      "model": "qwen36-27b-256k",
+      "model": "qwen36-27b-212k",
       "provider": "ollama",
       "max_tokens": 32000
     },
     "small": {
-      "model": "qwen3coder-256k",
+      "model": "qwen3coder-144k",
       "provider": "ollama",
       "max_tokens": 8000
     }
