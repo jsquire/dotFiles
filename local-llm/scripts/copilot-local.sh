@@ -17,8 +17,7 @@ declare -A MODEL_LABEL=(
     [northmini-code-256k]="North Mini Code 1.0"
     [nemotron-c2-256k]="Nemotron Cascade 2 30B-A3B"
     [ornith-35b-256k]="Ornith-1.0-35B"
-    [gptoss-120b-offload]="gpt-oss-120b (offload)"
-    [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (offload)"
+    [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (partial offload)"
     [qwen3:8b]="Qwen3 8B"
 )
 model_label() { echo "${MODEL_LABEL[$1]:-$1}"; }
@@ -58,8 +57,7 @@ echo "  [H6] North Mini Code 1.0    (northmini-code-256k)"
 echo "  [H7] Nemotron Cascade 2 30B (nemotron-c2-256k)"
 echo "  [H8] Ornith-1.0-35B         (ornith-35b-256k)"
 echo
-echo "  --- Big-MoE expert-offload bench (experts->RAM; slower, for models that don't fit) ---"
-echo "  [O1] gpt-oss-120b           (offload, ~65 GB MXFP4)"
+echo "  --- Big-MoE expert-offload bench (experts->RAM; partial offload, slower) ---"
 echo "  [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB)"
 echo
 echo "  --- Remote (CachyOS server — one standing model, switch only when needed) ---"
@@ -106,7 +104,6 @@ case "$choice" in
     4|5) export COPILOT_MODEL="qwen36-27b-212k" ;;
     6) export COPILOT_MODEL="glm47-flash-198k" ;;
     7) export COPILOT_MODEL="qwen3:8b" ;;
-    [oO]1) export COPILOT_MODEL="gptoss-120b-offload"; OFFLOAD_MODE=1 ;;
     [oO]2) export COPILOT_MODEL="qwen3next-80b-offload"; OFFLOAD_MODE=1 ;;
     [Hh]1) export COPILOT_MODEL="qwen36-27b-212k" ;;
     [Hh]2) export COPILOT_MODEL="qwen36-35b-256k" ;;
@@ -172,8 +169,8 @@ elif [[ "$OFFLOAD_MODE" == "1" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     # shellcheck source=offload-serve.sh
     source "$SCRIPT_DIR/offload-serve.sh"
-    echo "  Offload mode: experts -> system RAM (slower; for models that don't fit)"
-    offload_start
+    echo "  Offload mode: experts -> system RAM (partial; slower than VRAM-resident)"
+    offload_start 24
     trap 'offload_stop' EXIT
     export COPILOT_PROVIDER_BASE_URL="http://localhost:11434/v1"
     copilot --model "$COPILOT_MODEL" -- "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"

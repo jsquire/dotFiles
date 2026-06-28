@@ -38,6 +38,17 @@ _offload_wait_api() {
 
 offload_start() {
     local ncpumoe="${1:-0}"
+    local req_free_gb="${2:-15}"
+    # RAM-headroom guard: experts spill to system RAM; abort if not enough free (set OFFLOAD_FORCE=1 to skip).
+    if [[ "${OFFLOAD_FORCE:-0}" != "1" ]]; then
+        local free_gb
+        free_gb=$(awk '/MemAvailable/ {printf "%d", $2/1048576}' /proc/meminfo 2>/dev/null || echo 999)
+        if [[ "$free_gb" -lt "$req_free_gb" ]]; then
+            echo "  [offload] ABORT: only ${free_gb} GB RAM free; need >= ${req_free_gb} GB. Close apps or set OFFLOAD_FORCE=1." >&2
+            return 1
+        fi
+        echo "  [offload] RAM check OK: ${free_gb} GB free (>= ${req_free_gb} GB)."
+    fi
     echo "  [offload] Stopping managed Ollama server..."
     _offload_stop_ollama
 
