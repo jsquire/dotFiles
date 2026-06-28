@@ -160,10 +160,10 @@ if ($Help) {
                          qwen3 8B + the §K/§L additions North Mini Code 1.0, Nemotron
                          Cascade 2 30B-A3B, Ornith-1.0-35B) and their launcher aliases
                          (qwen36-27b-212k/qwen3coder-144k/glm47-flash-198k/northmini-code-256k/
-                         nemotron-c2-256k/ornith-35b-256k/etc.), PLUS the gpt-oss:120b
-                         and Qwen3-Next-80B-A3B (Q4_K_M GGUF) expert-offload benches
-                         (gptoss-120b-offload, qwen3next-80b-offload). ~290 GB. Use with
-                         -ModelPath to put the ~1TB of models off the OS drive.
+                         nemotron-c2-256k/ornith-35b-256k/etc.), PLUS the
+                         Qwen3-Next-80B-A3B (Q4_K_M GGUF) expert-offload bench
+                         (qwen3next-80b-offload). ~225 GB. Use with
+                         -ModelPath to put the models off the OS drive.
     -ModelPath <path>    Custom model storage directory (sets OLLAMA_MODELS env var)
     -DataRoot <path>     Put ALL large AI-stack data off the OS drive under one root:
                          <root>\models (Ollama), <root>\ai-tools (image-gen + MCP
@@ -311,10 +311,6 @@ $ProfileDefinitions = @{
             "hf.co/bartowski/nvidia_Nemotron-Cascade-2-30B-A3B-GGUF:Q4_K_M" = "Nemotron Cascade 2 30B-A3B (NVIDIA) — reasoning/agentic bench (256k ctx), ~23 GB"
             "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M" = "Ornith-1.0-35B (MIT) — agentic-coding reasoning bench (256k ctx), ~20 GB"
             "qwen3:8b"         = "Qwen3 8B Dense — image-gen companion (32k ctx), ~5 GB"
-            # Expert-offload bench (experts pushed to system RAM via LLAMA_ARG_CPU_MOE — see the
-            # launcher's offload mode). gpt-oss:120b is MXFP4-native (~65 GB) and fits the 5090's
-            # 96 GB (32 GB VRAM + 64 GB RAM) with offload; Apache 2.0; ~5.1B active params.
-            "gpt-oss:120b"     = "gpt-oss-120b MoE (MXFP4) — expert-offload bench (experts->RAM), ~65 GB"
             # Qwen3-Next-80B-A3B-Instruct offload bench. The official Ollama tag is 159 GB (full
             # precision) and does NOT fit 96 GB, but the official Qwen GGUF repo publishes a single-file
             # Q4_K_M (~45 GB) that does. Pulled directly via Ollama's HF passthrough; the offload alias
@@ -1200,8 +1196,7 @@ if ($ShouldPullModels) {
                 "qwen3:8b"        = 32768
             }
             if ($TestProfiles) {
-                # Offload bench base (experts -> RAM via the launcher's offload mode).
-                $numCtxSettings["gpt-oss:120b"] = 131072
+                # Offload bench base num_ctx handled per-alias below.
             }
             foreach ($entry in $numCtxSettings.GetEnumerator()) {
                 $tag = $entry.Key
@@ -1246,17 +1241,16 @@ PARAMETER num_ctx $ctx
             }
             if ($TestProfiles) {
                 # -TestProfiles SUPERSET: heavy-coding bench ([H6]-[H8]) + expert-offload bench
-                # ([O1]/[O2]). Native context is larger (North 500k, Nemotron 1M, Ornith 256k) but
+                # ([O2]). Native context is larger (North 500k, Nemotron 1M, Ornith 256k) but
                 # capped at 256k here for a controlled bench + KV sanity on 32 GB VRAM. North Mini Code
                 # is an instruct coder (low temp); Nemotron Cascade 2 and Ornith are reasoning models
                 # (<think>) tuned warmer per their cards. Offload aliases set num_gpu 99 (non-expert
-                # layers on GPU; the launcher's offload mode sets LLAMA_ARG_CPU_MOE=1 to spill experts
+                # layers on GPU; the launcher's offload mode sets LLAMA_ARG_N_CPU_MOE to spill experts
                 # to RAM). Qwen3-Next needs an explicit ChatML TEMPLATE — its GGUF-embedded template
                 # renders to an immediate-EOS empty reply under Ollama's engine (verified on-box).
                 $aliasModels["northmini-code-256k"]   = @{ From = "hf.co/unsloth/North-Mini-Code-1.0-GGUF:UD-Q4_K_M"; Ctx = 262144; Temp = 0.25 }
                 $aliasModels["nemotron-c2-256k"]      = @{ From = "hf.co/bartowski/nvidia_Nemotron-Cascade-2-30B-A3B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
                 $aliasModels["ornith-35b-256k"]       = @{ From = "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
-                $aliasModels["gptoss-120b-offload"]   = @{ From = "gpt-oss:120b"; Ctx = 131072; Temp = 0.25; Gpu = 99 }
                 $aliasModels["qwen3next-80b-offload"] = @{ From = "hf.co/Qwen/Qwen3-Next-80B-A3B-Instruct-GGUF:Q4_K_M"; Ctx = 131072; Temp = 0.25; Gpu = 99; Template = $qwen3nextChatML }
             }
             foreach ($entry in $aliasModels.GetEnumerator()) {

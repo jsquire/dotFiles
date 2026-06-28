@@ -107,8 +107,7 @@ if [[ -z "$task" ]]; then
     echo "  [H7] Nemotron Cascade 2 30B (NVIDIA, reasoning/agentic)"
     echo "  [H8] Ornith-1.0-35B         (MIT, agentic-coding reasoning)"
     echo
-    echo "  --- Big-MoE expert-offload bench (experts->RAM; slower, for models that don't fit) ---"
-    echo "  [O1] gpt-oss-120b           (offload, ~65 GB MXFP4)"
+    echo "  --- Big-MoE expert-offload bench (experts->RAM; partial offload, slower) ---"
     echo "  [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB)"
     echo
     read -rp "  Select profile [1]: " choice
@@ -132,7 +131,6 @@ if [[ -z "$task" ]]; then
         [Hh]6) task="coding"; SELECTED_MODEL="northmini-code-256k" ;;
         [Hh]7) task="coding"; SELECTED_MODEL="nemotron-c2-256k" ;;
         [Hh]8) task="coding"; SELECTED_MODEL="ornith-35b-256k" ;;
-        [Oo]1) task="coding"; SELECTED_MODEL="gptoss-120b-offload";   OFFLOAD_MODE=1 ;;
         [Oo]2) task="coding"; SELECTED_MODEL="qwen3next-80b-offload"; OFFLOAD_MODE=1 ;;
         *)
             echo "  Invalid selection, defaulting to heavy coding."
@@ -157,8 +155,7 @@ declare -A MODEL_LABEL=(
     [northmini-code-256k]="North Mini Code 1.0"
     [nemotron-c2-256k]="Nemotron Cascade 2 30B-A3B"
     [ornith-35b-256k]="Ornith-1.0-35B"
-    [gptoss-120b-offload]="gpt-oss-120b (offload)"
-    [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (offload)"
+    [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (partial offload)"
 )
 MODEL_FRIENDLY="${MODEL_LABEL[$DEFAULT_MODEL]:-$DEFAULT_MODEL}"
 echo
@@ -272,8 +269,8 @@ if [[ "$OFFLOAD_MODE" == "1" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     # shellcheck source=offload-serve.sh
     source "$SCRIPT_DIR/offload-serve.sh"
-    echo "  Offload mode: experts -> system RAM (slower; for models that don't fit)"
-    offload_start
+    echo "  Offload mode: experts -> system RAM (partial; slower than VRAM-resident)"
+    offload_start 24
     trap 'offload_stop' EXIT
     crush
 else
