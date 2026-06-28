@@ -5,7 +5,7 @@
 .DESCRIPTION
     Expert CPU offload (llama.cpp's --cpu-moe / LLAMA_ARG_CPU_MOE) pushes a MoE model's
     expert FFN weights to system RAM while attention/shared tensors + KV cache stay on the
-    GPU. This lets the box run models that do NOT fit fully in VRAM (e.g. gpt-oss-120b),
+    GPU. This lets the box run models that do NOT fit fully in VRAM (e.g. Qwen3-Next-80B),
     and frees VRAM for larger context, at a generation-speed cost.
 
     The env var is GLOBAL to an `ollama serve` process, so it must NOT be set on the

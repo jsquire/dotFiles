@@ -107,8 +107,7 @@ if (-not $Task) {
     Write-Host "  [H7] Nemotron Cascade 2 30B (NVIDIA, reasoning/agentic)"
     Write-Host "  [H8] Ornith-1.0-35B         (MIT, agentic-coding reasoning)"
     Write-Host ""
-    Write-Host "  --- Big-MoE expert-offload bench (experts->RAM; slower, for models that don't fit) ---"
-    Write-Host "  [O1] gpt-oss-120b           (offload, ~65 GB MXFP4)"
+    Write-Host "  --- Big-MoE expert-offload bench (experts->RAM; partial offload, slower) ---"
     Write-Host "  [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB)"
     Write-Host ""
     $choice = Read-Host "  Select profile [1]"
@@ -132,7 +131,6 @@ if (-not $Task) {
         "H6" { $Task = "coding"; $SelectedModel = "northmini-code-256k" }
         "H7" { $Task = "coding"; $SelectedModel = "nemotron-c2-256k" }
         "H8" { $Task = "coding"; $SelectedModel = "ornith-35b-256k" }
-        "O1" { $Task = "coding"; $SelectedModel = "gptoss-120b-offload";   $OffloadMode = $true }
         "O2" { $Task = "coding"; $SelectedModel = "qwen3next-80b-offload"; $OffloadMode = $true }
         default {
             Write-Host "  Invalid selection, defaulting to heavy coding."
@@ -152,8 +150,7 @@ $ModelLabel = @{
     "northmini-code-256k"   = "North Mini Code 1.0"
     "nemotron-c2-256k"      = "Nemotron Cascade 2 30B-A3B"
     "ornith-35b-256k"       = "Ornith-1.0-35B"
-    "gptoss-120b-offload"   = "gpt-oss-120b (offload)"
-    "qwen3next-80b-offload" = "Qwen3-Next-80B-A3B (offload)"
+    "qwen3next-80b-offload" = "Qwen3-Next-80B-A3B (partial offload)"
 }
 
 # Resolve the model: explicit -Model wins, then picker selection, then per-task default.
@@ -325,10 +322,10 @@ Write-Host ""
 if ($OffloadMode) {
     # Big-MoE offload mode: run a dedicated Ollama serve with expert CPU-offload, then
     # restore the managed server when Crush exits. The model alias already carries
-    # num_gpu 99; offload-serve.ps1 sets LLAMA_ARG_CPU_MOE so experts spill to RAM.
+    # num_gpu 99; offload-serve.ps1 sets LLAMA_ARG_N_CPU_MOE so experts spill to RAM.
     $offloadScript = Join-Path $PSScriptRoot "offload-serve.ps1"
-    Write-Host "  Offload mode: experts -> system RAM (slower; for models that don't fit)" -ForegroundColor DarkYellow
-    & $offloadScript -Action start
+    Write-Host "  Offload mode: experts -> system RAM (partial; slower than VRAM-resident)" -ForegroundColor DarkYellow
+    & $offloadScript -Action start -NCpuMoe 24
     try {
         crush
     } finally {

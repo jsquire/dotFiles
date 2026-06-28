@@ -496,13 +496,18 @@ speed. This raises the model-size ceiling and frees VRAM for larger context.
   token); steady-state generation stays in the ~25–40 tok/s band for low-active-param MoEs.
 
 ### How to use it (launchers + installer)
-- **Installer:** `install-windows.ps1 -TestProfiles` pulls `gpt-oss:120b` and the official
-  Qwen3-Next-80B-A3B-Instruct `Q4_K_M` GGUF (`hf.co/Qwen/...`), and creates the `gptoss-120b-offload`
-  and `qwen3next-80b-offload` aliases (`num_gpu 99`, low temp). Use `-ModelPath` to keep the ~1TB off
+> **UPDATE 2026-06-28 — `[O1]` gpt-oss-120b DROPPED.** Post-deploy calibration showed it can't run
+> concurrent with a real IDE on the 64 GB box (~35 GB experts→RAM even at partial offload), so the weights
+> were removed and `[O1]` was pulled from all launchers + the installer. The offload roster is now **`[O2]`
+> Qwen3-Next-80B-A3B only** (partial offload `-NCpuMoe 24`, ~66 tok/s, ~5.7 GB VRAM headroom). The text
+> below is historical.
+- **Installer:** `install-windows.ps1 -TestProfiles` pulls the official
+  Qwen3-Next-80B-A3B-Instruct `Q4_K_M` GGUF (`hf.co/Qwen/...`) and creates the
+  `qwen3next-80b-offload` alias (`num_gpu 99`, low temp). Use `-ModelPath` to keep models off
   the OS drive.
-- **Launchers:** `crush-task` / `copilot-local` expose offload-bench entries **`[O1]` gpt-oss-120b**
-  and **`[O2]` Qwen3-Next-80B-A3B**. Selecting one runs `scripts/offload-serve.{ps1,sh} -Action
-  start` (stops the managed server, starts a dedicated `ollama serve` with `LLAMA_ARG_CPU_MOE=1`
+- **Launchers:** `crush-task` / `copilot-local` expose offload-bench entry **`[O2]` Qwen3-Next-80B-A3B**.
+  Selecting it runs `scripts/offload-serve.{ps1,sh} -Action start -NCpuMoe 24` (stops the managed server,
+  starts a dedicated `ollama serve` with `LLAMA_ARG_N_CPU_MOE=24`
   + `GGML_CUDA_NO_PINNED=1`), launches the tool, then `-Action stop` restores the managed server.
 - **Why a dedicated serve:** `LLAMA_ARG_CPU_MOE` is GLOBAL to a serve process, so it must never be
   set on the everyday server (it would slow every model that fits). The offload mode is opt-in only.
@@ -558,10 +563,11 @@ that were already weak. Bigger raw parameter count does **not** rescue a 2-bit m
   `[O1]` gpt-oss-120b and the 4-bit `[O2]` Qwen3-Next-80B for real coding — not worth ~155 GB of storage,
   install complexity, or bench time.
 
-**Conclusion:** The offload roster stays at **`[O1]` gpt-oss-120b (native MXFP4)** and **`[O2]`
-Qwen3-Next-80B-A3B (Q4_K_M)** — the two largest models that fit at quality precision (≥4-bit / native).
-Nothing closer to Kimi K2.7 fits the 5090 without dropping to 2-bit, which is rejected on quality grounds.
-**No new launcher/installer profiles.**
+**Conclusion (2026-06-13, superseded 2026-06-28):** the offload roster was chosen as **`[O1]` gpt-oss-120b
+(native MXFP4)** and **`[O2]` Qwen3-Next-80B-A3B (Q4_K_M)**. **`[O1]` was later DROPPED** (2026-06-28) — it
+can't run alongside a real IDE on 64 GB even with partial offload — leaving **`[O2]` Qwen3-Next-80B-A3B as
+the sole offload bench**. Nothing closer to Kimi K2.7 fits the 5090 without dropping to 2-bit (rejected on
+quality). **No new launcher/installer profiles.**
 
 > *Caveat — sourcing:* the **GGUF sizes above are authoritative** (HF API). Coding/SWE-bench numbers seen
 > in web search for these models (e.g. GLM-4.7 ~85.7, Qwen3-235B ~81.1, gpt-oss-120b ~80.9) are
