@@ -32,8 +32,8 @@ $ReviewModel  = "qwen3coder-65k"
 
 # 5090 model assignments per task profile
 $ModelByTask = @{
-    coding  = "qwen36-27b-256k"   # heavy coding default (Qwen3.6-27B dense)
-    review  = "qwen3coder-256k"   # Qwen3-Coder 30B-A3B
+    coding  = "qwen36-27b-212k"   # heavy coding default (Qwen3.6-27B dense)
+    review  = "qwen3coder-144k"   # Qwen3-Coder 30B-A3B
     general = "glm47-flash-198k"  # GLM-4.7-Flash for all tool/MCP profiles
     word    = "glm47-flash-198k"
     pptx    = "glm47-flash-198k"
@@ -116,7 +116,7 @@ if (-not $Task) {
 
     switch ($choice.ToUpper()) {
         "1"  { $Task = "coding" }
-        "2"  { $Task = "coding"; $SelectedModel = "qwen3coder-256k" }
+        "2"  { $Task = "coding"; $SelectedModel = "qwen3coder-144k" }
         "3"  { $Task = "review" }
         "4"  { $Task = "general" }
         "5"  { $Task = "word" }
@@ -124,10 +124,10 @@ if (-not $Task) {
         "7"  { $Task = "docs" }
         "8"  { $Task = "image" }
         "9"  { $Task = "all" }
-        "H1" { $Task = "coding"; $SelectedModel = "qwen36-27b-256k" }
+        "H1" { $Task = "coding"; $SelectedModel = "qwen36-27b-212k" }
         "H2" { $Task = "coding"; $SelectedModel = "qwen36-35b-256k" }
         "H3" { $Task = "coding"; $SelectedModel = "gemma4-31b-128k" }
-        "H4" { $Task = "coding"; $SelectedModel = "qwen3coder-256k" }
+        "H4" { $Task = "coding"; $SelectedModel = "qwen3coder-144k" }
         "H5" { $Task = "coding"; $SelectedModel = "glm47-flash-198k" }
         "H6" { $Task = "coding"; $SelectedModel = "northmini-code-256k" }
         "H7" { $Task = "coding"; $SelectedModel = "nemotron-c2-256k" }
@@ -144,10 +144,10 @@ if (-not $Task) {
 # Friendly labels for the launch-identity banner (keyed on the resolved alias; doubles as the
 # human-readable bench roster registry).
 $ModelLabel = @{
-    "qwen36-27b-256k"       = "Qwen3.6 27B (+MTP)"
+    "qwen36-27b-212k"       = "Qwen3.6 27B (+MTP)"
     "qwen36-35b-256k"       = "Qwen3.6 35B-A3B MoE"
     "gemma4-31b-128k"       = "Gemma 4 31B dense"
-    "qwen3coder-256k"       = "Qwen3-Coder 30B-A3B"
+    "qwen3coder-144k"       = "Qwen3-Coder 30B-A3B"
     "glm47-flash-198k"      = "GLM-4.7-Flash"
     "northmini-code-256k"   = "North Mini Code 1.0"
     "nemotron-c2-256k"      = "Nemotron Cascade 2 30B-A3B"

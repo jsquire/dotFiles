@@ -33,6 +33,13 @@
     Keep Crush configuration files (~/.crush). Preserves your model aliases,
     MCP server definitions, and provider settings.
 
+.PARAMETER DataRoot
+    Off-OS-drive root where the installer placed AI-stack data (image-gen venv,
+    MCP venvs, HuggingFace cache), e.g. v:\ollama. If omitted, the AI_TOOLS_DIR /
+    HF_HOME user environment variables set by the installer are used to locate the
+    data automatically, falling back to the default %LOCALAPPDATA%\ai-tools and
+    %USERPROFILE%\.cache\huggingface locations.
+
 .PARAMETER Force
     Skip all confirmation prompts.
 
@@ -59,6 +66,7 @@ param(
     [string]$Mode = "Full",
     [switch]$KeepModels,
     [switch]$KeepConfig,
+    [string]$DataRoot,
     [switch]$Force
 )
 
@@ -69,7 +77,19 @@ $ErrorActionPreference = "Stop"
 
 $LocalAppData   = $env:LOCALAPPDATA
 $UserProfile    = $env:USERPROFILE
-$AiToolsDir     = Join-Path $LocalAppData "ai-tools"
+
+# AI-stack data root: prefer an explicit -DataRoot, else the AI_TOOLS_DIR / HF_HOME
+# env vars the installer set (so relocated data is found automatically), else the
+# default on-OS-drive locations.
+if (-not [string]::IsNullOrWhiteSpace($DataRoot)) {
+    $AiToolsDir = Join-Path $DataRoot "ai-tools"
+    $HFCacheDir = Join-Path $DataRoot "hf-cache"
+} else {
+    $envAiTools = [Environment]::GetEnvironmentVariable("AI_TOOLS_DIR", "User")
+    $envHfHome  = [Environment]::GetEnvironmentVariable("HF_HOME", "User")
+    $AiToolsDir = if ($envAiTools) { $envAiTools } else { Join-Path $LocalAppData "ai-tools" }
+    $HFCacheDir = if ($envHfHome)  { $envHfHome }  else { Join-Path $UserProfile ".cache\huggingface" }
+}
 $UvDir          = Join-Path $LocalAppData "uv"
 $OllamaDir      = Join-Path $UserProfile ".ollama"
 $CrushDir       = Join-Path $UserProfile ".crush"
@@ -170,10 +190,13 @@ Write-Host "    • Crush CLI agent (winget uninstall)" -ForegroundColor Gray
 if (-not $KeepConfig) {
     Write-Host "    • Crush configuration in $CrushDir" -ForegroundColor Gray
 }
-Write-Host "    • MCP server venvs in $AiToolsDir" -ForegroundColor Gray
+Write-Host "    • AI tools (image-gen + MCP venvs) in $AiToolsDir" -ForegroundColor Gray
+if (-not $KeepModels) {
+    Write-Host "    • HuggingFace model cache in $HFCacheDir" -ForegroundColor Gray
+}
 Write-Host "    • uv + uv-managed Python (winget uninstall + data)" -ForegroundColor Gray
 if ($IsFullMode) {
-    Write-Host "    • Ollama environment variables (OLLAMA_HOST, OLLAMA_KEEP_ALIVE, OLLAMA_MODELS)" -ForegroundColor Gray
+    Write-Host "    • Ollama + AI-stack environment variables (OLLAMA_*, AI_TOOLS_DIR, HF_HOME)" -ForegroundColor Gray
     Write-Host "    • Ollama backup registry entry cleanup" -ForegroundColor Gray
 }
 Write-Host ""
@@ -269,11 +292,19 @@ if (-not $KeepConfig) {
     Remove-SafeItem -Path $CrushDir -Description "Crush configuration"
 }
 
-# ── Step 5: Remove MCP server venvs ─────────────────────────────────────────
+# ── Step 5: Remove AI tools (image-gen + MCP venvs) ─────────────────────────
 
-Write-Step "Remove MCP server environments"
+Write-Step "Remove AI tools (image-gen repo/venv + MCP venvs)"
 
-Remove-SafeItem -Path $AiToolsDir -Description "MCP server venvs"
+Remove-SafeItem -Path $AiToolsDir -Description "AI tools (image-gen + MCP venvs)"
+
+# HuggingFace model cache (image-gen weights, ~35 GB) — treat like models, so it is
+# only removed on a full uninstall (kept with -KeepModels).
+if (-not $KeepModels) {
+    Remove-SafeItem -Path $HFCacheDir -Description "HuggingFace model cache"
+} else {
+    Write-Info "Keeping HuggingFace model cache at $HFCacheDir (use without -KeepModels to remove)."
+}
 
 # ── Step 6: Remove uv and uv-managed Python ─────────────────────────────────
 
@@ -305,7 +336,7 @@ Write-Info "No manual PATH cleanup required."
 if ($IsFullMode) {
     Write-Step "Remove Ollama environment variables"
 
-    $envVarsToRemove = @("OLLAMA_HOST", "OLLAMA_KEEP_ALIVE", "OLLAMA_MODELS", "OLLAMA_FLASH_ATTENTION", "OLLAMA_KV_CACHE_TYPE")
+    $envVarsToRemove = @("OLLAMA_HOST", "OLLAMA_KEEP_ALIVE", "OLLAMA_MODELS", "OLLAMA_FLASH_ATTENTION", "OLLAMA_KV_CACHE_TYPE", "AI_TOOLS_DIR", "HF_HOME")
     foreach ($varName in $envVarsToRemove) {
         $current = [Environment]::GetEnvironmentVariable($varName, "User")
         if ($null -ne $current) {
@@ -385,7 +416,10 @@ Write-Host "    • Crush (winget package)" -ForegroundColor Gray
 if (-not $KeepConfig) {
     Write-Host "    • Crush configuration" -ForegroundColor Gray
 }
-Write-Host "    • MCP server venvs" -ForegroundColor Gray
+Write-Host "    • AI tools (image-gen + MCP venvs)" -ForegroundColor Gray
+if (-not $KeepModels) {
+    Write-Host "    • HuggingFace model cache" -ForegroundColor Gray
+}
 Write-Host "    • uv + managed Python (winget package + data)" -ForegroundColor Gray
 if ($IsFullMode) {
     Write-Host "    • Ollama environment variables" -ForegroundColor Gray

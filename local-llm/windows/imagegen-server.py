@@ -27,8 +27,11 @@ import uvicorn
 
 logger = logging.getLogger("imagegen")
 
-# Add HiDream repo to path for custom model imports
-HIDREAM_REPO = os.path.join(os.environ.get("LOCALAPPDATA", ""), "ai-tools", "imagegen", "HiDream-O1-Image")
+# Add HiDream repo to path for custom model imports.
+# Honor AI_TOOLS_DIR (set by the installer when -DataRoot is used); fall back to
+# the default %LOCALAPPDATA%/ai-tools location for backward compatibility.
+_ai_tools = os.environ.get("AI_TOOLS_DIR") or os.path.join(os.environ.get("LOCALAPPDATA", ""), "ai-tools")
+HIDREAM_REPO = os.path.join(_ai_tools, "imagegen", "HiDream-O1-Image")
 if not os.path.isdir(HIDREAM_REPO):
     HIDREAM_REPO = os.path.join(os.path.dirname(__file__), "HiDream-O1-Image")
 sys.path.insert(0, HIDREAM_REPO)

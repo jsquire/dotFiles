@@ -9,8 +9,15 @@ $env:COPILOT_PROVIDER_MAX_PROMPT_TOKENS = "6000"
 $env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS = "2000"
 $env:COPILOT_MODEL = $Model
 
-$py     = "$env:LOCALAPPDATA\ai-tools\imagegen\.venv\Scripts\python.exe"
-$script = "$env:LOCALAPPDATA\ai-tools\imagegen\imagegen-server.py"
+# Force UTF-8 stdio for the imagegen server child (inherited via UseShellExecute=$false)
+# so transformers' startup logging of non-ASCII chars doesn't crash on a cp1252 console.
+$env:PYTHONUTF8 = "1"
+
+# Honor AI_TOOLS_DIR (set by the installer when -DataRoot is used); fall back to
+# the default %LOCALAPPDATA%\ai-tools location for backward compatibility.
+$aiToolsDir = if ($env:AI_TOOLS_DIR) { $env:AI_TOOLS_DIR } else { "$env:LOCALAPPDATA\ai-tools" }
+$py     = "$aiToolsDir\imagegen\.venv\Scripts\python.exe"
+$script = "$aiToolsDir\imagegen\imagegen-server.py"
 
 if (-not (Test-Path $py)) {
     Write-Host "  ERROR: Python venv not found at $py"

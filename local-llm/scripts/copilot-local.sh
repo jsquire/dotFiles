@@ -9,10 +9,10 @@ export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=16384
 # correct for every path (picker slot, direct first-arg, or default fallback). Doubles as the
 # human-readable registry of the bench roster.
 declare -A MODEL_LABEL=(
-    [qwen36-27b-256k]="Qwen3.6 27B (+MTP)"
+    [qwen36-27b-212k]="Qwen3.6 27B (+MTP)"
     [qwen36-35b-256k]="Qwen3.6 35B-A3B MoE"
     [gemma4-31b-128k]="Gemma 4 31B dense"
-    [qwen3coder-256k]="Qwen3-Coder 30B-A3B"
+    [qwen3coder-144k]="Qwen3-Coder 30B-A3B"
     [glm47-flash-198k]="GLM-4.7-Flash"
     [northmini-code-256k]="North Mini Code 1.0"
     [nemotron-c2-256k]="Nemotron Cascade 2 30B-A3B"
@@ -28,19 +28,20 @@ if [[ "${1:-}" == *":"* ]]; then
     COPILOT_MODEL="$1"
     shift
     echo "  ▶ $(model_label "$COPILOT_MODEL")  ·  alias=$COPILOT_MODEL"
-    exec ollama launch copilot --model "$COPILOT_MODEL" --yes -- "$@"
+    export COPILOT_PROVIDER_BASE_URL="http://localhost:11434/v1"
+    exec copilot --model "$COPILOT_MODEL" -- "$@"
 fi
 
 # No model specified — show picker
 echo
 echo "  --- Coding ---"
-echo "  [1] Heavy coding        (qwen36-27b-256k)"
-echo "  [2] Light coding        (qwen3coder-256k)"
-echo "  [3] Code review         (qwen3coder-256k)"
+echo "  [1] Heavy coding        (qwen36-27b-212k)"
+echo "  [2] Light coding        (qwen3coder-144k)"
+echo "  [3] Code review         (qwen3coder-144k)"
 echo
 echo "  --- Writing & Documents ---"
-echo "  [4] Technical docs      (qwen36-27b-256k)"
-echo "  [5] Creative writing    (qwen36-27b-256k)"
+echo "  [4] Technical docs      (qwen36-27b-212k)"
+echo "  [5] Creative writing    (qwen36-27b-212k)"
 echo "  [6] Office documents    (glm47-flash-198k)"
 echo
 echo "  --- Visual ---"
@@ -48,10 +49,10 @@ echo "  [7] Image generation    (qwen3:8b + HiDream via MCP)"
 echo
 echo "  ══ EXPERIMENTAL · models under evaluation ════════════════"
 echo "  --- Heavy-coding bench (VRAM-resident; swap model, all MCP off) ---"
-echo "  [H1] Qwen3.6 27B+MTP        (qwen36-27b-256k)"
+echo "  [H1] Qwen3.6 27B+MTP        (qwen36-27b-212k)"
 echo "  [H2] Qwen3.6 35B-A3B MoE    (qwen36-35b-256k)"
 echo "  [H3] Gemma 4 31B dense      (gemma4-31b-128k)"
-echo "  [H4] Qwen3-Coder 30B-A3B    (qwen3coder-256k)"
+echo "  [H4] Qwen3-Coder 30B-A3B    (qwen3coder-144k)"
 echo "  [H5] GLM-4.7-Flash          (glm47-flash-198k)"
 echo "  [H6] North Mini Code 1.0    (northmini-code-256k)"
 echo "  [H7] Nemotron Cascade 2 30B (nemotron-c2-256k)"
@@ -99,18 +100,18 @@ case "$choice" in
 esac
 
 case "$choice" in
-    1) export COPILOT_MODEL="qwen36-27b-256k" ;;
-    2) export COPILOT_MODEL="qwen3coder-256k" ;;
-    3) export COPILOT_MODEL="qwen3coder-256k" ;;
-    4|5) export COPILOT_MODEL="qwen36-27b-256k" ;;
+    1) export COPILOT_MODEL="qwen36-27b-212k" ;;
+    2) export COPILOT_MODEL="qwen3coder-144k" ;;
+    3) export COPILOT_MODEL="qwen3coder-144k" ;;
+    4|5) export COPILOT_MODEL="qwen36-27b-212k" ;;
     6) export COPILOT_MODEL="glm47-flash-198k" ;;
     7) export COPILOT_MODEL="qwen3:8b" ;;
     [oO]1) export COPILOT_MODEL="gptoss-120b-offload"; OFFLOAD_MODE=1 ;;
     [oO]2) export COPILOT_MODEL="qwen3next-80b-offload"; OFFLOAD_MODE=1 ;;
-    [Hh]1) export COPILOT_MODEL="qwen36-27b-256k" ;;
+    [Hh]1) export COPILOT_MODEL="qwen36-27b-212k" ;;
     [Hh]2) export COPILOT_MODEL="qwen36-35b-256k" ;;
     [Hh]3) export COPILOT_MODEL="gemma4-31b-128k" ;;
-    [Hh]4) export COPILOT_MODEL="qwen3coder-256k" ;;
+    [Hh]4) export COPILOT_MODEL="qwen3coder-144k" ;;
     [Hh]5) export COPILOT_MODEL="glm47-flash-198k" ;;
     [Hh]6) export COPILOT_MODEL="northmini-code-256k" ;;
     [Hh]7) export COPILOT_MODEL="nemotron-c2-256k" ;;
@@ -135,7 +136,7 @@ case "$choice" in
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
         export COPILOT_MODEL="qwen3-4b"
         ;;
-    *) echo "  Invalid. Using qwen36-27b-256k"; export COPILOT_MODEL="qwen36-27b-256k" ;;
+    *) echo "  Invalid. Using qwen36-27b-212k"; export COPILOT_MODEL="qwen36-27b-212k" ;;
 esac
 
 # Git safety: block git write operations
@@ -174,7 +175,9 @@ elif [[ "$OFFLOAD_MODE" == "1" ]]; then
     echo "  Offload mode: experts -> system RAM (slower; for models that don't fit)"
     offload_start
     trap 'offload_stop' EXIT
-    ollama launch copilot --model "$COPILOT_MODEL" --yes -- "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
+    export COPILOT_PROVIDER_BASE_URL="http://localhost:11434/v1"
+    copilot --model "$COPILOT_MODEL" -- "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
 else
-    exec ollama launch copilot --model "$COPILOT_MODEL" --yes -- "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
+    export COPILOT_PROVIDER_BASE_URL="http://localhost:11434/v1"
+    exec copilot --model "$COPILOT_MODEL" -- "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
 fi

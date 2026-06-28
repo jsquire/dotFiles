@@ -30,6 +30,11 @@ VLLM_DEFAULT_MODEL="QuantTrio/GLM-4.7-Flash-AWQ"
 VLLM_DEFAULT_SERVED_NAME="glm-4.7-flash"
 VLLM_DEFAULT_QUANT="awq"
 
+# Squire Server (CachyOS vLLM) hooks for the deployed copilot-local launcher.
+# SQUIRE_SERVER_IP empty = auto-derive (client host, else this box's LAN IP).
+SQUIRE_SERVER_IP=""
+SQUIRE_SSH_TARGET="jesse@192.168.1.99"
+
 STEP_NUMBER=0
 FAILURES=()
 WARNINGS=()
@@ -66,6 +71,9 @@ Options:
   --model-path <path>          Custom Ollama model directory (sets OLLAMA_MODELS; full mode only)
   --lan-cidr <cidr>            Override LAN CIDR for firewall (auto-detected if omitted)
                                Examples: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+  --squire-server-ip <ip>      IP/host of the CachyOS vLLM server for the copilot-local
+                               Remote options (default: auto-derived; client host or this box)
+  --squire-ssh-target <t>      SSH target for 'cachyos-switch-model' (default: jesse@192.168.1.99)
   --skip-models                Skip model downloads
   --models-only                Only download models; skip software installation
   --help                       Show this help text
@@ -405,6 +413,16 @@ parse_args() {
             --lan-cidr)
                 [[ $# -lt 2 ]] && { fail "--lan-cidr requires a CIDR value (e.g. 10.0.0.0/8)."; usage; exit 1; }
                 LAN_CIDR="$2"
+                shift 2
+                ;;
+            --squire-server-ip)
+                [[ $# -lt 2 ]] && { fail "--squire-server-ip requires a value."; usage; exit 1; }
+                SQUIRE_SERVER_IP="$2"
+                shift 2
+                ;;
+            --squire-ssh-target)
+                [[ $# -lt 2 ]] && { fail "--squire-ssh-target requires a value."; usage; exit 1; }
+                SQUIRE_SSH_TARGET="$2"
                 shift 2
                 ;;
             --skip-models)
@@ -1039,6 +1057,8 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
                 # Extract host from the provided URL
                 vllm_ip="$(echo "$OLLAMA_HOST_ARG" | sed -E 's|https?://||;s|:[0-9]+.*||')"
             fi
+            # Explicit --squire-server-ip overrides the auto-derived value.
+            [[ -n "$SQUIRE_SERVER_IP" ]] && vllm_ip="$SQUIRE_SERVER_IP"
             # Determine imagegen host — same as vLLM for server/client modes, localhost for standalone
             local imagegen_host="127.0.0.1"
             [[ "$vllm_ip" != "127.0.0.1" ]] && imagegen_host="$vllm_ip"
@@ -1101,8 +1121,22 @@ with open('$crush_config_dest', 'w') as f:
 
     if [[ -f "$launcher_source" ]]; then
         mkdir -p "${HOME}/.local/bin"
-        install -m 0755 "$launcher_source" "$launcher_dest"
-        success "Deployed copilot-local to $launcher_dest"
+        # Resolve the Squire Server IP: explicit override, else client host, else this box's LAN IP.
+        local squire_ip="$SQUIRE_SERVER_IP"
+        if [[ -z "$squire_ip" ]]; then
+            if [[ "${IS_CLIENT_MODE:-false}" == true && -n "$OLLAMA_HOST_ARG" ]]; then
+                squire_ip="$(echo "$OLLAMA_HOST_ARG" | sed -E 's|https?://||;s|:[0-9]+.*||')"
+            else
+                squire_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' || echo '127.0.0.1')"
+            fi
+            [[ -z "$squire_ip" ]] && squire_ip="127.0.0.1"
+        fi
+        # Substitute the Squire Server placeholders so the Remote [S]/[C]/[V]/[I] options work.
+        sed -e "s|__SQUIRE_SERVER_IP__|${squire_ip}|g" \
+            -e "s|__SQUIRE_SSH_TARGET__|${SQUIRE_SSH_TARGET}|g" \
+            "$launcher_source" > "$launcher_dest"
+        chmod 0755 "$launcher_dest"
+        success "Deployed copilot-local to $launcher_dest (server $squire_ip, ssh $SQUIRE_SSH_TARGET)"
         info "Usage: copilot-local (from any directory)"
     else
         warn "Launcher script not found at $launcher_source — skipping."

@@ -49,7 +49,10 @@ def _is_local() -> bool:
 
 
 def _get_ai_tools_dir() -> Path:
-    """Get the platform-appropriate ai-tools directory."""
+    """Get the ai-tools directory (AI_TOOLS_DIR env override, else platform default)."""
+    env_dir = os.environ.get("AI_TOOLS_DIR")
+    if env_dir:
+        return Path(env_dir)
     if sys.platform == "win32":
         return Path(os.environ.get("LOCALAPPDATA", "")) / "ai-tools"
     return Path.home() / ".local" / "share" / "ai-tools"

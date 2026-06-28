@@ -17,13 +17,13 @@ if not "%~1"=="" (
 :: No model specified — show picker
 echo.
 echo   --- Coding ---
-echo   [1] Heavy coding        (qwen36-27b-256k^)
-echo   [2] Light coding        (qwen3coder-256k^)
-echo   [3] Code review         (qwen3coder-256k^)
+echo   [1] Heavy coding        (qwen36-27b-212k^)
+echo   [2] Light coding        (qwen3coder-144k^)
+echo   [3] Code review         (qwen3coder-144k^)
 echo.
 echo   --- Writing ^& Documents ---
-echo   [4] Technical docs      (qwen36-27b-256k^)
-echo   [5] Creative writing    (qwen36-27b-256k^)
+echo   [4] Technical docs      (qwen36-27b-212k^)
+echo   [5] Creative writing    (qwen36-27b-212k^)
 echo   [6] Office documents    (glm47-flash-198k^)
 echo.
 echo   --- Visual ---
@@ -31,10 +31,10 @@ echo   [7] Image generation    (qwen3:8b + HiDream via MCP^)
 echo.
 echo   == EXPERIMENTAL - models under evaluation ==
 echo   --- Heavy-coding bench (VRAM-resident; swap model, all MCP off^) ---
-echo   [H1] Qwen3.6 27B+MTP        (qwen36-27b-256k^)
+echo   [H1] Qwen3.6 27B+MTP        (qwen36-27b-212k^)
 echo   [H2] Qwen3.6 35B-A3B MoE    (qwen36-35b-256k^)
 echo   [H3] Gemma 4 31B dense      (gemma4-31b-128k^)
-echo   [H4] Qwen3-Coder 30B-A3B    (qwen3coder-256k^)
+echo   [H4] Qwen3-Coder 30B-A3B    (qwen3coder-144k^)
 echo   [H5] GLM-4.7-Flash          (glm47-flash-198k^)
 echo   [H6] North Mini Code 1.0    (northmini-code-256k^)
 echo   [H7] Nemotron Cascade 2 30B (nemotron-c2-256k^)
@@ -54,17 +54,17 @@ set /p choice="  Select task [1]: "
 
 if "%choice%"=="" set choice=1
 
-if "%choice%"=="1" set COPILOT_MODEL=qwen36-27b-256k
-if "%choice%"=="2" set COPILOT_MODEL=qwen3coder-256k
-if "%choice%"=="3" set COPILOT_MODEL=qwen3coder-256k
-if "%choice%"=="4" set COPILOT_MODEL=qwen36-27b-256k
-if "%choice%"=="5" set COPILOT_MODEL=qwen36-27b-256k
+if "%choice%"=="1" set COPILOT_MODEL=qwen36-27b-212k
+if "%choice%"=="2" set COPILOT_MODEL=qwen3coder-144k
+if "%choice%"=="3" set COPILOT_MODEL=qwen3coder-144k
+if "%choice%"=="4" set COPILOT_MODEL=qwen36-27b-212k
+if "%choice%"=="5" set COPILOT_MODEL=qwen36-27b-212k
 if "%choice%"=="6" set COPILOT_MODEL=glm47-flash-198k
 if "%choice%"=="7" set COPILOT_MODEL=qwen3:8b
-if /i "%choice%"=="H1" set COPILOT_MODEL=qwen36-27b-256k
+if /i "%choice%"=="H1" set COPILOT_MODEL=qwen36-27b-212k
 if /i "%choice%"=="H2" set COPILOT_MODEL=qwen36-35b-256k
 if /i "%choice%"=="H3" set COPILOT_MODEL=gemma4-31b-128k
-if /i "%choice%"=="H4" set COPILOT_MODEL=qwen3coder-256k
+if /i "%choice%"=="H4" set COPILOT_MODEL=qwen3coder-144k
 if /i "%choice%"=="H5" set COPILOT_MODEL=glm47-flash-198k
 if /i "%choice%"=="H6" set COPILOT_MODEL=northmini-code-256k
 if /i "%choice%"=="H7" set COPILOT_MODEL=nemotron-c2-256k
@@ -118,7 +118,7 @@ if /i "%choice%"=="I" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-
 
 if not defined COPILOT_MODEL (
     echo   Invalid selection.
-    set COPILOT_MODEL=qwen36-27b-256k
+    set COPILOT_MODEL=qwen36-27b-212k
 )
 
 :: Git safety: block git write operations
@@ -131,10 +131,10 @@ if "%choice%"=="6" set EXTRA_FLAGS=--custom-instructions "D:\personal\dotFiles\l
 :launch
 :: Friendly label for the launch-identity banner (keyed on the resolved model alias).
 set "MODEL_LABEL=%COPILOT_MODEL%"
-if /i "%COPILOT_MODEL%"=="qwen36-27b-256k"       set "MODEL_LABEL=Qwen3.6 27B (+MTP)"
+if /i "%COPILOT_MODEL%"=="qwen36-27b-212k"       set "MODEL_LABEL=Qwen3.6 27B (+MTP)"
 if /i "%COPILOT_MODEL%"=="qwen36-35b-256k"       set "MODEL_LABEL=Qwen3.6 35B-A3B MoE"
 if /i "%COPILOT_MODEL%"=="gemma4-31b-128k"       set "MODEL_LABEL=Gemma 4 31B dense"
-if /i "%COPILOT_MODEL%"=="qwen3coder-256k"       set "MODEL_LABEL=Qwen3-Coder 30B-A3B"
+if /i "%COPILOT_MODEL%"=="qwen3coder-144k"       set "MODEL_LABEL=Qwen3-Coder 30B-A3B"
 if /i "%COPILOT_MODEL%"=="glm47-flash-198k"      set "MODEL_LABEL=GLM-4.7-Flash"
 if /i "%COPILOT_MODEL%"=="northmini-code-256k"   set "MODEL_LABEL=North Mini Code 1.0"
 if /i "%COPILOT_MODEL%"=="nemotron-c2-256k"      set "MODEL_LABEL=Nemotron Cascade 2 30B-A3B"
@@ -160,10 +160,12 @@ if defined COPILOT_PROVIDER_BASE_URL (
         echo   Offload mode: experts -^> system RAM ^(slower; for models that don't fit^)
         echo.
         powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0offload-serve.ps1" -Action start
-        ollama launch copilot --model %COPILOT_MODEL% --yes -- %MCP_FLAGS% %GIT_SAFETY% %EXTRA_FLAGS% %1 %2 %3 %4 %5 %6 %7 %8 %9
+        set "COPILOT_PROVIDER_BASE_URL=http://localhost:11434/v1"
+        copilot --model %COPILOT_MODEL% -- %MCP_FLAGS% %GIT_SAFETY% %EXTRA_FLAGS% %1 %2 %3 %4 %5 %6 %7 %8 %9
         powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0offload-serve.ps1" -Action stop
     ) else (
         echo.
-        ollama launch copilot --model %COPILOT_MODEL% --yes -- %MCP_FLAGS% %GIT_SAFETY% %EXTRA_FLAGS% %1 %2 %3 %4 %5 %6 %7 %8 %9
+        set "COPILOT_PROVIDER_BASE_URL=http://localhost:11434/v1"
+        copilot --model %COPILOT_MODEL% -- %MCP_FLAGS% %GIT_SAFETY% %EXTRA_FLAGS% %1 %2 %3 %4 %5 %6 %7 %8 %9
     )
 )
