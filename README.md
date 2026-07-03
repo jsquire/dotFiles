@@ -19,6 +19,9 @@ Included are projects, documents, and presentations that were either created as 
 * **cachyos-server**  
   _The container for items used for building and configuring a CachyOS (Arch-based) server for home services and AI inference._  
 
+* **dream-machine**  
+  _The container for items used for configuring a UniFi Dream Machine Special Edition, currently focused on making a local AdGuard Home instance the LAN DNS resolver with transparent failover to Quad9 when AdGuard is unreachable._  
+
 * **local-llm**  
   _Cross-platform scripts and configuration for a self-hosted AI stack, with a focus on coding assistants.  Supports full local install or client-only mode connecting to a remote server._  
 
