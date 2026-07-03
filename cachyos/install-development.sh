@@ -41,7 +41,9 @@ sudo pacman -S --needed --noconfirm azure-cli
 # Install GitHub Copilot CLI
 ############################################
 
-wget -qO- https://gh.io/copilot-install | bash
+# Installed from the official repo (github-copilot-cli) so it lands in /usr/bin
+# and is managed by pacman, rather than the user-local wget installer.
+sudo pacman -S --needed --noconfirm github-copilot-cli
 
 
 ############################################
