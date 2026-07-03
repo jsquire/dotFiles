@@ -64,6 +64,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Strip any trailing slash so path joins stay clean.
+
 INSTALL_DIR="${INSTALL_DIR%/}"
 NAS_MEDIA_MOUNT="${NAS_MEDIA_MOUNT%/}"
 
@@ -228,12 +229,14 @@ sudo pacman -S --needed --noconfirm \
     plasma-x11-session
 
 # xrdp + xorgxrdp are AUR-only on Arch/CachyOS
+
 yay -S --needed --noconfirm \
     xrdp \
     xorgxrdp
 
 # plasma-meta pulls plasma-login-manager (KDE's DM) and enables it as
 # display-manager.service, so no separate SDDM enable is needed.
+
 service_enable_now xrdp
 
 if [ -f /etc/xrdp/sesman.ini ]; then
@@ -255,6 +258,7 @@ fi
 ############################################
 
 # virt-admin owns the container-services install tree (see --full below).
+
 group_ensure virt-admin
 user_in_group "$USER" virt-admin || sudo usermod -aG virt-admin "$USER"
 
@@ -365,6 +369,7 @@ else
 fi
 
 # Configure policies (idempotent — kopia overwrites existing policies)
+
 if sudo kopia repository status &>/dev/null; then
     sudo kopia policy set --global --compression=zstd
 
@@ -379,6 +384,7 @@ if sudo kopia repository status &>/dev/null; then
 fi
 
 # Create .kopiaignore for home directory (server-appropriate exclusions)
+
 cat > "$HOME/.kopiaignore" << 'KOPIAIGNORE'
 .cache/
 .var/app/*/cache/
@@ -398,9 +404,11 @@ cat > "$HOME/.kopiaignore" << 'KOPIAIGNORE'
 KOPIAIGNORE
 
 # Create manifest staging directory
+
 mkdir -p "$KOPIA_MANIFEST_DIR"
 
 # Create nightly backup script
+
 sudo tee "$KOPIA_BACKUP_SCRIPT" > /dev/null << BACKUPSCRIPT
 #!/bin/bash
 set -euo pipefail
@@ -456,6 +464,7 @@ BACKUPSCRIPT
 sudo chmod 755 "$KOPIA_BACKUP_SCRIPT"
 
 # Systemd units for scheduled backup
+
 KOPIA_MOUNT_POINT=$(findmnt -n -o TARGET --target "$KOPIA_REPO" 2>/dev/null || echo "/mnt/external-backups")
 
 backup_service="[Unit]
@@ -501,6 +510,7 @@ fi
 service_enable_now nightly-backup.timer
 
 # Log rotation
+
 sudo tee /etc/logrotate.d/nightly-backup > /dev/null << 'LOGROTATE'
 /var/log/nightly-backup.log {
     size 5M
@@ -560,6 +570,7 @@ if [ "$FULL_INSTALL" = true ]; then
         fi
 
         # Trigger the automount unit so the export is available immediately.
+
         sudo systemctl start "$(systemd-escape -p --suffix=automount "$NAS_MEDIA_MOUNT")" 2>/dev/null || true
     else
         echo
@@ -605,9 +616,10 @@ if [ "$FULL_INSTALL" = true ]; then
     sudo chmod 2775 "$INSTALL_DIR" "$INSTALL_DIR/container-services" "$INSTALL_DIR/adguard" "$INSTALL_DIR/adguard/work" "$INSTALL_DIR/adguard/conf" "$INSTALL_DIR/plex"
 
 
-    ############################################
+    ############################################################################
     # DNS: free :53 for AdGuard Home + point the host resolver at it
-    ############################################
+    ############################################################################
+    #
     # AdGuard Home binds the host's :53 to serve DNS for the whole LAN and
     # forwards upstream over DoH itself (no sidecar). systemd-resolved's stub
     # listener occupies 127.0.0.53:53, so it is removed here to free the port.
@@ -619,20 +631,28 @@ if [ "$FULL_INSTALL" = true ]; then
     # restart it, then (3) set the host resolver to AdGuard Home (127.0.0.1) with
     # the LAN router as a fallback (so the host also gets DoH + ad-blocking and
     # never depends solely on the container). Idempotent: safe to re-run.
+
     sudo install -d /etc/NetworkManager/conf.d
     printf '[main]\ndns=default\n' | sudo tee /etc/NetworkManager/conf.d/dns.conf >/dev/null
+
     sudo systemctl mask --now systemd-resolved 2>/dev/null || true
+    
     # Drop a stale systemd-resolved symlink so NetworkManager can manage resolv.conf.
+    
     if [ -L /etc/resolv.conf ]; then
         sudo rm -f /etc/resolv.conf
     fi
+
     sudo systemctl reload NetworkManager 2>/dev/null || sudo systemctl restart NetworkManager
+
     LAN_ROUTER="$(ip -4 route show default 2>/dev/null | awk '{print $3; exit}')"
     PRIMARY_CON="$(nmcli -t -f NAME,TYPE connection show --active 2>/dev/null | awk -F: '$2=="802-3-ethernet"{print $1; exit}')"
+
     if [ -n "$PRIMARY_CON" ]; then
         sudo nmcli connection modify "$PRIMARY_CON" ipv4.ignore-auto-dns yes \
             ipv4.dns "127.0.0.1${LAN_ROUTER:+ $LAN_ROUTER}"
         sudo nmcli connection up "$PRIMARY_CON" >/dev/null 2>&1 || true
+
         echo "Host DNS set to 127.0.0.1 (AdGuard Home)${LAN_ROUTER:+ with fallback $LAN_ROUTER}; systemd-resolved masked."
     else
         echo "WARNING: no active ethernet NetworkManager connection found; set the host DNS to 127.0.0.1 manually." >&2
@@ -651,6 +671,7 @@ if [ "$FULL_INSTALL" = true ]; then
 
     # cp -a above re-applies the source dir's attributes onto container-services,
     # clobbering the earlier chgrp/chmod. Re-assert the intended ownership + setgid.
+
     sudo chgrp virt-admin "$INSTALL_DIR/container-services"
     sudo chmod 2775 "$INSTALL_DIR/container-services"
 
