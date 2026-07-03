@@ -4,7 +4,7 @@
 
 ### Overview
 
-Included in this section are the artifacts and references used for building and configuring a CachyOS-based multi-purpose home server.  The environment focuses on media serving (Plex), DNS ad-blocking (Pi-hole + Cloudflared), and containerized services.  Bulk storage and SMB file sharing are handled by a separate Ubiquiti UNAS Pro NAS; the server consumes the NAS Plex media pool over NFS.  Container services and their data live on the local host drive under a configurable install location.
+Included in this section are the artifacts and references used for building and configuring a CachyOS-based multi-purpose home server.  The environment focuses on media serving (Plex), DNS ad-blocking with encrypted upstreams (AdGuard Home with DNS-over-HTTPS), and containerized services.  Bulk storage and SMB file sharing are handled by a separate Ubiquiti UNAS Pro NAS; the server consumes the NAS Plex media pool over NFS.  Container services and their data live on the local host drive under a configurable install location.
 
 In some cases, the artifacts may be a subset of functionality, requiring use in a specific way or order to be helpful, where others may be a fully automated and self-contained process.  Please remember that these were written for practical personal use and are not intended to be examples of best practice, nor polished and production-ready.
 
@@ -22,7 +22,7 @@ These resources from the base `cachyos/` directory are directly compatible with 
   _Based on `cachyos/home`, this contains the $HOME items for the user account, including zsh, git, and gpg-agent configuration adapted for the server environment with `EDITOR=nano` and curses pinentry._
 
 * **container-services**  
-  _Docker Compose services and operational scripts for the server-hosted containers (Cloudflared, Pi-hole, Plex)._
+  _Docker Compose services and operational scripts for the server-hosted containers (AdGuard Home, Plex)._
 
 ### Items
 
@@ -63,7 +63,7 @@ The NAS NFS export's uid/gid must match the Plex container's `PLEX_UID`/`PLEX_GI
 1. Install CachyOS (KDE Plasma edition)
 2. (Optional) Run `../cachyos/secureboot.sh` if UEFI
 3. Run `bootstrap.sh`
-4. Deploy containers manually via `container-services/install-services.sh <install-dir>/container-services <install-dir>/pihole`
+4. Deploy containers manually via `container-services/install-services.sh <install-dir>/container-services <install-dir>/adguard`
 5. Manual steps above
 
 **Full install** (end-to-end):

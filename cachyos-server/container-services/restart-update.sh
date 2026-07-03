@@ -11,12 +11,6 @@ docker compose pull --ignore-pull-failures --include-deps
 
 docker image prune -f
 
-if docker ps --format '{{.Names}}' | grep -qx 'pihole'; then
-  for _ in $(seq 1 60); do
-    if docker exec pihole pihole status >/dev/null 2>&1; then
-      docker exec pihole pihole updateGravity
-      break
-    fi
-    sleep 15
-  done
-fi
+# AdGuard Home refreshes its own blocklists on the schedule set in
+# AdGuardHome.yaml (filters_update_interval), so no manual list update is needed
+# here (this is the AdGuard equivalent of the old Pi-hole gravity update).

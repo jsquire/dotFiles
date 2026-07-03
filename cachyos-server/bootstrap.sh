@@ -289,10 +289,10 @@ sudo ufw default deny incoming
 sudo ufw default allow outgoing
 
 sudo ufw allow ssh
-sudo ufw allow 53/tcp        # DNS (pihole)
-sudo ufw allow 53/udp        # DNS (pihole)
-sudo ufw allow 80/tcp        # Pi-hole admin
-sudo ufw allow 443/tcp       # Pi-hole admin (HTTPS)
+sudo ufw allow 53/tcp        # DNS (AdGuard Home)
+sudo ufw allow 53/udp        # DNS (AdGuard Home)
+sudo ufw allow 80/tcp        # AdGuard Home admin
+sudo ufw allow 443/tcp       # AdGuard Home admin (HTTPS)
 sudo ufw allow 5353/udp      # Avahi / mDNS
 sudo ufw allow 32400/tcp     # Plex
 sudo ufw allow 3389/tcp      # xrdp (RDP)
@@ -598,14 +598,45 @@ if [ "$FULL_INSTALL" = true ]; then
     ############################################
 
     sudo mkdir -p "$INSTALL_DIR/container-services"
-    sudo mkdir -p "$INSTALL_DIR/pihole/"{root,log}
+    sudo mkdir -p "$INSTALL_DIR/adguard/"{work,conf}
     sudo mkdir -p "$INSTALL_DIR/plex"
 
-    sudo chgrp virt-admin "$INSTALL_DIR" "$INSTALL_DIR/container-services" "$INSTALL_DIR/pihole" "$INSTALL_DIR/pihole/root" "$INSTALL_DIR/pihole/log" "$INSTALL_DIR/plex"
-    sudo chmod 2775 "$INSTALL_DIR" "$INSTALL_DIR/container-services" "$INSTALL_DIR/pihole" "$INSTALL_DIR/pihole/root" "$INSTALL_DIR/pihole/log" "$INSTALL_DIR/plex"
+    sudo chgrp virt-admin "$INSTALL_DIR" "$INSTALL_DIR/container-services" "$INSTALL_DIR/adguard" "$INSTALL_DIR/adguard/work" "$INSTALL_DIR/adguard/conf" "$INSTALL_DIR/plex"
+    sudo chmod 2775 "$INSTALL_DIR" "$INSTALL_DIR/container-services" "$INSTALL_DIR/adguard" "$INSTALL_DIR/adguard/work" "$INSTALL_DIR/adguard/conf" "$INSTALL_DIR/plex"
 
-    sudo touch "$INSTALL_DIR/pihole/log/pihole.log"
-    sudo chmod 0664 "$INSTALL_DIR/pihole/log/pihole.log"
+
+    ############################################
+    # DNS: free :53 for AdGuard Home + point the host resolver at it
+    ############################################
+    # AdGuard Home binds the host's :53 to serve DNS for the whole LAN and
+    # forwards upstream over DoH itself (no sidecar). systemd-resolved's stub
+    # listener occupies 127.0.0.53:53, so it is removed here to free the port.
+    #
+    # NetworkManager auto-uses systemd-resolved when it is installed, so simply
+    # disabling the service is NOT enough: NM re-activates it over D-Bus and
+    # repoints /etc/resolv.conf back at the stub. We therefore (1) tell NM to
+    # manage resolv.conf directly (dns=default), (2) MASK resolved so nothing can
+    # restart it, then (3) set the host resolver to AdGuard Home (127.0.0.1) with
+    # the LAN router as a fallback (so the host also gets DoH + ad-blocking and
+    # never depends solely on the container). Idempotent: safe to re-run.
+    sudo install -d /etc/NetworkManager/conf.d
+    printf '[main]\ndns=default\n' | sudo tee /etc/NetworkManager/conf.d/dns.conf >/dev/null
+    sudo systemctl mask --now systemd-resolved 2>/dev/null || true
+    # Drop a stale systemd-resolved symlink so NetworkManager can manage resolv.conf.
+    if [ -L /etc/resolv.conf ]; then
+        sudo rm -f /etc/resolv.conf
+    fi
+    sudo systemctl reload NetworkManager 2>/dev/null || sudo systemctl restart NetworkManager
+    LAN_ROUTER="$(ip -4 route show default 2>/dev/null | awk '{print $3; exit}')"
+    PRIMARY_CON="$(nmcli -t -f NAME,TYPE connection show --active 2>/dev/null | awk -F: '$2=="802-3-ethernet"{print $1; exit}')"
+    if [ -n "$PRIMARY_CON" ]; then
+        sudo nmcli connection modify "$PRIMARY_CON" ipv4.ignore-auto-dns yes \
+            ipv4.dns "127.0.0.1${LAN_ROUTER:+ $LAN_ROUTER}"
+        sudo nmcli connection up "$PRIMARY_CON" >/dev/null 2>&1 || true
+        echo "Host DNS set to 127.0.0.1 (AdGuard Home)${LAN_ROUTER:+ with fallback $LAN_ROUTER}; systemd-resolved masked."
+    else
+        echo "WARNING: no active ethernet NetworkManager connection found; set the host DNS to 127.0.0.1 manually." >&2
+    fi
 
 
     ############################################
@@ -634,7 +665,7 @@ After=docker.service
 Requires=docker.service
 
 [Service]
-Environment=PIHOLE_BASE=${INSTALL_DIR}/pihole
+Environment=ADGUARD_BASE=${INSTALL_DIR}/adguard
 Environment=PLEX_BASE=${INSTALL_DIR}/plex
 Environment=PLEX_MEDIA=${NAS_MEDIA_MOUNT}
 Environment=PLEX_TRANSCODE=/mnt/transcode
