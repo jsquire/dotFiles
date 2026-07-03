@@ -4,16 +4,13 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 CONTAINER_SERVICES_ROOT="${1:-$SCRIPT_DIR}"
-PIHOLE_ROOT="${2:-/srv/squire-server/pihole}"
+ADGUARD_ROOT="${2:-/srv/squire-server/adguard}"
 SERVICE_UNIT=/etc/systemd/system/squire-server-containers.service
 UPDATE_SERVICE_UNIT=/etc/systemd/system/squire-server-containers-update.service
 TIMER_UNIT=/etc/systemd/system/squire-server-containers-update.timer
 
 chmod +x "$CONTAINER_SERVICES_ROOT"/*.sh
-mkdir -p "$PIHOLE_ROOT/root" "$PIHOLE_ROOT/log"
-chmod 0755 "$PIHOLE_ROOT/log"
-touch "$PIHOLE_ROOT/log/pihole.log"
-chmod 0664 "$PIHOLE_ROOT/log/pihole.log"
+mkdir -p "$ADGUARD_ROOT/work" "$ADGUARD_ROOT/conf"
 
 cat <<EOF > "$SERVICE_UNIT"
 [Unit]

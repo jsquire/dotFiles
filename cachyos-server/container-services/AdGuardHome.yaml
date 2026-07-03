@@ -1,0 +1,82 @@
+# AdGuardHome.yaml — reference / optional pre-seed configuration
+# ---------------------------------------------------------------------------
+# TWO WAYS TO SET UP AdGuard Home:
+#
+#   (A) First-run wizard (simplest, version-safe — DEFAULT):
+#       Leave the conf volume empty and start the container. Browse to
+#       http://<server-ip>:3000, complete the wizard (choose "All interfaces"
+#       for DNS, set an admin username/password), then apply the DNS/upstream
+#       and blocklist values below via the web UI:
+#         Settings -> DNS settings -> Upstream DNS servers:
+#             https://dns.quad9.net/dns-query
+#             https://security.cloudflare-dns.com/dns-query
+#           Bootstrap DNS servers: 9.9.9.9 and 1.1.1.2
+#           Upstream mode: Load balancing
+#         Filters -> DNS blocklists -> add the two lists listed under `filters:`.
+#
+#   (B) Pre-seed (repeatable, no wizard):
+#       Copy this file to ${ADGUARD_BASE}/conf/AdGuardHome.yaml BEFORE the first
+#       container start, and replace the two placeholders:
+#         __ADMIN_USER__            -> your admin username (e.g. admin)
+#         __ADMIN_PASSWORD_BCRYPT__ -> a bcrypt hash of your admin password.
+#       Generate the bcrypt hash without installing anything (docker is present):
+#         docker run --rm httpd:alpine htpasswd -nbB admin 'YOUR_PASSWORD' | cut -d: -f2
+#       AdGuard Home auto-migrates `schema_version` forward on first start, so a
+#       slightly older value here is fine.
+# ---------------------------------------------------------------------------
+
+http:
+  # Web admin UI (mapped to host :80 in docker-compose.yml)
+  address: 0.0.0.0:80
+users:
+  - name: __ADMIN_USER__
+    password: __ADMIN_PASSWORD_BCRYPT__
+auth_attempts: 5
+block_auth_min: 15
+
+dns:
+  # Answer on all interfaces so the whole LAN can use this box as its resolver.
+  bind_hosts:
+    - 0.0.0.0
+  port: 53
+
+  # Encrypted DoH upstreams. BOTH filter malware so protection is consistent
+  # regardless of which upstream answers (AdGuard Home has no strict primary/
+  # failover — upstreams are used per `upstream_mode`). Ad/tracker blocking is
+  # done locally by the filter lists below, so the upstreams stay security-only.
+  upstream_dns:
+    - https://dns.quad9.net/dns-query
+    - https://security.cloudflare-dns.com/dns-query
+  # Plain-DNS servers used only to resolve the DoH hostnames on startup.
+  bootstrap_dns:
+    - 9.9.9.9
+    - 1.1.1.2
+  upstream_mode: load_balance
+
+  # Plain-DNS fallback (the LAN router) used only if the DoH upstreams are
+  # unreachable, so name resolution degrades gracefully instead of failing.
+  fallback_dns:
+    - 192.168.1.1
+
+  cache_size: 4194304
+  cache_ttl_min: 0
+  cache_ttl_max: 0
+
+filtering:
+  protection_enabled: true
+  filtering_enabled: true
+  filters_update_interval: 24
+
+# Blocklists (ad/tracker blocking — this is the Pi-hole "gravity" equivalent).
+filters:
+  - enabled: true
+    url: https://adguardteam.github.io/AdguardSDNSFilter/Filters/filter.txt
+    name: AdGuard DNS filter
+    id: 1
+  - enabled: true
+    url: https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+    name: StevenBlack hosts
+    id: 2
+
+# AdGuard Home migrates this forward automatically if the running version is newer.
+schema_version: 27
