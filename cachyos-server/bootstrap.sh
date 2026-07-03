@@ -173,8 +173,13 @@ sudo pacman -S --needed --noconfirm \
     lazygit \
     github-cli \
     git-lfs \
-    tmux
-
+    tmux \
+    gparted \
+    hardinfo2 \
+    plasma-systemmonitor \
+    xdg-desktop-portal \
+    xdg-desktop-portal-kde \
+    kdeplasma-addons
 
 ############################################
 # Micro editor
@@ -188,6 +193,11 @@ if [ ! -f /usr/local/bin/micro ]; then
     )
 fi
 
+############################################
+# VS Code Editor
+############################################
+
+yay -S --needed --noconfirm visual-studio-code-bin
 
 ############################################
 # ZSH + Home Configuration
@@ -215,12 +225,15 @@ chmod 600 "$HOME/.gnupg/gpg-agent.conf"
 
 sudo pacman -S --needed --noconfirm \
     plasma-meta \
-    plasma-workspace-x11 \
-    sddm \
+    plasma-x11-session
+
+# xrdp + xorgxrdp are AUR-only on Arch/CachyOS
+yay -S --needed --noconfirm \
     xrdp \
     xorgxrdp
 
-service_enable_now sddm
+# plasma-meta pulls plasma-login-manager (KDE's DM) and enables it as
+# display-manager.service, so no separate SDDM enable is needed.
 service_enable_now xrdp
 
 if [ -f /etc/xrdp/sesman.ini ]; then
@@ -604,6 +617,11 @@ if [ "$FULL_INSTALL" = true ]; then
     fi
 
     sudo find "$INSTALL_DIR/container-services" -maxdepth 1 -type f -name '*.sh' -exec chmod 0755 {} +
+
+    # cp -a above re-applies the source dir's attributes onto container-services,
+    # clobbering the earlier chgrp/chmod. Re-assert the intended ownership + setgid.
+    sudo chgrp virt-admin "$INSTALL_DIR/container-services"
+    sudo chmod 2775 "$INSTALL_DIR/container-services"
 
 
     ############################################

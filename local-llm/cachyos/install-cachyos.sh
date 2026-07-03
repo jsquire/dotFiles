@@ -14,7 +14,6 @@ OLLAMA_HOST_ARG=""
 MODEL_PATH=""
 SKIP_MODELS=false
 MODELS_ONLY=false
-ENABLE_LAN=false
 LAN_CIDR=""
 IS_SERVER_MODE=false
 
@@ -367,6 +366,18 @@ install_crush() {
         fi
     fi
 
+    # Crush is not in the official Arch/CachyOS repos but is in the AUR (crush-bin =
+    # prebuilt binary). Prefer it when a helper (yay) is present and we're non-root.
+    if command_exists yay && [[ ${EUID} -ne 0 ]]; then
+        info "Installing Crush from the AUR (crush-bin) via yay."
+        if yay -S --needed --noconfirm crush-bin; then
+            ensure_local_bin_on_path
+            success "Crush installed from the AUR (crush-bin)."
+            return 0
+        fi
+        warn "AUR install for Crush failed — falling back to user-local install."
+    fi
+
     info "Trying Charm installer for Crush."
     if curl -fsSL https://crush.charm.sh/install.sh | sh; then
         ensure_local_bin_on_path
@@ -446,6 +457,7 @@ parse_args() {
     done
 }
 
+main() {
 parse_args "$@"
 
 printf '%b\n' ""
@@ -479,11 +491,6 @@ if [[ "$MODE" == "client" && "$SKIP_MODELS" == true ]]; then
     add_warning "--skip-models is irrelevant in client mode because no local models are pulled."
 fi
 
-if [[ "$MODE" == "client" && "$ENABLE_LAN" == true ]]; then
-    add_warning "--enable-lan is ignored in client mode because Ollama is not installed locally."
-    ENABLE_LAN=false
-fi
-
 if [[ "$MODE" == "client" && -n "$MODEL_PATH" ]]; then
     add_warning "--model-path is ignored in client mode because no local Ollama storage is configured."
 fi
@@ -503,7 +510,6 @@ OLLAMA_BIND_HOST="127.0.0.1"
 if [[ "$MODE" == "server" ]]; then
     IS_FULL_MODE=true
     IS_SERVER_MODE=true
-    ENABLE_LAN=true
     OLLAMA_BIND_HOST="0.0.0.0"
     SHOULD_INSTALL_SOFTWARE=true
     SHOULD_PULL_MODELS=true
@@ -595,11 +601,31 @@ fi
 if [[ "$SHOULD_INSTALL_SOFTWARE" == true ]]; then
     if [[ "$IS_FULL_MODE" == true ]]; then
         step "Install NVIDIA drivers and CUDA"
-        info "Installing nvidia-dkms, nvidia-utils, and cuda from CachyOS repositories."
-        if run_privileged pacman -S --needed --noconfirm nvidia-dkms nvidia-utils cuda; then
+        # If the CachyOS prebuilt open kernel modules (nvidia-open) are already
+        # installed, do NOT pull nvidia-dkms — the two provide the same kernel
+        # module and would conflict. Keep the working open driver and only add
+        # userspace (nvidia-utils) + CUDA.
+        if pacman -Qq 2>/dev/null | grep -q 'nvidia-open'; then
+            nvidia_packages=(nvidia-utils cuda)
+            info "Detected nvidia-open driver; skipping nvidia-dkms. Installing nvidia-utils and cuda."
+        else
+            nvidia_packages=(nvidia-dkms nvidia-utils cuda)
+            info "Installing nvidia-dkms, nvidia-utils, and cuda from CachyOS repositories."
+        fi
+        if run_privileged pacman -S --needed --noconfirm "${nvidia_packages[@]}"; then
             success "NVIDIA packages are installed."
         else
             add_failure "Failed to install NVIDIA drivers and CUDA packages."
+        fi
+
+        # The cuda package installs nvcc to /opt/cuda/bin, which is not on PATH by
+        # default. Add it for this run so the vLLM CUDA-version detection below (and
+        # the flash-attn build) can find nvcc.
+        if [[ -d /opt/cuda/bin ]]; then
+            case ":${PATH}:" in
+                *":/opt/cuda/bin:"*) ;;
+                *) export PATH="/opt/cuda/bin:${PATH}" ;;
+            esac
         fi
 
         if [[ "$IS_SERVER_MODE" == true ]]; then
@@ -760,7 +786,13 @@ WantedBy=multi-user.target
                     torch torchvision --index-url https://download.pytorch.org/whl/cu128
                 VIRTUAL_ENV="${imagegen_venv}" uv pip install --quiet \
                     "transformers==4.57.1" diffusers accelerate einops scipy numpy pillow tqdm \
-                    fastapi uvicorn pydantic huggingface_hub flash-attn
+                    fastapi uvicorn pydantic huggingface_hub
+                # flash-attn is optional: it compiles against the just-installed torch
+                # (needs nvcc + --no-build-isolation) and HiDream falls back to SDPA if it
+                # is absent. Keep it non-fatal so a build failure doesn't abort the install.
+                VIRTUAL_ENV="${imagegen_venv}" uv pip install --quiet --no-build-isolation flash-attn \
+                    && success "flash-attn installed." \
+                    || add_warning "flash-attn install failed — HiDream will use the SDPA fallback."
             fi
 
             # Copy server script
@@ -1457,3 +1489,6 @@ if (( ${#FAILURES[@]} > 0 )); then
     done
     exit 1
 fi
+}
+
+main "$@"
