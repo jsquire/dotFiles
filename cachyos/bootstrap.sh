@@ -33,6 +33,7 @@ fi
 ############################################
 # Base development & utilities
 ############################################
+
 # NOTE: zlib intentionally omitted (CachyOS uses zlib-ng)
 
 sudo pacman -S --needed --noconfirm \
@@ -114,6 +115,7 @@ yay -S --needed --noconfirm \
     visual-studio-code-bin
 
 # Tor Browser requires its signing key imported first
+
 TOR_KEY="EF6E286DDA85EA2A4BA7DE684E2C6E8793298290"
 
 if ! gpg --list-keys "$TOR_KEY" &>/dev/null; then
@@ -134,6 +136,7 @@ sudo pacman -S --needed --noconfirm \
 service_enable_now docker
 
 # Add user to docker group (avoids needing sudo for docker commands)
+
 sudo usermod -aG docker "$USER"
 
 
@@ -174,6 +177,7 @@ yay -S --needed --noconfirm heroic-games-launcher-bin
 
 # GameMode is D-Bus activated on demand (no service enable needed)
 # User must be in gamemode group for CPU governor and renice features
+
 sudo usermod -aG gamemode "$USER"
 
 
@@ -221,6 +225,7 @@ fi
 
 # Use paccache for cleaner cache management (keeps last 3 versions)
 # Falls back to pacman -Sc if paccache not available
+
 if command -v paccache &>/dev/null; then
     sudo paccache -r
 else

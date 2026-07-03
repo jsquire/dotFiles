@@ -58,6 +58,7 @@ fi
 
 # Try cmd.exe directly, fall back to /init wrapper (interop may not be
 # registered when systemd is enabled until wsl.conf [interop] is set).
+
 WIN_USER=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r' || true)
 
 if [ -z "$WIN_USER" ]; then
@@ -109,6 +110,7 @@ fi
 ############################################
 # Base development & utilities
 ############################################
+#
 # NOTE: gnupg, gpgme, ca-certificates, curl,
 #       nano, openssl already in CachyOS rootfs.
 #       zlib intentionally omitted (CachyOS uses zlib-ng).
@@ -318,6 +320,7 @@ fi
 
 # Install (or upgrade to) the latest Node release and make it the
 # default. 'node' resolves to the newest available version each run.
+
 nvm install node
 nvm alias default node
 nvm use node
@@ -339,6 +342,7 @@ npm install -g \
 ############################################
 
 # rustup conflicts with system rust package
+
 if pacman -Qi rust &>/dev/null; then
     echo "Removing system rust package (conflicts with rustup)..."
     sudo pacman -Rns --noconfirm rust 2>/dev/null || true
@@ -393,6 +397,7 @@ sudo pacman -S --needed --noconfirm \
 # Install the latest uv-managed CPython (version-qualified python3.x in
 # ~/.local/bin). The Arch 'python' package above stays as the system
 # python/python3; uv uses this managed build for uv-created venvs.
+
 uv python install
 
 
