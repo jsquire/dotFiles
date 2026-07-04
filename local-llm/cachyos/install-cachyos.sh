@@ -28,6 +28,11 @@ VLLM_PORT=8000
 VLLM_DEFAULT_MODEL="QuantTrio/GLM-4.7-Flash-AWQ"
 VLLM_DEFAULT_SERVED_NAME="glm-4.7-flash"
 VLLM_DEFAULT_QUANT="awq"
+# GLM-4.7-Flash tool-call + reasoning parsers (glm4_moe_lite arch). Stable-vLLM native as of
+# vLLM 0.24.0 + transformers 5.13.0 (no nightly/git hack). Reasoning parser is glm45 — there is
+# no glm47 reasoning parser (per vLLM issue #33580).
+VLLM_DEFAULT_TOOL_PARSER="glm47"
+VLLM_DEFAULT_REASONING_PARSER="glm45"
 
 # Squire Server (CachyOS vLLM) hooks for the deployed copilot-local launcher.
 # SQUIRE_SERVER_IP empty = auto-derive (client host, else this box's LAN IP).
@@ -167,8 +172,9 @@ model_description() {
         qwen3:32b) printf '%s' 'Qwen3 32B — creative writing (128k ctx), ~20 GB' ;;
         x/z-image-turbo) printf '%s' 'Z-Image Turbo 6B — image generation, ~12 GB' ;;
         # HuggingFace model IDs (vLLM server mode)
-        QuantTrio/GLM-4.7-Flash-AWQ) printf '%s' 'GLM-4.7-Flash AWQ — standing default: coding + review + office MCP (32k served, MLA KV), ~18 GB' ;;
-        Qwen/Qwen3.6-35B-A3B-Instruct-GPTQ) printf '%s' 'Qwen3.6 35B-A3B GPTQ — vision/multimodal mode (switch), ~22 GB' ;;
+        QuantTrio/GLM-4.7-Flash-AWQ) printf '%s' 'GLM-4.7-Flash AWQ — standing default: coding + review + office MCP (32k served, MLA KV), ~20 GB' ;;
+        cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit) printf '%s' 'Devstral-2 24B AWQ — agentic-coding alternative (switch mode, dense, 384k ctx, compressed-tensors), ~14 GB' ;;
+        cyankiwi/Qwen3.6-27B-AWQ-INT4) printf '%s' 'Qwen3.6 27B AWQ-INT4 — vision/multimodal mode (switch, compressed-tensors, 256k ctx), ~20 GB' ;;
         Qwen/Qwen3-4B-Instruct-2507) printf '%s' 'Qwen3 4B — image-gen companion LLM (co-resides with HiDream), ~8 GB' ;;
         Qwen/Qwen3.6-27B-Instruct-GPTQ) printf '%s' 'Qwen3.6 27B GPTQ — primary model (32k ctx, FP8 KV), ~15 GB' ;;
         Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4) printf '%s' 'Qwen2.5-Coder 32B GPTQ — heavy coding, ~18 GB' ;;
@@ -249,10 +255,11 @@ load_effective_model_config() {
                 SELECTED_MODELS=(
                     "QuantTrio/GLM-4.7-Flash-AWQ"
                     "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit"
-                    "Qwen/Qwen3.6-35B-A3B-Instruct-GPTQ"
+                    "cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit"
+                    "cyankiwi/Qwen3.6-27B-AWQ-INT4"
                     "Qwen/Qwen3-4B-Instruct-2507"
                 )
-                EFFECTIVE_MODEL_REQUIRED_GB=70
+                EFFECTIVE_MODEL_REQUIRED_GB=85
             else
                 # Ollama (full mode, single-user) uses Ollama tags
                 SELECTED_MODELS=("gemma4:26b" "qwen3:14b" "qwen3:4b" "qwen3-coder:30b")
@@ -675,6 +682,20 @@ if [[ "$SHOULD_INSTALL_SOFTWARE" == true ]]; then
                 fi
             fi
 
+            # Guard: GLM-4.7-Flash (glm4_moe_lite) needs transformers >=5.x (shipped since 5.13.0).
+            # vLLM 0.24.0+ pulls a compatible one; assert both the version AND the module so a future
+            # pin can't silently reintroduce the "transformers does not recognize glm4_moe_lite" failure.
+            step "Verify transformers supports GLM-4.7-Flash (glm4_moe_lite)"
+            VLLM_VENV="${HOME}/.local/share/vllm-env"
+            tf_ver="$("$VLLM_VENV/bin/python" -c 'import transformers; print(transformers.__version__)' 2>/dev/null || true)"
+            if [[ -z "$tf_ver" ]]; then
+                add_warning "Could not read transformers version in the vLLM venv; GLM-4.7-Flash may fail to load."
+            elif "$VLLM_VENV/bin/python" -c 'import importlib.util,sys; sys.exit(0 if importlib.util.find_spec("transformers.models.glm4_moe_lite") else 1)' 2>/dev/null; then
+                success "transformers ${tf_ver} provides glm4_moe_lite — GLM-4.7-Flash is servable."
+            else
+                add_warning "transformers ${tf_ver} lacks glm4_moe_lite; the GLM-4.7-Flash default will not load. Upgrade to transformers >=5.13 in ${VLLM_VENV} (e.g. '${UV_BIN} pip install --python ${VLLM_VENV}/bin/python -U transformers')."
+            fi
+
             step "Install huggingface-cli (model downloader)"
             VLLM_VENV="${HOME}/.local/share/vllm-env"
             if [[ -x "$VLLM_VENV/bin/huggingface-cli" ]]; then
@@ -706,10 +727,15 @@ ExecStart=${VLLM_VENV}/bin/python -m vllm.entrypoints.openai.api_server \\
     --gpu-memory-utilization \${VLLM_GPU_MEMORY_UTILIZATION} \\
     --kv-cache-dtype \${VLLM_KV_CACHE_DTYPE} \\
     --served-model-name \${VLLM_SERVED_NAME} \\
-    --quantization \${VLLM_QUANTIZATION}
+    --quantization \${VLLM_QUANTIZATION} \\
+    --enable-auto-tool-choice \\
+    --tool-call-parser \${VLLM_TOOL_PARSER} \\
+    --reasoning-parser \${VLLM_REASONING_PARSER}
 Environment=\"VLLM_MODEL=${VLLM_DEFAULT_MODEL}\"
 Environment=\"VLLM_SERVED_NAME=${VLLM_DEFAULT_SERVED_NAME}\"
 Environment=\"VLLM_QUANTIZATION=${VLLM_DEFAULT_QUANT}\"
+Environment=\"VLLM_TOOL_PARSER=${VLLM_DEFAULT_TOOL_PARSER}\"
+Environment=\"VLLM_REASONING_PARSER=${VLLM_DEFAULT_REASONING_PARSER}\"
 Environment=\"VLLM_HOST=0.0.0.0\"
 Environment=\"VLLM_PORT=${VLLM_PORT}\"
 Environment=\"VLLM_MAX_MODEL_LEN=32768\"
@@ -726,7 +752,7 @@ WantedBy=multi-user.target
                 success "Created vLLM service at $local_vllm_service"
                 info "Default model: ${VLLM_DEFAULT_MODEL} (served as '${VLLM_DEFAULT_SERVED_NAME}')"
                 info "Listening on: 0.0.0.0:${VLLM_PORT}"
-                info "To switch modes: cachyos-switch-model {glm|coder|vision|image}"
+                info "To switch modes: cachyos-switch-model {glm|coder|coder-alt|vision|image}"
             else
                 add_failure "Failed to create vLLM systemd service."
             fi
@@ -865,6 +891,12 @@ args=(
 if [[ -n \"\${VLLM_QUANTIZATION:-}\" ]]; then
     args+=(--quantization \"\${VLLM_QUANTIZATION}\")
 fi
+if [[ -n \"\${VLLM_TOOL_PARSER:-}\" ]]; then
+    args+=(--enable-auto-tool-choice --tool-call-parser \"\${VLLM_TOOL_PARSER}\")
+fi
+if [[ -n \"\${VLLM_REASONING_PARSER:-}\" ]]; then
+    args+=(--reasoning-parser \"\${VLLM_REASONING_PARSER}\")
+fi
 exec \"\${VENV}/bin/python\" -m vllm.entrypoints.openai.api_server \"\${args[@]}\"
 "
             if printf '%s' "$vllm_serve_wrapper" | run_privileged tee /usr/local/bin/cachyos-vllm-serve >/dev/null; then
@@ -906,13 +938,24 @@ VLLM_MAX_MODEL_LEN=32768
 VLLM_GPU_MEMORY_UTILIZATION=0.90
 VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
-            local vision_env="VLLM_MODEL=Qwen/Qwen3.6-35B-A3B-Instruct-GPTQ
-VLLM_SERVED_NAME=qwen3.6-35b
-VLLM_QUANTIZATION=gptq
+            # coder-alt: Devstral-2 24B (dense, agentic-SWE) — AWQ is compressed-tensors format,
+            # so leave VLLM_QUANTIZATION unset and let vLLM auto-detect it.
+            local coder_alt_env="VLLM_MODEL=cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit
+VLLM_SERVED_NAME=devstral
 VLLM_HOST=0.0.0.0
 VLLM_PORT=${VLLM_PORT}
 VLLM_MAX_MODEL_LEN=32768
 VLLM_GPU_MEMORY_UTILIZATION=0.90
+VLLM_KV_CACHE_DTYPE=fp8_e5m2
+"
+            # vision: Qwen3.6-27B multimodal — 20.4 GB compressed-tensors quant (auto-detected, no
+            # forced --quantization). Tight on 24 GB so serve ~24k ctx at util 0.93; owns the whole card.
+            local vision_env="VLLM_MODEL=cyankiwi/Qwen3.6-27B-AWQ-INT4
+VLLM_SERVED_NAME=qwen3.6-27b
+VLLM_HOST=0.0.0.0
+VLLM_PORT=${VLLM_PORT}
+VLLM_MAX_MODEL_LEN=24576
+VLLM_GPU_MEMORY_UTILIZATION=0.93
 VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
             # Image companion: small, unquantized (no VLLM_QUANTIZATION), low util to leave
@@ -925,10 +968,11 @@ VLLM_MAX_MODEL_LEN=32768
 VLLM_GPU_MEMORY_UTILIZATION=0.25
 VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
-            printf '%s' "$coder_env"  | run_privileged tee /etc/vllm/modes/coder.env  >/dev/null
-            printf '%s' "$vision_env" | run_privileged tee /etc/vllm/modes/vision.env >/dev/null
-            printf '%s' "$image_env"  | run_privileged tee /etc/vllm/modes/image.env  >/dev/null
-            success "Wrote mode env-files (coder, vision, image) to /etc/vllm/modes"
+            printf '%s' "$coder_env"     | run_privileged tee /etc/vllm/modes/coder.env     >/dev/null
+            printf '%s' "$coder_alt_env" | run_privileged tee /etc/vllm/modes/coder-alt.env >/dev/null
+            printf '%s' "$vision_env"    | run_privileged tee /etc/vllm/modes/vision.env    >/dev/null
+            printf '%s' "$image_env"     | run_privileged tee /etc/vllm/modes/image.env     >/dev/null
+            success "Wrote mode env-files (coder, coder-alt, vision, image) to /etc/vllm/modes"
 
             # The switch CLI (also invoked over ssh by the client launchers).
             local switch_script="#!/usr/bin/env bash
@@ -937,14 +981,15 @@ mode=\"\${1:-glm}\"
 SUDO=\"\"
 [[ \$EUID -ne 0 ]] && SUDO=\"sudo\"
 stop_all() {
-    \$SUDO systemctl stop vllm.service vllm@coder.service vllm@vision.service vllm@image.service imagegen.service 2>/dev/null || true
+    \$SUDO systemctl stop vllm.service vllm@coder.service vllm@coder-alt.service vllm@vision.service vllm@image.service imagegen.service 2>/dev/null || true
 }
 case \"\$mode\" in
-    glm)    stop_all; \$SUDO systemctl start vllm.service ;;
-    coder)  stop_all; \$SUDO systemctl start vllm@coder.service ;;
-    vision) stop_all; \$SUDO systemctl start vllm@vision.service ;;
-    image)  stop_all; \$SUDO systemctl start imagegen.service; \$SUDO systemctl start vllm@image.service ;;
-    *) echo \"Unknown mode: \$mode (use: glm|coder|vision|image)\" >&2; exit 1 ;;
+    glm)       stop_all; \$SUDO systemctl start vllm.service ;;
+    coder)     stop_all; \$SUDO systemctl start vllm@coder.service ;;
+    coder-alt) stop_all; \$SUDO systemctl start vllm@coder-alt.service ;;
+    vision)    stop_all; \$SUDO systemctl start vllm@vision.service ;;
+    image)     stop_all; \$SUDO systemctl start imagegen.service; \$SUDO systemctl start vllm@image.service ;;
+    *) echo \"Unknown mode: \$mode (use: glm|coder|coder-alt|vision|image)\" >&2; exit 1 ;;
 esac
 echo \"cachyos-switch-model: now in '\$mode' mode\"
 "
@@ -957,7 +1002,7 @@ echo \"cachyos-switch-model: now in '\$mode' mode\"
 
             # Passwordless sudo for the switch (so client ssh can flip modes non-interactively).
             local switch_user; switch_user="$(whoami)"
-            local sudoers_line="${switch_user} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@vision.service, /usr/bin/systemctl stop vllm@vision.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
+            local sudoers_line="${switch_user} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@coder-alt.service, /usr/bin/systemctl stop vllm@coder-alt.service, /usr/bin/systemctl start vllm@vision.service, /usr/bin/systemctl stop vllm@vision.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
             if printf '%s\n' "$sudoers_line" | run_privileged tee /etc/sudoers.d/cachyos-vllm-switch >/dev/null; then
                 run_privileged chmod 0440 /etc/sudoers.d/cachyos-vllm-switch
                 if run_privileged visudo -c -f /etc/sudoers.d/cachyos-vllm-switch >/dev/null 2>&1; then
@@ -971,7 +1016,7 @@ echo \"cachyos-switch-model: now in '\$mode' mode\"
             fi
 
             run_privileged systemctl daemon-reload
-            info "Standing default: GLM-4.7-Flash (vllm.service). Switch with: cachyos-switch-model {glm|coder|vision|image}"
+            info "Standing default: GLM-4.7-Flash (vllm.service). Switch with: cachyos-switch-model {glm|coder|coder-alt|vision|image}"
         else
             # ── Ollama (full mode, single-user, localhost only) ────────────────
             step "Install Ollama"

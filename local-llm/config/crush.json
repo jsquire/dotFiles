@@ -71,8 +71,15 @@
           "can_reason": true
         },
         {
-          "name": "Qwen3.6 35B-A3B (vision — requires server switch)",
-          "id": "qwen3.6-35b",
+          "name": "Qwen3.6 27B (vision/multimodal — requires server switch)",
+          "id": "qwen3.6-27b",
+          "context_window": 24576,
+          "default_max_tokens": 12000,
+          "can_reason": true
+        },
+        {
+          "name": "Devstral-2 24B (coding-alt, agentic — requires server switch)",
+          "id": "devstral",
           "context_window": 32768,
           "default_max_tokens": 16000,
           "can_reason": true

@@ -63,7 +63,8 @@ echo
 echo "  --- Remote (CachyOS server — one standing model, switch only when needed) ---"
 echo "  [S] CachyOS: GLM-4.7-Flash   (default — coding + review + office MCP)"
 echo "  [C] CachyOS: Qwen3-Coder     (coding-first — switches server)"
-echo "  [V] CachyOS: Qwen3.6-35B      (vision — switches server)"
+echo "  [D] CachyOS: Devstral-2 24B   (coding-alt, agentic — switches server)"
+echo "  [V] CachyOS: Qwen3.6-27B      (vision/multimodal — switches server)"
 echo "  [I] CachyOS: Image gen        (HiDream + Qwen3-4B — switches server)"
 echo
 read -rp "  Select task [1]: " choice
@@ -89,7 +90,7 @@ case "$choice" in
     s|S)
         MCP_FLAGS=(--disable-mcp-server imagegen-mcp)
         ;;
-    c|C|v|V)
+    c|C|v|V|d|D)
         MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp)
         ;;
     i|I)
@@ -123,10 +124,15 @@ case "$choice" in
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
         export COPILOT_MODEL="qwen3-coder"
         ;;
+    d|D)
+        ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model coder-alt" 2>/dev/null || true
+        export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
+        export COPILOT_MODEL="devstral"
+        ;;
     v|V)
         ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model vision" 2>/dev/null || true
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
-        export COPILOT_MODEL="qwen3.6-35b"
+        export COPILOT_MODEL="qwen3.6-27b"
         ;;
     i|I)
         ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model image" 2>/dev/null || true
