@@ -47,7 +47,8 @@ echo.
 echo   --- Remote (CachyOS server — one standing model, switch only when needed) ---
 echo   [S] CachyOS: GLM-4.7-Flash   (default — coding + review + office MCP^)
 echo   [C] CachyOS: Qwen3-Coder     (coding-first — switches server^)
-echo   [V] CachyOS: Qwen3.6-35B      (vision — switches server^)
+echo   [D] CachyOS: Devstral-2 24B   (coding-alt, agentic — switches server^)
+echo   [V] CachyOS: Qwen3.6-27B      (vision/multimodal — switches server^)
 echo   [I] CachyOS: Image gen        (HiDream + Qwen3-4B — switches server^)
 echo.
 set /p choice="  Select task [1]: "
@@ -81,10 +82,15 @@ if /i "%choice%"=="C" (
     set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
     set COPILOT_MODEL=qwen3-coder
 )
+if /i "%choice%"=="D" (
+    ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model coder-alt" 2>nul
+    set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
+    set COPILOT_MODEL=devstral
+)
 if /i "%choice%"=="V" (
     ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model vision" 2>nul
     set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
-    set COPILOT_MODEL=qwen3.6-35b
+    set COPILOT_MODEL=qwen3.6-27b
 )
 if /i "%choice%"=="I" (
     ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model image" 2>nul
@@ -110,6 +116,7 @@ if /i "%choice:~0,1%"=="H" set MCP_FLAGS=--disable-mcp-server word-mcp --disable
 if /i "%choice%"=="O2" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
 if /i "%choice%"=="S" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
 if /i "%choice%"=="C" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
+if /i "%choice%"=="D" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
 if /i "%choice%"=="V" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
 if /i "%choice%"=="I" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat
 

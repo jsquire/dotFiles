@@ -31,17 +31,21 @@ Clients connect via `http://server-ip:8000/v1` — same OpenAI API as Ollama.
 | **copilot-local** | Task picker launcher | `~/.local/bin/` |
 | **MCP servers** | Office document editing | Isolated Python venvs |
 
-### Models (HuggingFace GPTQ-Int4, ~58 GB disk + ~12 GB image gen)
+### Models (HuggingFace 4-bit AWQ/GPTQ, ~80 GB disk + ~35 GB image gen)
 
-> **Note:** This vLLM profile temporarily uses Qwen3-Coder + Mistral Small because stable vLLM doesn't yet support GLM-4.7-Flash's architecture (`Glm4MoeLiteForCausalLM`). The Ollama-based Desktop/Server profiles already use GLM-4.7-Flash for coding + docs roles. When stable vLLM adds GLM support, this profile will align.
+> **vLLM serves ONE model at a time** on the 24 GB card. **GLM-4.7-Flash is the standing default**
+> (covers coding + review + office MCP); the rest are on-demand **switch modes** loaded via
+> `cachyos-switch-model` (see below). GLM-4.7-Flash's `glm4_moe_lite` architecture is **natively
+> supported by stable vLLM** (vLLM ≥ 0.24.0 + transformers ≥ 5.13.0) — no nightly/git build needed.
 
-| Model | HuggingFace ID | Size | Task |
-|-------|---------------|------|------|
-| Qwen3-Coder 30B MoE | `btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit` | ~19 GB | Heavy coding (agentic) |
-| Qwen2.5-Coder 14B | `Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4` | ~8 GB | Light coding |
-| DeepSeek-R1 32B | `deepseek-ai/DeepSeek-R1-Distill-Qwen-32B-GPTQ-Int4` | ~18 GB | Code review, reasoning |
-| Mistral Small 3.2 | `mistralai/Mistral-Small-3.2-24B-Instruct-2503-GPTQ-Int4` | ~13 GB | Tech docs, creative, Office |
-| HiDream-O1-Image-Dev | `HiDream-ai/HiDream-O1-Image-Dev` | ~35 GB | Image generation (custom pipeline) |
+| Model | HuggingFace ID | Served name | Size | Mode / role |
+|-------|---------------|-------------|------|-------------|
+| GLM-4.7-Flash AWQ | `QuantTrio/GLM-4.7-Flash-AWQ` | `glm-4.7-flash` | ~20 GB | **`glm` (default)** — coding + review + office MCP (MLA KV) |
+| Qwen3-Coder 30B-A3B | `btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit` | `qwen3-coder` | ~19 GB | `coder` — fast MoE coding (3B active, 256K) |
+| Devstral-2 24B | `cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit` | `devstral` | ~14 GB | `coder-alt` — dense agentic-SWE coder (384K) |
+| Qwen3.6 27B | `cyankiwi/Qwen3.6-27B-AWQ-INT4` | `qwen3.6-27b` | ~20 GB | `vision` — multimodal (image understanding, 256K) |
+| Qwen3 4B | `Qwen/Qwen3-4B-Instruct-2507` | `qwen3-4b` | ~8 GB | `image` companion (co-resides with HiDream) |
+| HiDream-O1-Image-Dev | `HiDream-ai/HiDream-O1-Image-Dev` | — | ~35 GB | `image` generation (SGLang-Diffusion) |
 
 ## Install
 
@@ -79,16 +83,16 @@ The installer creates a systemd service. Configuration via environment in the ov
 ```bash
 # /etc/systemd/system/vllm.service.d/override.conf
 [Service]
-Environment="VLLM_MODEL=Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4"
+Environment="VLLM_MODEL=QuantTrio/GLM-4.7-Flash-AWQ"
 Environment="VLLM_HOST=0.0.0.0"
 Environment="VLLM_PORT=8000"
 Environment="VLLM_MAX_MODEL_LEN=32768"
 Environment="VLLM_GPU_MEMORY_UTILIZATION=0.90"
 ```
 
-Switch the active model:
+Switch the active model (see **Switching Models** below for the recommended `cachyos-switch-model` CLI):
 ```bash
-# Edit the override
+# For the GLM default only — edit the override
 sudo systemctl edit vllm
 # Change VLLM_MODEL to the desired model
 # Then restart
@@ -149,7 +153,7 @@ curl http://localhost:8000/v1/models
 # 3. LLM inference works
 curl http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit","messages":[{"role":"user","content":"Say hello"}]}'
+  -d '{"model":"glm-4.7-flash","messages":[{"role":"user","content":"Say hello"}]}'
 # Expected: JSON with a greeting
 
 # 4. Image gen service is running
@@ -195,21 +199,22 @@ journalctl -u imagegen -f       # Image gen logs
 
 ### Switching Models
 
-vLLM loads one model at a time (unlike Ollama's hot-swap). To switch:
+vLLM loads one model at a time (unlike Ollama's hot-swap). GLM-4.7-Flash (`vllm.service`) is the
+standing default; the specialist modes are templated `vllm@<mode>.service` instances (config in
+`/etc/vllm/modes/<mode>.env`) plus `imagegen.service`. Use the switch CLI:
 
 ```bash
-# Edit the service to use a different model
-sudo systemctl edit vllm
-# Change: Environment="VLLM_MODEL=Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4"
-sudo systemctl restart vllm
+cachyos-switch-model glm         # GLM-4.7-Flash (default: coding + review + office MCP)
+cachyos-switch-model coder       # Qwen3-Coder 30B-A3B (fast MoE coder)
+cachyos-switch-model coder-alt   # Devstral-2 24B (dense agentic-SWE coder)
+cachyos-switch-model vision      # Qwen3.6-27B (multimodal / image understanding)
+cachyos-switch-model image       # HiDream image gen + Qwen3-4B companion
 ```
 
-For faster switching, you can run multiple vLLM instances on different ports (if VRAM allows):
-```bash
-# Small model on port 8001 (uses ~10 GB VRAM)
-vllm serve Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4 \
-  --host 0.0.0.0 --port 8001 --gpu-memory-utilization 0.4
-```
+The switch CLI stops the other modes first (one model owns the 24 GB card), and is passwordless via a
+sudoers drop-in so the client launchers can flip modes over SSH. To change the model *within* a mode,
+edit its env-file (e.g. `sudo nano /etc/vllm/modes/coder.env`) and re-run the switch, or
+`sudo systemctl edit vllm` for the GLM default.
 
 ### Client Connection
 
@@ -238,7 +243,7 @@ COPILOT_PROVIDER_BASE_URL=http://server-ip:8000/v1 copilot-local
 from openai import OpenAI
 client = OpenAI(base_url="http://server-ip:8000/v1", api_key="unused")
 response = client.chat.completions.create(
-    model="Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4",
+    model="glm-4.7-flash",
     messages=[{"role": "user", "content": "Hello"}]
 )
 ```
@@ -277,9 +282,9 @@ journalctl -u vllm -f            # Live server logs
 
 | Model | Concurrent Users | Context per User |
 |-------|-----------------|-----------------|
-| Qwen2.5-Coder 32B | 2-3 | ~8k tokens each |
-| Qwen2.5-Coder 14B | 4-6 | ~16k tokens each |
-| Mistral Small 3.2 | 3-4 | ~12k tokens each |
+| GLM-4.7-Flash (default, MLA KV) | 3-5 | ~12k tokens each |
+| Qwen3-Coder 30B-A3B | 2-4 | ~10k tokens each |
+| Devstral-2 24B (dense) | 2-3 | ~10k tokens each |
 
 PagedAttention dynamically allocates VRAM — actual capacity depends on conversation length.
 
@@ -324,9 +329,11 @@ Common causes:
 # Check usage
 nvidia-smi
 
-# Switch to smaller model
+# Switch to a lighter/faster mode (e.g. Devstral-2 24B is ~14 GB)
+cachyos-switch-model coder-alt
+# ...or reduce context on the GLM default
 sudo systemctl edit vllm
-# VLLM_MODEL=Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4
+# VLLM_MAX_MODEL_LEN=16384
 sudo systemctl restart vllm
 
 # Or reduce context length
