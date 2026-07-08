@@ -7,7 +7,7 @@
       "type": "openai",
       "models": [
         {
-          "name": "Qwen3.6 27B dense (Heavy coding — default)",
+          "name": "Qwen3.6 27B dense (Heavy coding \u2014 default)",
           "id": "qwen36-27b-212k",
           "context_window": 262144,
           "default_max_tokens": 32000,
@@ -21,7 +21,7 @@
           "can_reason": true
         },
         {
-          "name": "Gemma 4 31B dense (Heavy coding bench — re-test)",
+          "name": "Gemma 4 31B dense (Heavy coding bench \u2014 re-test)",
           "id": "gemma4-31b-128k",
           "context_window": 131072,
           "default_max_tokens": 32000,
@@ -51,44 +51,44 @@
       ]
     },
     "squire-server": {
-      "name": "Squire Server (CachyOS Linux — vLLM)",
+      "name": "Squire Server (CachyOS Linux \u2014 vLLM)",
       "base_url": "http://__SQUIRE_SERVER_IP__:8000/v1/",
       "type": "openai",
       "api_key": "unused",
       "models": [
         {
-          "name": "GLM-4.7-Flash (default — coding + review + office MCP)",
+          "name": "Mistral-Small-3.2 24B (default \u2014 office/authoring, 64K)",
+          "id": "mistral-small",
+          "context_window": 65536,
+          "default_max_tokens": 8192,
+          "can_reason": false
+        },
+        {
+          "name": "GLM-4.7-Flash (agentic/reasoning \u2014 requires server switch)",
           "id": "glm-4.7-flash",
-          "context_window": 32768,
-          "default_max_tokens": 16000,
+          "context_window": 45056,
+          "default_max_tokens": 8192,
           "can_reason": true
         },
         {
-          "name": "Qwen3-Coder 30B-A3B (coding-first — requires server switch)",
+          "name": "Qwen3-Coder 30B-A3B (coding-first \u2014 requires server switch)",
           "id": "qwen3-coder",
           "context_window": 32768,
-          "default_max_tokens": 16000,
+          "default_max_tokens": 8192,
           "can_reason": true
         },
         {
-          "name": "Qwen3.6 27B (vision/multimodal — requires server switch)",
-          "id": "qwen3.6-27b",
-          "context_window": 24576,
-          "default_max_tokens": 12000,
-          "can_reason": true
-        },
-        {
-          "name": "Devstral-2 24B (coding-alt, agentic — requires server switch)",
+          "name": "Devstral-2 24B (coding-alt, agentic \u2014 requires server switch)",
           "id": "devstral",
           "context_window": 32768,
-          "default_max_tokens": 16000,
+          "default_max_tokens": 8192,
           "can_reason": true
         },
         {
-          "name": "Qwen3 4B (image-gen companion — requires server switch)",
+          "name": "Qwen3 4B (image-gen companion \u2014 requires server switch)",
           "id": "qwen3-4b",
           "context_window": 32768,
-          "default_max_tokens": 8000,
+          "default_max_tokens": 4096,
           "can_reason": true
         }
       ]
@@ -212,25 +212,37 @@
     "word-mcp": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["--python", "3.12", "docx-mcp-server"],
+      "args": [
+        "--python",
+        "3.12",
+        "docx-mcp-server"
+      ],
       "disabled": true
     },
     "pptx-mcp": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["ppt-mcp"],
+      "args": [
+        "ppt-mcp"
+      ],
       "disabled": true
     },
     "pptx-mcp-xplat": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["--python", "3.12", "office-powerpoint-mcp-server"],
+      "args": [
+        "--python",
+        "3.12",
+        "office-powerpoint-mcp-server"
+      ],
       "disabled": true
     },
     "imagegen-mcp": {
       "type": "stdio",
       "command": "__LOCALAPPDATA__/ai-tools/mcp-imagegen/__VENV_BIN__/python__EXE__",
-      "args": ["__LOCALAPPDATA__/ai-tools/mcp-imagegen/imagegen-mcp-server.py"],
+      "args": [
+        "__LOCALAPPDATA__/ai-tools/mcp-imagegen/imagegen-mcp-server.py"
+      ],
       "env": {
         "IMAGEGEN_URL": "http://__IMAGEGEN_HOST__:8001"
       },
@@ -249,8 +261,15 @@
   "lsp": {
     "csharp-ls": {
       "command": "csharp-ls",
-      "filetypes": ["cs", "csx"],
-      "root_markers": ["*.sln", "*.csproj", ".git"]
+      "filetypes": [
+        "cs",
+        "csx"
+      ],
+      "root_markers": [
+        "*.sln",
+        "*.csproj",
+        ".git"
+      ]
     }
   }
 }
