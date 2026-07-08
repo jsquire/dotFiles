@@ -45,10 +45,10 @@ echo   --- Big-MoE expert-offload bench (experts-^>RAM; partial offload, slower^
 echo   [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB^)
 echo.
 echo   --- Remote (CachyOS server — one standing model, switch only when needed) ---
-echo   [S] CachyOS: GLM-4.7-Flash   (default — coding + review + office MCP^)
+echo   [S] CachyOS: Mistral-Small   (default — office/authoring, 64K^)
+echo   [G] CachyOS: GLM-4.7-Flash   (agentic/reasoning — switches server^)
 echo   [C] CachyOS: Qwen3-Coder     (coding-first — switches server^)
 echo   [D] CachyOS: Devstral-2 24B   (coding-alt, agentic — switches server^)
-echo   [V] CachyOS: Qwen3.6-27B      (vision/multimodal — switches server^)
 echo   [I] CachyOS: Image gen        (HiDream + Qwen3-4B — switches server^)
 echo.
 set /p choice="  Select task [1]: "
@@ -73,6 +73,11 @@ if /i "%choice%"=="H8" set COPILOT_MODEL=ornith-35b-256k
 if /i "%choice%"=="O2" set COPILOT_MODEL=qwen3next-80b-offload
 if /i "%choice%"=="O2" set OFFLOAD=1
 if /i "%choice%"=="S" (
+    ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model mistral" 2>nul
+    set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
+    set COPILOT_MODEL=mistral-small
+)
+if /i "%choice%"=="G" (
     ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model glm" 2>nul
     set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
     set COPILOT_MODEL=glm-4.7-flash
@@ -86,11 +91,6 @@ if /i "%choice%"=="D" (
     ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model coder-alt" 2>nul
     set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
     set COPILOT_MODEL=devstral
-)
-if /i "%choice%"=="V" (
-    ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model vision" 2>nul
-    set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
-    set COPILOT_MODEL=qwen3.6-27b
 )
 if /i "%choice%"=="I" (
     ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model image" 2>nul
@@ -115,9 +115,9 @@ if "%choice%"=="7" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-ser
 if /i "%choice:~0,1%"=="H" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
 if /i "%choice%"=="O2" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
 if /i "%choice%"=="S" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
+if /i "%choice%"=="G" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
 if /i "%choice%"=="C" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
 if /i "%choice%"=="D" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
-if /i "%choice%"=="V" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
 if /i "%choice%"=="I" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat
 
 if not defined COPILOT_MODEL (

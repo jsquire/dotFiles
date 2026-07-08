@@ -872,9 +872,36 @@ if ($ShouldInstallSoftware) {
             $crushContent = $crushContent -replace '__CONFIG_DIR__', $expandedConfigDir
             $crushContent = $crushContent -replace '__IMAGEGEN_HOST__', '127.0.0.1'
             $crushContent = $crushContent -replace '__SQUIRE_SERVER_IP__', $SquireServerIP
+
+            # Thin-client profile (-Mode Client, no local LLM) defaults crush to the squire-server
+            # (vLLM) provider. The single-GPU server hosts one model at a time, so large AND small
+            # both map to the standing default (mistral-small). Full mode keeps the local Ollama default.
+            if ($IsClientMode) {
+                $crushContent = $crushContent -replace '"default_provider":\s*"ollama"', '"default_provider": "squire-server"'
+                $serverModelsBlock = @'
+"models": {
+    "large": {
+      "model": "mistral-small",
+      "provider": "squire-server",
+      "max_tokens": 8192
+    },
+    "small": {
+      "model": "mistral-small",
+      "provider": "squire-server",
+      "max_tokens": 8192
+    }
+  },
+'@
+                $crushContent = $crushContent -replace '(?s)"models":\s*\{.*\},(?=\s*"mcp")', $serverModelsBlock
+            }
+
             Set-Content -Path $crushConfigDest -Value $crushContent -Encoding UTF8
             Write-Success "Deployed crush.json to $crushConfigDest"
-            Write-Info "Local Ollama is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+            if ($IsClientMode) {
+                Write-Info "squire-server (vLLM, mistral-small) is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+            } else {
+                Write-Info "Local Ollama is the default provider. squire-server (vLLM), Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+            }
             Write-Info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
             Write-Info "MCP servers (Word, PowerPoint) are enabled. Run setup-mcp-venvs.ps1 to install them."
         }

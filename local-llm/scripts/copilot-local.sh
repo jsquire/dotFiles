@@ -61,10 +61,10 @@ echo "  --- Big-MoE expert-offload bench (experts->RAM; partial offload, slower)
 echo "  [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB)"
 echo
 echo "  --- Remote (CachyOS server — one standing model, switch only when needed) ---"
-echo "  [S] CachyOS: GLM-4.7-Flash   (default — coding + review + office MCP)"
+echo "  [S] CachyOS: Mistral-Small   (default — office/authoring, 64K)"
+echo "  [G] CachyOS: GLM-4.7-Flash   (agentic/reasoning — switches server)"
 echo "  [C] CachyOS: Qwen3-Coder     (coding-first — switches server)"
 echo "  [D] CachyOS: Devstral-2 24B   (coding-alt, agentic — switches server)"
-echo "  [V] CachyOS: Qwen3.6-27B      (vision/multimodal — switches server)"
 echo "  [I] CachyOS: Image gen        (HiDream + Qwen3-4B — switches server)"
 echo
 read -rp "  Select task [1]: " choice
@@ -87,10 +87,10 @@ case "$choice" in
     [Hh][1-8])
         MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp)
         ;;
-    s|S)
+    s|S|g|G)
         MCP_FLAGS=(--disable-mcp-server imagegen-mcp)
         ;;
-    c|C|v|V|d|D)
+    c|C|d|D)
         MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp)
         ;;
     i|I)
@@ -115,6 +115,11 @@ case "$choice" in
     [Hh]7) export COPILOT_MODEL="nemotron-c2-256k" ;;
     [Hh]8) export COPILOT_MODEL="ornith-35b-256k" ;;
     s|S)
+        ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model mistral" 2>/dev/null || true
+        export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
+        export COPILOT_MODEL="mistral-small"
+        ;;
+    g|G)
         ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model glm" 2>/dev/null || true
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
         export COPILOT_MODEL="glm-4.7-flash"
@@ -128,11 +133,6 @@ case "$choice" in
         ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model coder-alt" 2>/dev/null || true
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
         export COPILOT_MODEL="devstral"
-        ;;
-    v|V)
-        ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model vision" 2>/dev/null || true
-        export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
-        export COPILOT_MODEL="qwen3.6-27b"
         ;;
     i|I)
         ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model image" 2>/dev/null || true

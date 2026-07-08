@@ -24,15 +24,13 @@ CRUSH_HOME_DIR="${HOME}/.crush"
 CRUSH_CONFIG_DIR="${HOME}/.config/crush"
 DEFAULT_MODEL_ROOT="${HOME}/.ollama/models"
 VLLM_PORT=8000
-# Standing default served model (the all-rounder: coding + review + office MCP).
-VLLM_DEFAULT_MODEL="QuantTrio/GLM-4.7-Flash-AWQ"
-VLLM_DEFAULT_SERVED_NAME="glm-4.7-flash"
-VLLM_DEFAULT_QUANT="awq"
-# GLM-4.7-Flash tool-call + reasoning parsers (glm4_moe_lite arch). Stable-vLLM native as of
-# vLLM 0.24.0 + transformers 5.13.0 (no nightly/git hack). Reasoning parser is glm45 — there is
-# no glm47 reasoning parser (per vLLM issue #33580).
-VLLM_DEFAULT_TOOL_PARSER="glm47"
-VLLM_DEFAULT_REASONING_PARSER="glm45"
+# Standing default served model = Mistral-Small-3.2-24B-Instruct (authoring/office focus). See the base
+# vllm.service comment for the gghfez-weights + jeffcookio-tokenizer rationale. GLM-4.7-Flash is retained
+# as an on-demand switch mode (cachyos-switch-model glm) for agentic/reasoning/coding tasks.
+VLLM_DEFAULT_MODEL="gghfez/Mistral-Small-3.2-24B-Instruct-hf-AWQ"
+VLLM_DEFAULT_TOKENIZER="jeffcookio/Mistral-Small-3.2-24B-Instruct-2506-awq-sym"
+VLLM_DEFAULT_SERVED_NAME="mistral-small"
+VLLM_DEFAULT_TOOL_PARSER="mistral"
 
 # Squire Server (CachyOS vLLM) hooks for the deployed copilot-local launcher.
 # SQUIRE_SERVER_IP empty = auto-derive (client host, else this box's LAN IP).
@@ -172,9 +170,10 @@ model_description() {
         qwen3:32b) printf '%s' 'Qwen3 32B — creative writing (128k ctx), ~20 GB' ;;
         x/z-image-turbo) printf '%s' 'Z-Image Turbo 6B — image generation, ~12 GB' ;;
         # HuggingFace model IDs (vLLM server mode)
-        QuantTrio/GLM-4.7-Flash-AWQ) printf '%s' 'GLM-4.7-Flash AWQ — standing default: coding + review + office MCP (32k served, MLA KV), ~20 GB' ;;
+        QuantTrio/GLM-4.7-Flash-AWQ) printf '%s' 'GLM-4.7-Flash AWQ — agentic/reasoning/coding switch mode (glm mode; MLA KV, ~44K), ~20 GB' ;;
+        gghfez/Mistral-Small-3.2-24B-Instruct-hf-AWQ) printf '%s' 'Mistral-Small-3.2 24B AWQ — STANDING DEFAULT: office/authoring (64K, tool-calling), ~14 GB' ;;
+        jeffcookio/Mistral-Small-3.2-24B-Instruct-2506-awq-sym) printf '%s' 'Mistral-Small-3.2 tokenizer source (tekken.json for --tokenizer-mode mistral); weights unused' ;;
         cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit) printf '%s' 'Devstral-2 24B AWQ — agentic-coding alternative (switch mode, dense, 384k ctx, compressed-tensors), ~14 GB' ;;
-        cyankiwi/Qwen3.6-27B-AWQ-INT4) printf '%s' 'Qwen3.6 27B AWQ-INT4 — vision/multimodal mode (switch, compressed-tensors, 256k ctx), ~20 GB' ;;
         Qwen/Qwen3-4B-Instruct-2507) printf '%s' 'Qwen3 4B — image-gen companion LLM (co-resides with HiDream), ~8 GB' ;;
         Qwen/Qwen3.6-27B-Instruct-GPTQ) printf '%s' 'Qwen3.6 27B GPTQ — primary model (32k ctx, FP8 KV), ~15 GB' ;;
         Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4) printf '%s' 'Qwen2.5-Coder 32B GPTQ — heavy coding, ~18 GB' ;;
@@ -253,13 +252,14 @@ load_effective_model_config() {
                 # default; the rest are downloaded so the mode-switch (cachyos-switch-model)
                 # can load them on demand without a fresh pull.
                 SELECTED_MODELS=(
+                    "gghfez/Mistral-Small-3.2-24B-Instruct-hf-AWQ"
+                    "jeffcookio/Mistral-Small-3.2-24B-Instruct-2506-awq-sym"
                     "QuantTrio/GLM-4.7-Flash-AWQ"
                     "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit"
                     "cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit"
-                    "cyankiwi/Qwen3.6-27B-AWQ-INT4"
                     "Qwen/Qwen3-4B-Instruct-2507"
                 )
-                EFFECTIVE_MODEL_REQUIRED_GB=85
+                EFFECTIVE_MODEL_REQUIRED_GB=115
             else
                 # Ollama (full mode, single-user) uses Ollama tags
                 SELECTED_MODELS=("gemma4:26b" "qwen3:14b" "qwen3:4b" "qwen3-coder:30b")
@@ -577,14 +577,23 @@ if [[ "$IS_FULL_MODE" == true && "$SHOULD_INSTALL_SOFTWARE" == true ]]; then
         add_failure "pacman is required on CachyOS/Arch systems."
     fi
 
-    if command_exists lspci; then
-        if lspci | grep -qi nvidia; then
-            success "NVIDIA GPU detected."
-        else
-            add_failure "No NVIDIA GPU was detected by lspci."
-        fi
+    # Robust GPU detection — accept any authoritative signal, not just lspci's vendor string
+    # (which can transiently render without the "NVIDIA" name). nvidia-smi / the kernel module
+    # are the strongest signals; lspci (name or 10de vendor id) is the fallback.
+    gpu_detected=false
+    if command_exists nvidia-smi && nvidia-smi -L >/dev/null 2>&1; then
+        gpu_detected=true
+    elif [[ -e /proc/driver/nvidia/version ]]; then
+        gpu_detected=true
+    elif command_exists lspci && lspci -nn 2>/dev/null | grep -qiE 'nvidia|\[10de:'; then
+        gpu_detected=true
+    fi
+    if [[ "$gpu_detected" == true ]]; then
+        success "NVIDIA GPU detected."
+    elif ! command_exists lspci && ! command_exists nvidia-smi; then
+        add_failure "Cannot detect a GPU: neither nvidia-smi nor lspci is installed (install pciutils)."
     else
-        add_failure "lspci is not installed. Install pciutils, then re-run this script."
+        add_failure "No NVIDIA GPU detected (checked nvidia-smi, /proc/driver/nvidia, lspci)."
     fi
 
     if ! command_exists curl; then
@@ -696,12 +705,14 @@ if [[ "$SHOULD_INSTALL_SOFTWARE" == true ]]; then
                 add_warning "transformers ${tf_ver} lacks glm4_moe_lite; the GLM-4.7-Flash default will not load. Upgrade to transformers >=5.13 in ${VLLM_VENV} (e.g. '${UV_BIN} pip install --python ${VLLM_VENV}/bin/python -U transformers')."
             fi
 
-            step "Install huggingface-cli (model downloader)"
+            step "Install hf CLI (model downloader)"
             VLLM_VENV="${HOME}/.local/share/vllm-env"
-            if [[ -x "$VLLM_VENV/bin/huggingface-cli" ]]; then
-                info "huggingface-cli already available in vLLM venv."
+            # huggingface_hub >=1.0 ships the `hf` CLI; the old `huggingface-cli` is deprecated and no
+            # longer works. vLLM/transformers already pull huggingface_hub in, so `hf` usually exists.
+            if [[ -x "$VLLM_VENV/bin/hf" ]]; then
+                info "hf CLI already available in vLLM venv."
             else
-                "$UV_BIN" pip install --python "$VLLM_VENV/bin/python" huggingface_hub[cli] || add_warning "huggingface-cli install failed."
+                "$UV_BIN" pip install --python "$VLLM_VENV/bin/python" huggingface_hub || add_warning "huggingface_hub (hf CLI) install failed."
             fi
 
             step "Configure vLLM systemd service"
@@ -721,25 +732,35 @@ Type=simple
 User=$(whoami)
 ExecStart=${VLLM_VENV}/bin/python -m vllm.entrypoints.openai.api_server \\
     --model \${VLLM_MODEL} \\
+    --tokenizer \${VLLM_TOKENIZER} \\
+    --tokenizer-mode \${VLLM_TOKENIZER_MODE} \\
     --host \${VLLM_HOST} \\
     --port \${VLLM_PORT} \\
     --max-model-len \${VLLM_MAX_MODEL_LEN} \\
+    --max-num-seqs \${VLLM_MAX_NUM_SEQS} \\
     --gpu-memory-utilization \${VLLM_GPU_MEMORY_UTILIZATION} \\
     --kv-cache-dtype \${VLLM_KV_CACHE_DTYPE} \\
     --served-model-name \${VLLM_SERVED_NAME} \\
-    --quantization \${VLLM_QUANTIZATION} \\
     --enable-auto-tool-choice \\
-    --tool-call-parser \${VLLM_TOOL_PARSER} \\
-    --reasoning-parser \${VLLM_REASONING_PARSER}
+    --tool-call-parser \${VLLM_TOOL_PARSER}
+# Standing default = Mistral-Small-3.2-24B (authoring). Weights = gghfez AWQ (compressed-tensors, auto-
+# detected — no --quantization); tokenizer = jeffcookio tekken (--tokenizer-mode mistral) since gghfez's
+# HF tokenizer mis-detokenizes. gghfez config caps ctx at 32K but the model is natively 128K, so
+# VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 lets us serve 64K safely. Mistral has no reasoning parser.
+# (Validated on-box 2026-07-07: 64K, clean output, tool-calling OK, ~58 tok/s, strong payer-proposal prose.)
 Environment=\"VLLM_MODEL=${VLLM_DEFAULT_MODEL}\"
+Environment=\"VLLM_TOKENIZER=${VLLM_DEFAULT_TOKENIZER}\"
+Environment=\"VLLM_TOKENIZER_MODE=mistral\"
 Environment=\"VLLM_SERVED_NAME=${VLLM_DEFAULT_SERVED_NAME}\"
-Environment=\"VLLM_QUANTIZATION=${VLLM_DEFAULT_QUANT}\"
 Environment=\"VLLM_TOOL_PARSER=${VLLM_DEFAULT_TOOL_PARSER}\"
-Environment=\"VLLM_REASONING_PARSER=${VLLM_DEFAULT_REASONING_PARSER}\"
+Environment=\"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1\"
 Environment=\"VLLM_HOST=0.0.0.0\"
 Environment=\"VLLM_PORT=${VLLM_PORT}\"
-Environment=\"VLLM_MAX_MODEL_LEN=32768\"
-Environment=\"VLLM_GPU_MEMORY_UTILIZATION=0.90\"
+Environment=\"VLLM_MAX_MODEL_LEN=65536\"
+Environment=\"VLLM_MAX_NUM_SEQS=16\"
+Environment=\"VLLM_GPU_MEMORY_UTILIZATION=0.92\"
+# flashinfer JIT-compiles its sampling kernel at startup and needs nvcc; CachyOS puts CUDA in /opt/cuda.
+Environment=\"CUDA_HOME=/opt/cuda\"
 Environment=\"VLLM_KV_CACHE_DTYPE=fp8_e5m2\"
 Restart=on-failure
 RestartSec=10
@@ -752,7 +773,7 @@ WantedBy=multi-user.target
                 success "Created vLLM service at $local_vllm_service"
                 info "Default model: ${VLLM_DEFAULT_MODEL} (served as '${VLLM_DEFAULT_SERVED_NAME}')"
                 info "Listening on: 0.0.0.0:${VLLM_PORT}"
-                info "To switch modes: cachyos-switch-model {glm|coder|coder-alt|vision|image}"
+                info "To switch modes: cachyos-switch-model {mistral|glm|coder|coder-alt|image}"
             else
                 add_failure "Failed to create vLLM systemd service."
             fi
@@ -804,6 +825,27 @@ WantedBy=multi-user.target
                 git clone --depth 1 https://github.com/HiDream-ai/HiDream-O1-Image.git "${imagegen_repo}"
             fi
 
+            # Make flash-attention optional in HiDream's pipeline. Upstream hardcodes use_flash_attn=True,
+            # which hard-asserts flash_attn is installed and 500s on generation when it isn't. A fresh
+            # clone reverts this, so re-patch every run: fall back to SDPA when flash_attn is absent.
+            # (validated on-box 2026-07-07: image gen 500'd until patched.) Idempotent.
+            if [[ -f "${imagegen_repo}/models/pipeline.py" ]]; then
+                python3 - "${imagegen_repo}/models/pipeline.py" <<'PYEOF' && info "HiDream pipeline.py: flash-attn optional (SDPA fallback)." || add_warning "Could not patch HiDream pipeline.py (image gen may 500 without flash_attn)."
+import re, sys
+f = sys.argv[1]; s = open(f).read()
+if '_FLASH_ATTN_AVAILABLE' not in s:
+    detect = ('# Patched by dotFiles local-llm installer: make flash-attention optional (SDPA fallback).\n'
+              'try:\n'
+              '    from .qwen3_vl_transformers import _flash_attn_func as _FAF\n'
+              '    _FLASH_ATTN_AVAILABLE = _FAF is not None\n'
+              'except Exception:\n'
+              '    _FLASH_ATTN_AVAILABLE = False\n\nTIMESTEP_TOKEN_NUM = 1')
+    s = re.sub(r'(?m)^TIMESTEP_TOKEN_NUM = 1\r?$', detect, s, count=1)
+    s = s.replace('"use_flash_attn": True,', '"use_flash_attn": _FLASH_ATTN_AVAILABLE,')
+    open(f, 'w').write(s)
+PYEOF
+            fi
+
             # Create venv if missing
             if [[ ! -f "${imagegen_venv}/bin/python" ]]; then
                 info "Creating image generation venv..."
@@ -837,6 +879,7 @@ ExecStart=${imagegen_venv}/bin/python ${imagegen_dir}/imagegen-server.py \\
     --host 0.0.0.0 \\
     --port ${IMAGEGEN_PORT}
 Environment=\"LOCALAPPDATA=${HOME}/.local/share\"
+Environment=\"CUDA_HOME=/opt/cuda\"
 Restart=on-failure
 RestartSec=15
 
@@ -869,8 +912,8 @@ WantedBy=multi-user.target
             fi
 
             step "Configure model-switch mechanism (cachyos-switch-model)"
-            # vLLM holds ONE model at a time in 24GB. GLM-4.7-Flash (vllm.service) is the
-            # standing default; coder/vision/image modes are loaded on demand via templated
+            # vLLM holds ONE model at a time in 24GB. Mistral-Small-3.2 (vllm.service) is the
+            # standing default; glm/coder/coder-alt/image modes are loaded on demand via templated
             # vllm@<mode>.service instances + the existing imagegen.service (HiDream).
             VLLM_VENV="${HOME}/.local/share/vllm-env"
             run_privileged mkdir -p /etc/vllm/modes
@@ -878,12 +921,16 @@ WantedBy=multi-user.target
             # Wrapper: builds the vLLM args from the mode env-file (quantization optional).
             local vllm_serve_wrapper="#!/usr/bin/env bash
 set -euo pipefail
+# flashinfer JIT-compiles its sampling kernel at startup and needs nvcc; CachyOS puts CUDA in /opt/cuda.
+export CUDA_HOME=\"\${CUDA_HOME:-/opt/cuda}\"
+export PATH=\"\${CUDA_HOME}/bin:\${PATH}\"
 VENV=\"${VLLM_VENV}\"
 args=(
     --model \"\${VLLM_MODEL}\"
     --host \"\${VLLM_HOST:-0.0.0.0}\"
     --port \"\${VLLM_PORT:-${VLLM_PORT}}\"
     --max-model-len \"\${VLLM_MAX_MODEL_LEN:-32768}\"
+    --max-num-seqs \"\${VLLM_MAX_NUM_SEQS:-16}\"
     --gpu-memory-utilization \"\${VLLM_GPU_MEMORY_UTILIZATION:-0.90}\"
     --kv-cache-dtype \"\${VLLM_KV_CACHE_DTYPE:-fp8_e5m2}\"
     --served-model-name \"\${VLLM_SERVED_NAME}\"
@@ -928,7 +975,7 @@ WantedBy=multi-user.target
                 && success "Created vllm@.service template" \
                 || add_failure "Failed to create vllm@.service template."
 
-            # Mode env-files. coder/vision get full VRAM; image companion shares with HiDream.
+            # Mode env-files. coder/coder-alt get full VRAM; image companion shares with HiDream.
             local coder_env="VLLM_MODEL=btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit
 VLLM_SERVED_NAME=qwen3-coder
 VLLM_QUANTIZATION=gptq
@@ -938,6 +985,20 @@ VLLM_MAX_MODEL_LEN=32768
 VLLM_GPU_MEMORY_UTILIZATION=0.90
 VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
+            # glm: GLM-4.7-Flash — the former default, kept as an agentic/reasoning/coding switch mode.
+            # MLA on Ada needs kv auto (no fp8); glm47 tool + reasoning parsers; ~44K ctx (maxseqs 16).
+            local glm_env="VLLM_MODEL=QuantTrio/GLM-4.7-Flash-AWQ
+VLLM_SERVED_NAME=glm-4.7-flash
+VLLM_QUANTIZATION=awq
+VLLM_TOOL_PARSER=glm47
+VLLM_REASONING_PARSER=glm47
+VLLM_HOST=0.0.0.0
+VLLM_PORT=${VLLM_PORT}
+VLLM_MAX_MODEL_LEN=45056
+VLLM_MAX_NUM_SEQS=16
+VLLM_GPU_MEMORY_UTILIZATION=0.90
+VLLM_KV_CACHE_DTYPE=auto
+"
             # coder-alt: Devstral-2 24B (dense, agentic-SWE) — AWQ is compressed-tensors format,
             # so leave VLLM_QUANTIZATION unset and let vLLM auto-detect it.
             local coder_alt_env="VLLM_MODEL=cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit
@@ -946,16 +1007,6 @@ VLLM_HOST=0.0.0.0
 VLLM_PORT=${VLLM_PORT}
 VLLM_MAX_MODEL_LEN=32768
 VLLM_GPU_MEMORY_UTILIZATION=0.90
-VLLM_KV_CACHE_DTYPE=fp8_e5m2
-"
-            # vision: Qwen3.6-27B multimodal — 20.4 GB compressed-tensors quant (auto-detected, no
-            # forced --quantization). Tight on 24 GB so serve ~24k ctx at util 0.93; owns the whole card.
-            local vision_env="VLLM_MODEL=cyankiwi/Qwen3.6-27B-AWQ-INT4
-VLLM_SERVED_NAME=qwen3.6-27b
-VLLM_HOST=0.0.0.0
-VLLM_PORT=${VLLM_PORT}
-VLLM_MAX_MODEL_LEN=24576
-VLLM_GPU_MEMORY_UTILIZATION=0.93
 VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
             # Image companion: small, unquantized (no VLLM_QUANTIZATION), low util to leave
@@ -969,27 +1020,27 @@ VLLM_GPU_MEMORY_UTILIZATION=0.25
 VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
             printf '%s' "$coder_env"     | run_privileged tee /etc/vllm/modes/coder.env     >/dev/null
+            printf '%s' "$glm_env"       | run_privileged tee /etc/vllm/modes/glm.env       >/dev/null
             printf '%s' "$coder_alt_env" | run_privileged tee /etc/vllm/modes/coder-alt.env >/dev/null
-            printf '%s' "$vision_env"    | run_privileged tee /etc/vllm/modes/vision.env    >/dev/null
             printf '%s' "$image_env"     | run_privileged tee /etc/vllm/modes/image.env     >/dev/null
-            success "Wrote mode env-files (coder, coder-alt, vision, image) to /etc/vllm/modes"
+            success "Wrote mode env-files (glm, coder, coder-alt, image) to /etc/vllm/modes"
 
             # The switch CLI (also invoked over ssh by the client launchers).
             local switch_script="#!/usr/bin/env bash
 set -euo pipefail
-mode=\"\${1:-glm}\"
+mode=\"\${1:-mistral}\"
 SUDO=\"\"
 [[ \$EUID -ne 0 ]] && SUDO=\"sudo\"
 stop_all() {
-    \$SUDO systemctl stop vllm.service vllm@coder.service vllm@coder-alt.service vllm@vision.service vllm@image.service imagegen.service 2>/dev/null || true
+    \$SUDO systemctl stop vllm.service vllm@glm.service vllm@coder.service vllm@coder-alt.service vllm@image.service imagegen.service 2>/dev/null || true
 }
 case \"\$mode\" in
-    glm)       stop_all; \$SUDO systemctl start vllm.service ;;
+    mistral)   stop_all; \$SUDO systemctl start vllm.service ;;
+    glm)       stop_all; \$SUDO systemctl start vllm@glm.service ;;
     coder)     stop_all; \$SUDO systemctl start vllm@coder.service ;;
     coder-alt) stop_all; \$SUDO systemctl start vllm@coder-alt.service ;;
-    vision)    stop_all; \$SUDO systemctl start vllm@vision.service ;;
     image)     stop_all; \$SUDO systemctl start imagegen.service; \$SUDO systemctl start vllm@image.service ;;
-    *) echo \"Unknown mode: \$mode (use: glm|coder|coder-alt|vision|image)\" >&2; exit 1 ;;
+    *) echo \"Unknown mode: \$mode (use: mistral|glm|coder|coder-alt|image)\" >&2; exit 1 ;;
 esac
 echo \"cachyos-switch-model: now in '\$mode' mode\"
 "
@@ -1002,7 +1053,7 @@ echo \"cachyos-switch-model: now in '\$mode' mode\"
 
             # Passwordless sudo for the switch (so client ssh can flip modes non-interactively).
             local switch_user; switch_user="$(whoami)"
-            local sudoers_line="${switch_user} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@coder-alt.service, /usr/bin/systemctl stop vllm@coder-alt.service, /usr/bin/systemctl start vllm@vision.service, /usr/bin/systemctl stop vllm@vision.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
+            local sudoers_line="${switch_user} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@glm.service, /usr/bin/systemctl stop vllm@glm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@coder-alt.service, /usr/bin/systemctl stop vllm@coder-alt.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
             if printf '%s\n' "$sudoers_line" | run_privileged tee /etc/sudoers.d/cachyos-vllm-switch >/dev/null; then
                 run_privileged chmod 0440 /etc/sudoers.d/cachyos-vllm-switch
                 if run_privileged visudo -c -f /etc/sudoers.d/cachyos-vllm-switch >/dev/null 2>&1; then
@@ -1015,8 +1066,41 @@ echo \"cachyos-switch-model: now in '\$mode' mode\"
                 add_warning "Could not write sudoers drop-in for mode switching."
             fi
 
+            # ── Desktop/headless toggle ───────────────────────────────────────
+            # server-desktop {on|off|status}: toggles the KDE Plasma desktop (for RDP). The default model
+            # (Mistral-Small-3.2 @ 64K, util 0.92) already fits alongside the ~750 MiB desktop, so this just
+            # starts/stops plasmalogin — no vLLM restart or context change needed. Headless simply frees the
+            # ~750 MiB back to the GPU (extra KV/concurrency headroom).
+            local server_desktop_script="#!/usr/bin/env bash
+set -euo pipefail
+SUDO=\"\"; [[ \$EUID -ne 0 ]] && SUDO=\"sudo\"
+case \"\${1:-}\" in
+  off)
+    echo 'Going headless: stopping the Plasma desktop (frees ~750 MiB VRAM)...'
+    \$SUDO systemctl stop plasmalogin.service 2>/dev/null || true
+    echo 'Headless. RDP is unavailable until: server-desktop on'
+    ;;
+  on)
+    echo 'Starting the Plasma desktop for RDP...'
+    \$SUDO systemctl start plasmalogin.service
+    echo 'Desktop up — RDP via xrdp.'
+    ;;
+  status)
+    systemctl is-active plasmalogin.service >/dev/null 2>&1 && echo 'desktop: up (RDP available)' || echo 'desktop: down (headless)'
+    systemctl is-active vllm.service >/dev/null 2>&1 && echo 'vllm: up' || echo 'vllm: down'
+    ;;
+  *) echo 'Usage: server-desktop {on|off|status}' >&2; exit 1 ;;
+esac
+"
+            if printf '%s' "$server_desktop_script" | run_privileged tee /usr/local/bin/server-desktop >/dev/null; then
+                run_privileged chmod 0755 /usr/local/bin/server-desktop
+                success "Created /usr/local/bin/server-desktop (toggle desktop/headless + GLM 44K/64K)"
+            else
+                add_warning "Failed to create server-desktop toggle."
+            fi
+
             run_privileged systemctl daemon-reload
-            info "Standing default: GLM-4.7-Flash (vllm.service). Switch with: cachyos-switch-model {glm|coder|coder-alt|vision|image}"
+            info "Standing default: Mistral-Small-3.2 (vllm.service). Switch with: cachyos-switch-model {mistral|glm|coder|coder-alt|image}"
         else
             # ── Ollama (full mode, single-user, localhost only) ────────────────
             step "Install Ollama"
@@ -1163,11 +1247,34 @@ with open('$crush_config_dest', 'w') as f:
     json.dump(cfg, f, indent=2)
 " 2>/dev/null && info "Swapped PPTX MCP: pptx-mcp disabled, pptx-mcp-xplat enabled (cross-platform)" || true
 
+            # Server + thin-client profiles default crush to the squire-server (vLLM) provider.
+            # The single-GPU server hosts one model at a time, so large AND small both map to the
+            # standing default (mistral-small). Dev/full mode keeps the local Ollama default.
+            if [[ "$IS_SERVER_MODE" == true || "$IS_CLIENT_MODE" == true ]]; then
+                python3 -c "
+import json
+p = '$crush_config_dest'
+with open(p) as f:
+    cfg = json.load(f)
+cfg['default_provider'] = 'squire-server'
+cfg['models'] = {
+    'large': {'model': 'mistral-small', 'provider': 'squire-server', 'max_tokens': 8192},
+    'small': {'model': 'mistral-small', 'provider': 'squire-server', 'max_tokens': 8192},
+}
+with open(p, 'w') as f:
+    json.dump(cfg, f, indent=2)
+" 2>/dev/null && info "Crush default provider set to squire-server (mistral-small) for ${MODE} mode." || true
+            fi
+
             success "Deployed crush.json to $crush_config_dest"
             if [[ "$IS_SERVER_MODE" == true ]]; then
                 info "vLLM server provider configured at http://${vllm_ip}:${VLLM_PORT}/v1"
             fi
-            info "Local Ollama is the default provider. vLLM server, Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+            if [[ "$IS_SERVER_MODE" == true || "$IS_CLIENT_MODE" == true ]]; then
+                info "squire-server (vLLM, mistral-small) is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+            else
+                info "Local Ollama is the default provider. squire-server (vLLM), Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+            fi
             info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
             info "MCP servers (Word, PowerPoint) are enabled. Run setup-mcp-venvs.sh to install them."
         fi
@@ -1328,10 +1435,10 @@ if [[ "$SHOULD_PULL_MODELS" == true ]]; then
         info "This will download about ${EFFECTIVE_MODEL_REQUIRED_GB} GB. Downloads are resumable."
 
         VLLM_VENV="${HOME}/.local/share/vllm-env"
-        HF_CLI="${VLLM_VENV}/bin/huggingface-cli"
+        HF_CLI="${VLLM_VENV}/bin/hf"
 
         if [[ ! -x "$HF_CLI" ]]; then
-            add_failure "huggingface-cli not found at $HF_CLI — install vLLM first."
+            add_failure "hf CLI not found at $HF_CLI — install vLLM first."
         else
             for model_id in "${SELECTED_MODELS[@]}"; do
                 echo
@@ -1464,7 +1571,11 @@ if [[ "$SHOULD_INSTALL_SOFTWARE" == true ]]; then
     echo
     printf '%b\n' 'Installed / prepared:'
     [[ "$IS_FULL_MODE" == true ]] && printf '%b\n' '  • NVIDIA drivers + CUDA (system)'
-    [[ "$IS_FULL_MODE" == true ]] && printf '%b\n' '  • Ollama (system service)'
+    if [[ "$IS_SERVER_MODE" == true ]]; then
+        printf '%b\n' '  • vLLM + imagegen (system services)'
+    elif [[ "$IS_FULL_MODE" == true ]]; then
+        printf '%b\n' '  • Ollama (system service)'
+    fi
     printf '%b\n' '  • uv + Python (user-local / uv-managed)'
     printf '%b\n' '  • Crush (CLI agent)'
     printf '%b\n' "  • ${AI_TOOLS_DIR}/mcp-*"
@@ -1499,7 +1610,7 @@ elif [[ "$IS_SERVER_MODE" == true ]]; then
     printf '%b\n' "    ./install-cachyos.sh --mode client --ollama-host http://${local_ip}:${VLLM_PORT}/v1"
     printf '%b\n' ""
     printf '%b\n' "  Switch model (one mode at a time — GLM is the standing default):"
-    printf '%b\n' "    cachyos-switch-model glm | coder | vision | image"
+    printf '%b\n' "    cachyos-switch-model mistral | glm | coder | coder-alt | image"
     printf '%b\n' "    sudo systemctl restart vllm"
     printf '%b\n' ""
     printf '%b\n' "${COLOR_CYAN}──────────────────────────────────────────────────────────────${COLOR_RESET}"
