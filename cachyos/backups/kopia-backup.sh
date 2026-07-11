@@ -24,7 +24,7 @@ set -euo pipefail
 
 BACKUP_USER="${SUDO_USER:-$(whoami)}"
 BACKUP_HOME="/home/${BACKUP_USER}"
-REPO_PATH="/mnt/squire-server/backups/cachyos"
+REPO_PATH="/mnt/nas-backups/Jesse-CachyOS"
 BACKUP_SCRIPT="/usr/local/bin/nightly-backup.sh"
 SCHEDULE_TIME="02:00:00"
 

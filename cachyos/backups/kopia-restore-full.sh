@@ -11,15 +11,15 @@ set -euo pipefail
 # Prerequisites:
 #   - CachyOS installed
 #   - bootstrap.sh has been run
-#   - Samba share mounted at /mnt/squire-server
+#   - Samba share mounted at /mnt/nas-backups
 #
 # Run with: sudo ./kopia-restore-full.sh
 ############################################
 
 BACKUP_USER="jesse"
 BACKUP_HOME="/home/jesse"
-REPO_PATH="/mnt/squire-server/backups/cachyos"
-MOUNT_POINT="/mnt/squire-server"
+REPO_PATH="/mnt/nas-backups/Jesse-CachyOS"
+MOUNT_POINT="/mnt/nas-backups"
 STAGING_DIR="/tmp/kopia-restore-staging"
 
 ############################################

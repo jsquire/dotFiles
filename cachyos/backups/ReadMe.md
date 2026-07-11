@@ -39,21 +39,26 @@ chmod 600 ~/.smbcredentials
 Create the mount point and add a permanent mount entry:
 
 ```bash
-sudo mkdir -p /mnt/squire-server
+sudo mkdir -p /mnt/nas-backups
 sudo vim /etc/fstab
 ```
 
-Add this line (adjust the server IP, share name, and credentials path for your setup):
+Add this line (adjust the server hostname, share name, and credentials path for your setup):
 
 ```
-//192.168.1.99/storage  /mnt/squire-server  cifs  credentials=/home/jesse/.smbcredentials,file_mode=0777,dir_mode=0777  0  0
+//nas.lan/backups  /mnt/nas-backups  cifs  credentials=/home/jesse/.smbcredentials,file_mode=0700,dir_mode=0700,uid=1000,gid=1000,_netdev,nofail  0  0
 ```
+
+Option choices worth calling out:
+
+- `file_mode=0700,dir_mode=0700,uid=1000,gid=1000`: backup data is not world-readable and is owned by the local user (adjust uid/gid for your account if different from 1000).
+- `_netdev,nofail`: tells systemd the mount depends on the network and that boot must not fail if the NAS is temporarily unreachable.
 
 Mount and verify:
 
 ```bash
 sudo mount -av
-ls /mnt/squire-server/
+ls /mnt/nas-backups/
 ```
 
 ### Step 3: Run the backup setup script
@@ -69,7 +74,7 @@ Once complete, the following are configured:
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| Kopia repository | `/mnt/squire-server/backups/cachyos/` | Snapshot storage on samba share |
+| Kopia repository | `/mnt/nas-backups/Jesse-CachyOS/` | Snapshot storage on samba share |
 | Nightly backup script | `/usr/local/bin/nightly-backup.sh` | Captures manifests + snapshots |
 | systemd timer | `nightly-backup.timer` | Fires at 02:00 AM daily |
 | Failure notification | KDE notify-send + `~/Desktop/BACKUP_FAILED.txt` | Alerts on failed backup |

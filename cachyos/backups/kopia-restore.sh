@@ -14,7 +14,7 @@ set -euo pipefail
 # Run with: sudo ./kopia-restore.sh
 ############################################
 
-REPO_PATH="/mnt/squire-server/backups/cachyos"
+REPO_PATH="/mnt/nas-backups/Jesse-CachyOS"
 USERNAME="jesse"
 
 ############################################
