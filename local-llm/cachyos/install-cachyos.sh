@@ -2,9 +2,9 @@
 # install-cachyos.sh — CachyOS Server Bootstrap
 #
 # Installs the local LLM stack on a CachyOS (Arch-based) machine.
-#   client — Crush + uv + MCP only, connects to a remote vLLM/Ollama endpoint.
-#   full   — local Ollama + NVIDIA + models + Crush + uv + MCP (localhost only, single-user).
-#   server — vLLM (multi-user) + NVIDIA + HuggingFace models + Crush + uv + MCP + LAN firewall.
+#   client — Crush + uv + MCP only, connects to a remote vLLM/Ollama endpoint (no engine here).
+#   local  — Ollama engine: local Ollama + NVIDIA + models + Crush + uv + MCP (localhost, single-user).
+#   server — vLLM engine: vLLM (multi-user) + NVIDIA + HuggingFace models + Crush + uv + MCP + LAN firewall.
 
 set -euo pipefail
 
@@ -13,7 +13,11 @@ INSTALL=""
 PROVIDERS=""
 DEFAULT_PROVIDER=""
 SHOULD_INSTALL_CLIENT_TOOLS=true
-MODEL_PROFILE="server"
+NO_CLIENT_TOOLS=false
+# Ollama model roster GPU tier (local/Ollama installs only): 4090 (24GB) | 5090 (32GB).
+# Default 4090 — the CachyOS box is the 4090. Selected via --ollama-models.
+OLLAMA_TIER="4090"
+MODEL_PROFILE=""   # deprecated alias for --ollama-models (desktop->5090, server->4090)
 OLLAMA_HOST_ARG=""
 MODEL_PATH=""
 SKIP_MODELS=false
@@ -50,7 +54,7 @@ STEP_NUMBER=0
 FAILURES=()
 WARNINGS=()
 SELECTED_MODELS=()
-MODEL_PROFILE_LABEL="server"
+OLLAMA_TIER_LABEL="4090"
 MODEL_SOURCE_MESSAGE=""
 EFFECTIVE_MODEL_REQUIRED_GB=62
 
@@ -70,23 +74,29 @@ Usage:
   ./install-cachyos.sh [options]
 
 Options:
-  --install full|client|ollama-only|server   What to install (supersedes --mode; default: full)
-                               full        — local Ollama server + models + client tools
-                               client      — client tools only (no local Ollama)
-                               ollama-only — local Ollama server + models only (no client tools)
-                               server      — vLLM server host (+ models + switch service + LAN firewall)
-  --mode client|full|server    Legacy alias for --install (kept for back-compat)
-  --providers <list>           Comma list of crush providers to enable: local,squire-server
-                               (default: full->local,squire-server; client/server->squire-server)
-  --default-provider <p>       Default crush provider: local | squire-server
-                               (default: full->local; client/server->squire-server)
-  --model-profile desktop|server
-                               GPU profile: desktop (5090, 32GB) or server (4090, 24GB dedicated)
-                               Default: server
-  --squire-server-ip <ip>      Squire-server address for client/full installs (default: 192.168.1.99)
+  --install local|server|client   What to install here (default: local). The ENGINE is explicit:
+                               local   — Ollama engine: local Ollama server + models + client tools
+                               server  — vLLM engine: vLLM host + models + switch service + LAN firewall
+                               client  — no engine here: client tools only, talks to remote provider(s)
+                               (Legacy values 'full' and 'ollama-only' are still accepted: full == local,
+                                ollama-only == local --no-client-tools.)
+  --no-client-tools            With --install local: install the Ollama server + models only (no Crush/MCP).
+  --mode client|full|server    Legacy alias for --install (kept for back-compat; prints a nudge).
+  --providers <list>           Comma list of crush client providers to wire: local,server
+                               local  == this box's Ollama (localhost:11434)
+                               server == the remote vLLM (Squire) server
+                               (default: local->local,server; server/client->server)
+                               ('squire-server' is accepted as a legacy alias for 'server'.)
+  --default-provider <p>       Default crush provider: local | server
+                               (default: local->local; server/client->server)
+  --ollama-models 4090|5090    Ollama roster GPU tier (local installs only): 4090 (24GB) or 5090 (32GB).
+                               Default: 4090. Distinct per-tier aliases + tier-safe contexts.
+                               (Deprecated: --model-profile desktop|server, mapped desktop->5090, server->4090.)
+  --squire-server-ip <ip>      Remote (server) address for client/local installs (default: 192.168.1.99)
+  --squire-ssh-target <target> SSH target for the server model-switch (default: jesse@192.168.1.99)
   --ollama-host <url>          Optional extra remote Ollama provider (NOT required for client mode)
                                Example: http://host:11434
-  --model-path <path>          Custom Ollama model directory (sets OLLAMA_MODELS; full mode only)
+  --model-path <path>          Custom Ollama model directory (sets OLLAMA_MODELS; local mode only)
   --lan-cidr <cidr>            Override LAN CIDR for firewall (auto-detected if omitted)
                                Examples: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
   --skip-models                Skip model downloads
@@ -94,12 +104,13 @@ Options:
   --help                       Show this help text
 
 Examples:
-  ./install-cachyos.sh --install full                                   # Ollama server + client (local+squire)
-  ./install-cachyos.sh --install client --providers local,squire-server --default-provider local  # client, both, default local
-  ./install-cachyos.sh --install client --providers local --default-provider local  # client, local Ollama only
-  ./install-cachyos.sh --install client                                 # squire-only client (pointed here)
-  ./install-cachyos.sh --install ollama-only                            # Ollama server + models only
+  ./install-cachyos.sh --install local                                  # Ollama server + client (local+server)
+  ./install-cachyos.sh --install local --ollama-models 5090             # Ollama server, 32GB (5090) roster
+  ./install-cachyos.sh --install local --no-client-tools                # Ollama server + models only
   ./install-cachyos.sh --install server                                 # vLLM server host + LAN exposure
+  ./install-cachyos.sh --install client --providers local,server        # client, both, default local
+  ./install-cachyos.sh --install client --providers local               # client, local Ollama only
+  ./install-cachyos.sh --install client                                 # server-only client (pointed at remote)
 EOF
 }
 
@@ -177,7 +188,6 @@ model_description() {
         gemma4:26b) printf '%s' 'Gemma 4 26B MoE — general (256k ctx), ~17 GB' ;;
         qwen3:14b) printf '%s' 'Qwen3 14B — light coding profile (131k ctx), ~9 GB' ;;
         qwen3:4b) printf '%s' 'Qwen3 4B — image gen profile, VRAM-friendly (32k ctx), ~2.5 GB' ;;
-        qwen2.5-coder:14b) printf '%s' 'Qwen2.5-Coder 14B — code review profile (32k ctx), ~9 GB' ;;
         gemma3:27b) printf '%s' 'Gemma 3 27B — tech docs (128k ctx), ~16 GB' ;;
         llama3.3:70b-instruct-q2_K) printf '%s' 'Llama 3.3 70B Q2 — creative writing, ~26 GB' ;;
         qwen3-coder:30b) printf '%s' 'Qwen3-Coder 30B MoE — heavy coding/office docs (256k ctx), ~19 GB' ;;
@@ -197,6 +207,153 @@ model_description() {
         mistralai/Mistral-Small-3.2-24B-Instruct-2503-GPTQ-Int4) printf '%s' 'Mistral Small 3.2 GPTQ — docs/creative/office, ~13 GB' ;;
         *) printf '%s' 'Custom model' ;;
     esac
+}
+
+# ── Ollama roster per GPU tier ────────────────────────────────────────────────
+# Same base GGUFs across tiers (weights identical); only num_ctx differs. Selecting
+# a tier populates the alias->base map, per-alias num_ctx, the task->alias SLOT map,
+# and the alias->friendly-label registry used by the launchers' tier config.
+# Globals set: OLLAMA_PULL_TAGS[], OLLAMA_ALIAS_FROM[], OLLAMA_ALIAS_CTX[],
+#              OLLAMA_SLOT[], OLLAMA_ALIAS_LABEL[], OLLAMA_ALIAS_TEMPLATE[].
+declare -A OLLAMA_ALIAS_FROM
+declare -A OLLAMA_ALIAS_CTX
+declare -A OLLAMA_SLOT
+declare -A OLLAMA_ALIAS_LABEL
+declare -A OLLAMA_ALIAS_TEMPLATE
+OLLAMA_PULL_TAGS=()
+
+populate_ollama_tier() {
+    local tier="$1"
+
+    # Reset (function may be called more than once).
+    OLLAMA_ALIAS_FROM=()
+    OLLAMA_ALIAS_CTX=()
+    OLLAMA_SLOT=()
+    OLLAMA_ALIAS_LABEL=()
+    OLLAMA_ALIAS_TEMPLATE=()
+    OLLAMA_PULL_TAGS=()
+
+    # Base GGUF tags (identical across tiers).
+    local mtp="hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M"
+    local q36_35b="qwen3.6:35b"
+    local gemma4="gemma4:31b"
+    local coder="qwen3-coder:30b"
+    local glm="glm-4.7-flash"
+    local img="qwen3:8b"
+    local northmini="hf.co/unsloth/North-Mini-Code-1.0-GGUF:UD-Q4_K_M"
+    local nemotron="hf.co/bartowski/nvidia_Nemotron-Cascade-2-30B-A3B-GGUF:Q4_K_M"
+    local ornith="hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"
+    local qwen3next="hf.co/Qwen/Qwen3-Next-80B-A3B-Instruct-GGUF:Q4_K_M"
+
+    OLLAMA_PULL_TAGS=("$mtp" "$q36_35b" "$gemma4" "$coder" "$glm" "$img" \
+                      "$northmini" "$nemotron" "$ornith" "$qwen3next")
+
+    # Per-tier alias names + contexts (24GB-safe on 4090; full on 5090).
+    local a_heavy a_q3635 a_gemma a_coder a_glm a_north a_nemo a_ornith
+    local c_heavy c_q3635 c_gemma c_coder c_glm c_north c_nemo c_ornith
+    if [[ "$tier" == "5090" ]]; then
+        a_heavy=qwen36-27b-212k;   c_heavy=217088
+        a_q3635=qwen36-35b-256k;   c_q3635=262144
+        a_gemma=gemma4-31b-128k;   c_gemma=131072
+        a_coder=qwen3coder-144k;   c_coder=147456
+        a_glm=glm47-flash-198k;    c_glm=202752
+        a_north=northmini-code-256k; c_north=262144
+        a_nemo=nemotron-c2-256k;   c_nemo=262144
+        a_ornith=ornith-35b-256k;  c_ornith=262144
+    else
+        a_heavy=qwen36-27b-96k;    c_heavy=98304
+        a_q3635=qwen36-35b-96k;    c_q3635=98304
+        a_gemma=gemma4-31b-64k;    c_gemma=65536
+        a_coder=qwen3coder-64k;    c_coder=65536
+        a_glm=glm47-flash-45k;     c_glm=46080
+        a_north=northmini-code-96k; c_north=98304
+        a_nemo=nemotron-c2-96k;    c_nemo=98304
+        a_ornith=ornith-35b-96k;   c_ornith=98304
+    fi
+    local a_offload=qwen3next-80b-offload
+    local c_offload=131072
+
+    OLLAMA_ALIAS_FROM["$a_heavy"]="$mtp";        OLLAMA_ALIAS_CTX["$a_heavy"]="$c_heavy"
+    OLLAMA_ALIAS_FROM["$a_q3635"]="$q36_35b";    OLLAMA_ALIAS_CTX["$a_q3635"]="$c_q3635"
+    OLLAMA_ALIAS_FROM["$a_gemma"]="$gemma4";     OLLAMA_ALIAS_CTX["$a_gemma"]="$c_gemma"
+    OLLAMA_ALIAS_FROM["$a_coder"]="$coder";      OLLAMA_ALIAS_CTX["$a_coder"]="$c_coder"
+    OLLAMA_ALIAS_FROM["$a_glm"]="$glm";          OLLAMA_ALIAS_CTX["$a_glm"]="$c_glm"
+    OLLAMA_ALIAS_FROM["$a_north"]="$northmini";  OLLAMA_ALIAS_CTX["$a_north"]="$c_north"
+    OLLAMA_ALIAS_FROM["$a_nemo"]="$nemotron";    OLLAMA_ALIAS_CTX["$a_nemo"]="$c_nemo"
+    OLLAMA_ALIAS_FROM["$a_ornith"]="$ornith";    OLLAMA_ALIAS_CTX["$a_ornith"]="$c_ornith"
+    OLLAMA_ALIAS_FROM["$a_offload"]="$qwen3next"; OLLAMA_ALIAS_CTX["$a_offload"]="$c_offload"
+
+    # Qwen3-Next needs an explicit ChatML template baked in (the GGUF's embedded
+    # template renders an immediate-EOS empty reply under Ollama).
+    OLLAMA_ALIAS_TEMPLATE["$a_offload"]='{{ if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}{{ range .Messages }}{{ if eq .Role "user" }}<|im_start|>user
+{{ .Content }}<|im_end|>
+{{ else if eq .Role "assistant" }}<|im_start|>assistant
+{{ .Content }}<|im_end|>
+{{ end }}{{ end }}<|im_start|>assistant
+'
+
+    # Task->alias SLOT map (drives the launcher tier config).
+    OLLAMA_SLOT[heavy]="$a_heavy"
+    OLLAMA_SLOT[coder]="$a_coder"
+    OLLAMA_SLOT[review]="$a_coder"
+    OLLAMA_SLOT[agentic]="$a_glm"
+    OLLAMA_SLOT[image_llm]="$img"
+    OLLAMA_SLOT[h1]="$a_heavy"
+    OLLAMA_SLOT[h2]="$a_q3635"
+    OLLAMA_SLOT[h3]="$a_gemma"
+    OLLAMA_SLOT[h4]="$a_coder"
+    OLLAMA_SLOT[h5]="$a_glm"
+    OLLAMA_SLOT[h6]="$a_north"
+    OLLAMA_SLOT[h7]="$a_nemo"
+    OLLAMA_SLOT[h8]="$a_ornith"
+    OLLAMA_SLOT[o2]="$a_offload"
+
+    # Friendly labels (identity is tier-independent).
+    OLLAMA_ALIAS_LABEL["$a_heavy"]="Qwen3.6 27B (+MTP)"
+    OLLAMA_ALIAS_LABEL["$a_q3635"]="Qwen3.6 35B-A3B"
+    OLLAMA_ALIAS_LABEL["$a_gemma"]="Gemma 4 31B"
+    OLLAMA_ALIAS_LABEL["$a_coder"]="Qwen3-Coder 30B-A3B"
+    OLLAMA_ALIAS_LABEL["$a_glm"]="GLM-4.7-Flash"
+    OLLAMA_ALIAS_LABEL["$a_north"]="North Mini Code 1.0"
+    OLLAMA_ALIAS_LABEL["$a_nemo"]="Nemotron Cascade 2 30B-A3B"
+    OLLAMA_ALIAS_LABEL["$a_ornith"]="Ornith-1.0-35B"
+    OLLAMA_ALIAS_LABEL["$img"]="Qwen3 8B"
+    OLLAMA_ALIAS_LABEL["$a_offload"]="Qwen3-Next-80B-A3B (partial offload)"
+}
+
+# Path the launchers source for their tier-aware alias set.
+OLLAMA_TIER_CONFIG_PATH="${HOME}/.config/local-llm/ollama-tier.sh"
+
+# Generate the POSIX-sourceable tier config the launchers read (task->alias SLOT map +
+# alias->friendly-label registry + tier name). Self-contained: populates the tier first.
+write_ollama_tier_config() {
+    populate_ollama_tier "$OLLAMA_TIER"
+
+    local dest="$OLLAMA_TIER_CONFIG_PATH"
+    mkdir -p "$(dirname "$dest")"
+
+    {
+        printf '# Generated by install-cachyos.sh — Ollama launcher tier config. Do not edit by hand.\n'
+        printf 'LL_OLLAMA_TIER=%q\n\n' "$OLLAMA_TIER"
+
+        printf 'declare -A LL_ALIAS=(\n'
+        local slot
+        for slot in "${!OLLAMA_SLOT[@]}"; do
+            printf '  [%q]=%q\n' "$slot" "${OLLAMA_SLOT[$slot]}"
+        done
+        printf ')\n\n'
+
+        printf 'declare -A LL_LABEL=(\n'
+        local al
+        for al in "${!OLLAMA_ALIAS_LABEL[@]}"; do
+            printf '  [%q]=%q\n' "$al" "${OLLAMA_ALIAS_LABEL[$al]}"
+        done
+        printf ')\n'
+    } > "$dest"
+
+    success "Wrote Ollama tier config (${OLLAMA_TIER}) to $dest"
 }
 
 require_sudo_access() {
@@ -254,37 +411,32 @@ wait_for_ollama() {
 load_effective_model_config() {
     SELECTED_MODELS=()
 
-    case "$MODEL_PROFILE" in
-        desktop)
-            EFFECTIVE_MODEL_REQUIRED_GB=84
-            SELECTED_MODELS=("gemma4:31b" "qwen3:14b" "deepseek-r1:32b" "gemma3:27b" "qwen3:32b" "qwen3-coder:30b")
-            ;;
-        server)
-            EFFECTIVE_MODEL_REQUIRED_GB=74
-            if [[ "$IS_SERVER_MODE" == true ]]; then
-                # vLLM serves ONE model at a time (24GB). GLM-4.7-Flash is the standing
-                # default; the rest are downloaded so the mode-switch (cachyos-switch-model)
-                # can load them on demand without a fresh pull.
-                SELECTED_MODELS=(
-                    "gghfez/Mistral-Small-3.2-24B-Instruct-hf-AWQ"
-                    "jeffcookio/Mistral-Small-3.2-24B-Instruct-2506-awq-sym"
-                    "QuantTrio/GLM-4.7-Flash-AWQ"
-                    "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit"
-                    "cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit"
-                    "Qwen/Qwen3-4B-Instruct-2507"
-                )
-                EFFECTIVE_MODEL_REQUIRED_GB=115
-            else
-                # Ollama (full mode, single-user) uses Ollama tags
-                SELECTED_MODELS=("gemma4:26b" "qwen3:14b" "qwen3:4b" "qwen3-coder:30b")
-            fi
-            ;;
-    esac
+    if [[ "$IS_SERVER_MODE" == true ]]; then
+        # vLLM (server): serves ONE model at a time (24GB). GLM-4.7-Flash is the standing
+        # default; the rest are downloaded so the mode-switch (cachyos-switch-model) can
+        # load them on demand without a fresh pull.
+        SELECTED_MODELS=(
+            "gghfez/Mistral-Small-3.2-24B-Instruct-hf-AWQ"
+            "jeffcookio/Mistral-Small-3.2-24B-Instruct-2506-awq-sym"
+            "QuantTrio/GLM-4.7-Flash-AWQ"
+            "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit"
+            "cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit"
+            "Qwen/Qwen3-4B-Instruct-2507"
+        )
+        EFFECTIVE_MODEL_REQUIRED_GB=115
+        OLLAMA_TIER_LABEL="n/a (vLLM)"
+        MODEL_SOURCE_MESSAGE="Using vLLM (server) HuggingFace model roster."
+    else
+        # Ollama (local, single-user): roster is selected by the GPU tier.
+        populate_ollama_tier "$OLLAMA_TIER"
+        SELECTED_MODELS=("${OLLAMA_PULL_TAGS[@]}")
+        EFFECTIVE_MODEL_REQUIRED_GB=205
+        OLLAMA_TIER_LABEL="$OLLAMA_TIER"
+        MODEL_SOURCE_MESSAGE="Using Ollama ${OLLAMA_TIER} roster."
+    fi
 
-    MODEL_PROFILE_LABEL="$MODEL_PROFILE"
-    MODEL_SOURCE_MESSAGE="Using ${MODEL_PROFILE^} profile models."
-
-    if [[ -f "$CUSTOM_MODEL_LIST_PATH" ]]; then
+    # Custom-list override applies to the local (Ollama) path only.
+    if [[ "$IS_SERVER_MODE" != true && -f "$CUSTOM_MODEL_LIST_PATH" ]]; then
         local custom_models=()
         local raw trimmed
         local -A seen=()
@@ -302,10 +454,9 @@ load_effective_model_config() {
 
         if (( ${#custom_models[@]} > 0 )); then
             SELECTED_MODELS=("${custom_models[@]}")
-            MODEL_PROFILE_LABEL="custom"
             MODEL_SOURCE_MESSAGE="Using custom model list from ../config/ollama-models.txt."
         else
-            add_warning "Custom model list exists at $CUSTOM_MODEL_LIST_PATH but is empty after comments are removed. Falling back to ${MODEL_PROFILE^}."
+            add_warning "Custom model list exists at $CUSTOM_MODEL_LIST_PATH but is empty after comments are removed. Falling back to the ${OLLAMA_TIER} roster."
         fi
     fi
 }
@@ -433,12 +584,12 @@ parse_args() {
                 shift 2
                 ;;
             --providers)
-                [[ $# -lt 2 ]] && { fail "--providers requires a value (e.g. local,squire-server)."; usage; exit 1; }
-                PROVIDERS="$(printf '%s' "$2" | tr '[:upper:] ' '[:lower:]' | tr -d ' ')"
+                [[ $# -lt 2 ]] && { fail "--providers requires a value (e.g. local,server)."; usage; exit 1; }
+                PROVIDERS="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
                 shift 2
                 ;;
             --default-provider)
-                [[ $# -lt 2 ]] && { fail "--default-provider requires a value (local|squire-server)."; usage; exit 1; }
+                [[ $# -lt 2 ]] && { fail "--default-provider requires a value (local|server)."; usage; exit 1; }
                 DEFAULT_PROVIDER="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
                 shift 2
                 ;;
@@ -446,6 +597,15 @@ parse_args() {
                 [[ $# -lt 2 ]] && { fail "--model-profile requires a value."; usage; exit 1; }
                 MODEL_PROFILE="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
                 shift 2
+                ;;
+            --ollama-models)
+                [[ $# -lt 2 ]] && { fail "--ollama-models requires a value (4090|5090)."; usage; exit 1; }
+                OLLAMA_TIER="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
+                shift 2
+                ;;
+            --no-client-tools)
+                NO_CLIENT_TOOLS=true
+                shift
                 ;;
             --ollama-host)
                 [[ $# -lt 2 ]] && { fail "--ollama-host requires a value."; usage; exit 1; }
@@ -504,16 +664,37 @@ printf '%b\n' "${COLOR_MAGENTA}╚═══════════════�
 printf '%b\n' ""
 
 # Reconcile --install (primary) with legacy --mode (alias). --install takes precedence.
+# New vocabulary: local (Ollama), server (vLLM), client. Legacy full/ollama-only accepted.
 if [[ -n "$INSTALL" ]]; then
     case "$INSTALL" in
-        full)        MODE="full";   SHOULD_INSTALL_CLIENT_TOOLS=true ;;
+        local)       MODE="full";   SHOULD_INSTALL_CLIENT_TOOLS=true ;;
         client)      MODE="client"; SHOULD_INSTALL_CLIENT_TOOLS=true ;;
-        ollama-only) MODE="full";   SHOULD_INSTALL_CLIENT_TOOLS=false ;;
         server)      MODE="server"; SHOULD_INSTALL_CLIENT_TOOLS=true ;;
-        *) fail "--install must be full, client, ollama-only, or server."; exit 1 ;;
+        full)        MODE="full";   SHOULD_INSTALL_CLIENT_TOOLS=true
+                     info "--install full is a legacy alias; use --install local (Ollama engine)." ;;
+        ollama-only) MODE="full";   SHOULD_INSTALL_CLIENT_TOOLS=false
+                     info "--install ollama-only is a legacy alias; use --install local --no-client-tools." ;;
+        *) fail "--install must be local, server, or client (legacy: full, ollama-only)."; exit 1 ;;
+    esac
+elif [[ -n "$MODE" && "$MODE" != "full" ]]; then
+    # Legacy --mode path (no --install given).
+    info "--mode is a legacy alias; use --install local|server|client."
+    case "$MODE" in
+        full)   INSTALL="local" ;;
+        server) INSTALL="server" ;;
+        client) INSTALL="client" ;;
     esac
 else
-    INSTALL="$MODE"   # legacy --mode path
+    INSTALL="local"   # default
+fi
+
+# --no-client-tools applies to local installs only.
+if [[ "$NO_CLIENT_TOOLS" == true ]]; then
+    if [[ "$MODE" != "full" ]]; then
+        fail "--no-client-tools is only valid with --install local."
+        exit 1
+    fi
+    SHOULD_INSTALL_CLIENT_TOOLS=false
 fi
 
 case "$MODE" in
@@ -521,13 +702,29 @@ case "$MODE" in
     *) fail "--mode must be client, full, or server."; exit 1 ;;
 esac
 
-case "$MODEL_PROFILE" in
-    desktop|server) ;;
-    *) fail "--model-profile must be 'desktop' or 'server'."; exit 1 ;;
+# Map the deprecated --model-profile onto --ollama-models (desktop->5090, server->4090).
+if [[ -n "$MODEL_PROFILE" ]]; then
+    case "$MODEL_PROFILE" in
+        desktop) OLLAMA_TIER="5090"; info "--model-profile desktop is deprecated; use --ollama-models 5090." ;;
+        server)  OLLAMA_TIER="4090"; info "--model-profile server is deprecated; use --ollama-models 4090." ;;
+        *) fail "--model-profile must be 'desktop' or 'server' (deprecated; use --ollama-models 4090|5090)."; exit 1 ;;
+    esac
+fi
+
+# --ollama-models is valid only for local (Ollama) installs.
+case "$OLLAMA_TIER" in
+    4090|5090) ;;
+    *) fail "--ollama-models must be 4090 or 5090."; exit 1 ;;
 esac
+if [[ "$MODE" != "full" ]]; then
+    # server/client don't run a local Ollama roster; warn if the tier was set explicitly.
+    if [[ -n "$MODEL_PROFILE" || "$OLLAMA_TIER" != "4090" ]]; then
+        add_warning "--ollama-models applies only to --install local; ignored for --install ${INSTALL}."
+    fi
+fi
 
 if [[ "$MODE" == "client" && -n "$OLLAMA_HOST_ARG" ]]; then
-    info "Client mode targets the squire-server; --ollama-host will be kept only as an optional extra remote-Ollama provider."
+    info "Client mode targets the server (vLLM); --ollama-host will be kept only as an optional extra remote-Ollama provider."
 fi
 
 if [[ "$MODE" == "client" && "$MODELS_ONLY" == true ]]; then
@@ -582,38 +779,48 @@ else
     IS_CLIENT_MODE=true
     SHOULD_PULL_MODELS=false
     SHOULD_INSTALL_SOFTWARE=true
-    MODEL_PROFILE_LABEL="n/a (client mode)"
+    OLLAMA_TIER_LABEL="n/a (client mode)"
 fi
 
-# Client-side provider selection (crush providers + launcher entries). N/A for ollama-only (no client tools).
+# Client-side provider selection (crush providers + launcher entries). N/A for --no-client-tools.
+# 'server' is the canonical name for the vLLM provider; 'squire-server' is a deprecated input alias.
+if [[ -n "$PROVIDERS" ]]; then
+    PROVIDERS="$(printf '%s' "$PROVIDERS" | sed -E 's/(^|,)squire-server($|,)/\1server\2/g; s/(^|,)squire-server($|,)/\1server\2/g')"
+fi
+[[ "$DEFAULT_PROVIDER" == "squire-server" ]] && DEFAULT_PROVIDER="server"
 if [[ -z "$PROVIDERS" ]]; then
     case "$MODE" in
-        full) PROVIDERS="local,squire-server" ;;
-        *)    PROVIDERS="squire-server" ;;   # client, server
+        full) PROVIDERS="local,server" ;;
+        *)    PROVIDERS="server" ;;   # client, server
     esac
 fi
 if [[ -z "$DEFAULT_PROVIDER" ]]; then
     case "$MODE" in
         full) DEFAULT_PROVIDER="local" ;;
-        *)    DEFAULT_PROVIDER="squire-server" ;;
+        *)    DEFAULT_PROVIDER="server" ;;
     esac
 fi
 for pv in ${PROVIDERS//,/ }; do
     case "$pv" in
-        local|squire-server) ;;
-        *) fail "--providers entries must be 'local' or 'squire-server' (got '$pv')."; exit 1 ;;
+        local|server) ;;
+        *) fail "--providers entries must be 'local' or 'server' (got '$pv')."; exit 1 ;;
     esac
 done
 case "$DEFAULT_PROVIDER" in
-    local|squire-server) ;;
-    *) fail "--default-provider must be 'local' or 'squire-server'."; exit 1 ;;
+    local|server) ;;
+    *) fail "--default-provider must be 'local' or 'server'."; exit 1 ;;
 esac
 if [[ ",$PROVIDERS," != *",$DEFAULT_PROVIDER,"* ]]; then
     fail "--default-provider '$DEFAULT_PROVIDER' must be one of --providers '$PROVIDERS'."; exit 1
 fi
 
-info "Install: $INSTALL"
-info "Model profile: $MODEL_PROFILE_LABEL"
+# Engine-explicit summary line.
+case "$MODE" in
+    full)   info "Install mode: local (Ollama)" ;;
+    server) info "Install mode: server (vLLM)" ;;
+    client) info "Install mode: client (no local engine)" ;;
+esac
+info "Ollama roster: $OLLAMA_TIER_LABEL"
 if [[ "$IS_FULL_MODE" == true ]]; then
     info "$MODEL_SOURCE_MESSAGE"
 fi
@@ -1164,7 +1371,7 @@ esac
 "
             if printf '%s' "$server_desktop_script" | run_privileged tee /usr/local/bin/server-desktop >/dev/null; then
                 run_privileged chmod 0755 /usr/local/bin/server-desktop
-                success "Created /usr/local/bin/server-desktop (toggle desktop/headless + GLM 44K/64K)"
+                success "Created /usr/local/bin/server-desktop (toggle desktop/headless)"
             else
                 add_warning "Failed to create server-desktop toggle."
             fi
@@ -1189,10 +1396,13 @@ esac
                 add_warning "Could not create $VLLM_SWITCH_USER account."
             fi
 
-            # Deploy the daemon (shipped alongside this installer).
+            # Deploy the daemon (shipped alongside this installer). Gate the unit/firewall/enable
+            # steps on a successful copy so we don't register + start a service whose binary is missing.
+            local web_daemon_ok=false
             if [[ -f "${SCRIPT_DIR}/vllm-switch-web.py" ]]; then
                 if run_privileged install -m 0755 "${SCRIPT_DIR}/vllm-switch-web.py" /usr/local/bin/vllm-switch-web; then
                     success "Installed /usr/local/bin/vllm-switch-web"
+                    web_daemon_ok=true
                 else
                     add_failure "Failed to install vllm-switch-web daemon."
                 fi
@@ -1200,6 +1410,7 @@ esac
                 add_warning "vllm-switch-web.py not found next to the installer — skipping web switch service."
             fi
 
+            if [[ "$web_daemon_ok" == true ]]; then
             # Passwordless sudo for the service account (same narrow unit whitelist as the CLI switch).
             local sw_sudoers="Defaults:${VLLM_SWITCH_USER} !requiretty
 ${VLLM_SWITCH_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@glm.service, /usr/bin/systemctl stop vllm@glm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@coder-alt.service, /usr/bin/systemctl stop vllm@coder-alt.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
@@ -1270,6 +1481,9 @@ WantedBy=multi-user.target"
             else
                 add_warning "Could not enable/start vllm-switch-web.service."
             fi
+            else
+                add_warning "Skipping model-switch web service (daemon not installed)."
+            fi
         else
             # ── Ollama (full mode, single-user, localhost only) ────────────────
             step "Install Ollama"
@@ -1324,7 +1538,7 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
         fi
     else
         step "Client mode (squire-only)"
-        info "Crush will default to the squire-server; switch models with copilot-local or the :4090 browser page."
+        info "Crush will default to the server (vLLM); switch models with copilot-local or the :4090 browser page."
         [[ -n "$OLLAMA_HOST_ARG" ]] && info "Optional extra remote Ollama provider: $OLLAMA_HOST_ARG"
     fi
 
@@ -1382,8 +1596,8 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
         else
             # Expand template placeholders for Linux
             local linux_app_data="${HOME}/.local/share"
-            # Determine vLLM server IP for the placeholder. Non-server installs (5090 full + squire-only
-            # client) point at the squire-server, which is fixed at 192.168.1.99 unless overridden.
+            # Determine vLLM server IP for the placeholder. Non-server installs (5090 full + server-only
+            # client) point at the vLLM server, which is fixed at 192.168.1.99 unless overridden.
             local vllm_ip
             if [[ "$IS_SERVER_MODE" == true ]]; then
                 vllm_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' || echo '192.168.1.99')"
@@ -1423,9 +1637,9 @@ with open('$crush_config_dest', 'w') as f:
 " 2>/dev/null && info "Swapped PPTX MCP: pptx-mcp disabled, pptx-mcp-xplat enabled (cross-platform)" || true
 
             # Prune crush providers + set the default per --providers / --default-provider.
-            # 'local' -> the localhost Ollama provider ('ollama'); 'squire-server' -> the vLLM server.
+            # 'local' -> the localhost Ollama provider ('ollama'); 'server' -> the vLLM server.
             # Cloud providers (mistral/google/groq/openrouter) are always kept. Single-GPU server hosts
-            # one model at a time, so squire large+small both map to the standing default (mistral-small).
+            # one model at a time, so server large+small both map to the standing default (mistral-small).
             CRUSH_PROVIDERS="$PROVIDERS" CRUSH_DEFAULT="$DEFAULT_PROVIDER" python3 -c "
 import json, os
 p = '$crush_config_dest'
@@ -1436,28 +1650,28 @@ with open(p) as f:
 providers = cfg['providers']
 if 'local' not in prov and 'ollama' in providers:
     del providers['ollama']
-if 'squire-server' not in prov and 'squire-server' in providers:
-    del providers['squire-server']
+if 'server' not in prov and 'server' in providers:
+    del providers['server']
 if default == 'local':
     cfg['default_provider'] = 'ollama'   # template models.large/small are already the Ollama defaults
 else:
-    cfg['default_provider'] = 'squire-server'
+    cfg['default_provider'] = 'server'
     cfg['models'] = {
-        'large': {'model': 'mistral-small', 'provider': 'squire-server', 'max_tokens': 8192},
-        'small': {'model': 'mistral-small', 'provider': 'squire-server', 'max_tokens': 8192},
+        'large': {'model': 'mistral-small', 'provider': 'server', 'max_tokens': 8192},
+        'small': {'model': 'mistral-small', 'provider': 'server', 'max_tokens': 8192},
     }
 with open(p, 'w') as f:
     json.dump(cfg, f, indent=2)
 " 2>/dev/null && info "Crush providers=${PROVIDERS}, default=${DEFAULT_PROVIDER}." || add_warning "Could not apply crush provider selection."
 
             success "Deployed crush.json to $crush_config_dest"
-            if [[ ",$PROVIDERS," == *",squire-server,"* ]]; then
-                info "squire-server (vLLM) provider configured at http://${vllm_ip}:${VLLM_PORT}/v1"
+            if [[ ",$PROVIDERS," == *",server,"* ]]; then
+                info "server (vLLM) provider configured at http://${vllm_ip}:${VLLM_PORT}/v1"
             fi
             if [[ "$DEFAULT_PROVIDER" == "local" ]]; then
                 info "Default provider: local Ollama. Enabled: ${PROVIDERS} (+ Mistral/Google/Groq/OpenRouter when keys are set)."
             else
-                info "Default provider: squire-server (mistral-small). Enabled: ${PROVIDERS} (+ Mistral/Google/Groq/OpenRouter when keys are set)."
+                info "Default provider: server (vLLM, mistral-small). Enabled: ${PROVIDERS} (+ Mistral/Google/Groq/OpenRouter when keys are set)."
             fi
             info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
             info "MCP servers (Word, PowerPoint) are enabled. Run setup-mcp-venvs.sh to install them."
@@ -1527,6 +1741,13 @@ with open(p, 'w') as f:
         info "Usage: crush-task (from any directory)"
     else
         warn "crush-task script not found at $crush_task_source — skipping."
+    fi
+
+    # ── Generate the Ollama tier config the launchers source ──────────────
+    # Written whenever the launchers present local Ollama entries (providers include 'local').
+    if [[ ",$PROVIDERS," == *",local,"* ]]; then
+        step "Generate Ollama launcher tier config"
+        write_ollama_tier_config
     fi
 
     # ── Deploy Crush skills and MCP servers ─────────────────────────────
@@ -1615,7 +1836,7 @@ with open(p, 'w') as f:
         warn "imagegen-mcp-server.py not found — skipping."
     fi
     else
-        info "Skipping client tools (--install ollama-only): installing the local Ollama server + models only."
+        info "Skipping client tools (--no-client-tools): installing the local Ollama server + models only."
     fi
 fi
 
@@ -1684,6 +1905,10 @@ if [[ "$SHOULD_PULL_MODELS" == true ]]; then
                 if [[ -n "$OLLAMA_BIN" ]]; then
                     for tag in "${SELECTED_MODELS[@]}"; do
                         echo
+                        if "$OLLAMA_BIN" show "$tag" >/dev/null 2>&1; then
+                            info "  ${tag} already present — skipping pull."
+                            continue
+                        fi
                         printf '%b\n' "${COLOR_GRAY}  Pulling ${tag}${COLOR_RESET}"
                         info "$(model_description "$tag")"
                         if "$OLLAMA_BIN" pull "$tag"; then
@@ -1693,13 +1918,10 @@ if [[ "$SHOULD_PULL_MODELS" == true ]]; then
                         fi
                     done
 
-                    # Set num_ctx on models (Ollama defaults to 2048)
-                    printf '%b\n' "${COLOR_GRAY}  Setting context window (num_ctx) on models...${COLOR_RESET}"
+                    # Bake num_ctx on the image-companion base (Ollama defaults to 2048).
+                    printf '%b\n' "${COLOR_GRAY}  Setting context window (num_ctx) on base models...${COLOR_RESET}"
                     local -A num_ctx_settings=(
-                        ["gemma4:26b"]=65536
-                        ["qwen3:14b"]=16384
-                        ["qwen3:4b"]=8192
-                        ["qwen3-coder:30b"]=65536
+                        ["qwen3:8b"]=32768
                     )
                     for tag in "${!num_ctx_settings[@]}"; do
                         local ctx="${num_ctx_settings[$tag]}"
@@ -1712,22 +1934,24 @@ if [[ "$SHOULD_PULL_MODELS" == true ]]; then
                         rm -f "$modelfile_tmp"
                     done
 
-                    # Create named alias models used by launcher scripts
-                    printf '%b\n' "${COLOR_GRAY}  Creating launcher model aliases...${COLOR_RESET}"
-                    local -A alias_from=(
-                        ["gemma4-65k"]="gemma4:26b"
-                        ["qwen3coder-65k"]="qwen3-coder:30b"
-                    )
-                    local -A alias_ctx=(
-                        ["gemma4-65k"]=65536
-                        ["qwen3coder-65k"]=65536
-                    )
-                    for alias_name in "${!alias_from[@]}"; do
-                        local from="${alias_from[$alias_name]}"
-                        local ctx="${alias_ctx[$alias_name]}"
+                    # Create named alias models used by launcher scripts, from the tier roster.
+                    printf '%b\n' "${COLOR_GRAY}  Creating launcher model aliases (${OLLAMA_TIER} tier)...${COLOR_RESET}"
+                    for alias_name in "${!OLLAMA_ALIAS_FROM[@]}"; do
+                        local from="${OLLAMA_ALIAS_FROM[$alias_name]}"
+                        local ctx="${OLLAMA_ALIAS_CTX[$alias_name]}"
+                        local tmpl="${OLLAMA_ALIAS_TEMPLATE[$alias_name]:-}"
+                        # Skip aliases whose base tag was not pulled successfully.
+                        if ! "$OLLAMA_BIN" show "$from" >/dev/null 2>&1; then
+                            add_warning "Base model $from missing — skipping alias $alias_name."
+                            continue
+                        fi
                         local modelfile_tmp
                         modelfile_tmp="$(mktemp)"
                         printf 'FROM %s\nPARAMETER num_ctx %s\n' "$from" "$ctx" > "$modelfile_tmp"
+                        if [[ -n "$tmpl" ]]; then
+                            # Bake an explicit ChatML template (qwen3-next's embedded template mis-renders).
+                            printf 'TEMPLATE """%s"""\n' "$tmpl" >> "$modelfile_tmp"
+                        fi
                         if "$OLLAMA_BIN" create "$alias_name" -f "$modelfile_tmp" >/dev/null 2>&1; then
                             info "  $alias_name → $from @ num_ctx $ctx"
                         fi
@@ -1756,8 +1980,12 @@ else
 fi
 
 echo
-printf '%b\n' "Mode: ${MODE}"
-printf '%b\n' "Model profile: ${MODEL_PROFILE_LABEL}"
+case "$MODE" in
+    full)   printf '%b\n' "Install mode: local (Ollama)" ;;
+    server) printf '%b\n' "Install mode: server (vLLM)" ;;
+    client) printf '%b\n' "Install mode: client (no local engine)" ;;
+esac
+printf '%b\n' "Ollama roster: ${OLLAMA_TIER_LABEL}"
 
 if [[ "$SHOULD_INSTALL_SOFTWARE" == true ]]; then
     echo
@@ -1778,8 +2006,8 @@ fi
 if [[ "$IS_CLIENT_MODE" == true ]]; then
     echo
     printf '%b\n' 'Next steps:'
-    printf '%b\n' "  1. Run 'crush' — it defaults to the squire-server; switch models with 'copilot-local' (or http://<server>:4090/)"
-    printf '%b\n' '  2. Verify the server: curl http://192.168.1.99:8000/v1/models'
+    printf '%b\n' "  1. Run 'crush' — it defaults to the server (vLLM); switch models with 'copilot-local' (or http://<server>:4090/)"
+    printf '%b\n' "  2. Verify the server: curl http://${SQUIRE_SERVER_IP:-192.168.1.99}:8000/v1/models"
     printf '%b\n' '  3. Create MCP venvs under ~/.local/share/ai-tools as needed'
 elif [[ "$IS_SERVER_MODE" == true ]]; then
     # Detect LAN IP for client connection instructions

@@ -18,7 +18,7 @@
 
 .PARAMETER Mode
     Installation mode. Full installs Ollama locally and can pull models. Client
-    skips all Ollama installation and model steps and targets the squire-server
+    skips all Ollama installation and model steps and targets the vLLM server
     (use -SquireServerIP if it is not 192.168.1.99).
 
 .PARAMETER ModelProfile
@@ -33,7 +33,7 @@
 
 .PARAMETER SquireServerIP
     IP/host of the CachyOS vLLM "Squire Server" used by the launcher Remote
-    [S]/[C]/[V]/[I] options and the crush.json squire-server provider. Default:
+    [S]/[C]/[V]/[I] options and the crush.json 'server' provider. Default:
     192.168.1.99.
 
 .PARAMETER SquireSSHTarget
@@ -43,7 +43,7 @@
 .PARAMETER OllamaHost
     Optional. An additional remote Ollama endpoint to keep available as a Crush
     provider (for example: http://192.168.1.100:11434). Not required for Client
-    mode — Client mode targets the squire-server via -SquireServerIP.
+    mode — Client mode targets the vLLM server via -SquireServerIP.
 
 .PARAMETER ModelPath
     Custom model storage directory for Full mode. Sets OLLAMA_MODELS to this
@@ -80,7 +80,7 @@
 
 .EXAMPLE
     .\install-windows.ps1 -Mode Client
-    Client-only install (Profile 2): tools only, Crush defaults to the squire-server (192.168.1.99).
+    Client-only install (Profile 2): tools only, Crush defaults to the vLLM server (192.168.1.99).
 
 .EXAMPLE
     .\install-windows.ps1 -ModelPath D:\OllamaModels
@@ -114,7 +114,7 @@ param(
 
     [string]$Providers = "",
 
-    [ValidateSet("", "local", "squire-server")]
+    [ValidateSet("", "local", "server", "squire-server")]
     [string]$DefaultProvider = "",
 
     [ValidateSet("Desktop", "Server")]
@@ -157,9 +157,10 @@ if ($Help) {
     -Install OllamaOnly  Local Ollama server + models only — no client tools
 
   PROVIDERS (which crush providers + launcher entries; cloud providers always kept):
-    -Providers <list>        Comma list of: local, squire-server  (default: Full->both, Client->squire-server)
-    -DefaultProvider <p>     local | squire-server  (default: Full->local, Client->squire-server)
-    -SquireServerIP <ip>     squire-server address (default: 192.168.1.99)
+    -Providers <list>        Comma list of: local, server  (default: Full->both, Client->server)
+                             local = local Ollama · server = CachyOS vLLM server. ('squire-server' accepted as a deprecated alias.)
+    -DefaultProvider <p>     local | server  (default: Full->local, Client->server)
+    -SquireServerIP <ip>     vLLM server address (default: 192.168.1.99)
 
   GPU PROFILES:
     -ModelProfile Desktop   (default) RTX 5090 (32GB) — the six production models, ~100 GB:
@@ -205,10 +206,10 @@ if ($Help) {
     .\install-windows.ps1                                    # Desktop profile, full install
     .\install-windows.ps1 -ModelProfile Server -EnableLAN    # Server profile, LAN exposed
     .\install-windows.ps1 -Mode Client                      # Profile 2: squire-only client
-    .\install-windows.ps1 -Install Full                                                  # 5090: Ollama server + client (local+squire)
-    .\install-windows.ps1 -Install Client -Providers local,squire-server -DefaultProvider local  # client tools, both, default local
+    .\install-windows.ps1 -Install Full                                                  # 5090: Ollama server + client (local+server)
+    .\install-windows.ps1 -Install Client -Providers local,server -DefaultProvider local  # client tools, both, default local
     .\install-windows.ps1 -Install Client -Providers local -DefaultProvider local        # client tools, local Ollama only
-    .\install-windows.ps1 -Install Client                                                # squire-only client (pointed here)
+    .\install-windows.ps1 -Install Client                                                # server-only client (pointed at vLLM)
     .\install-windows.ps1 -SkipModels                        # Software only, models later
     .\install-windows.ps1 -ModelsOnly                        # Resume interrupted model pull
     .\install-windows.ps1 -ModelPath D:\OllamaModels         # Custom storage location
@@ -623,16 +624,19 @@ if (-not [string]::IsNullOrWhiteSpace($Install)) {
 }
 
 # Provider selection (crush providers + launcher entries). Defaults depend on install type.
+# 'server' is the canonical vLLM provider token; 'squire-server' is a deprecated input alias.
 if ([string]::IsNullOrWhiteSpace($Providers)) {
-    $Providers = if ($IsFullMode) { "local,squire-server" } else { "squire-server" }
+    $Providers = if ($IsFullMode) { "local,server" } else { "server" }
 }
 $Providers = ($Providers -replace '\s', '').ToLower()
+$Providers = ($Providers -split ',' | ForEach-Object { if ($_ -eq 'squire-server') { 'server' } else { $_ } }) -join ','
 if ([string]::IsNullOrWhiteSpace($DefaultProvider)) {
-    $DefaultProvider = if ($IsFullMode) { "local" } else { "squire-server" }
+    $DefaultProvider = if ($IsFullMode) { "local" } else { "server" }
 }
+if ($DefaultProvider -eq 'squire-server') { $DefaultProvider = 'server' }
 foreach ($pv in ($Providers -split ',')) {
-    if ($pv -notin @('local', 'squire-server')) {
-        Write-Fail "-Providers entries must be 'local' or 'squire-server' (got '$pv')."; exit 1
+    if ($pv -notin @('local', 'server')) {
+        Write-Fail "-Providers entries must be 'local' or 'server' (got '$pv')."; exit 1
     }
 }
 if (",$Providers," -notlike "*,$DefaultProvider,*") {
@@ -647,7 +651,7 @@ $ResolvedModelRoot = if ($IsFullMode) { Get-ResolvedModelRoot } else { $null }
 $ModelBlobsPath = if ($IsFullMode) { Join-Path $ResolvedModelRoot "blobs\*" } else { $null }
 
 if ($IsClientMode -and -not [string]::IsNullOrWhiteSpace($OllamaHost)) {
-    Write-Info "Client mode targets the squire-server; -OllamaHost ('$OllamaHost') will be kept only as an optional extra remote-Ollama provider."
+    Write-Info "Client mode targets the vLLM server; -OllamaHost ('$OllamaHost') will be kept only as an optional extra remote-Ollama provider."
 }
 
 if ($IsClientMode) {
@@ -864,7 +868,7 @@ if ($ShouldInstallSoftware) {
     Install-WinGetPackage -Id "charmbracelet.crush" -Name "Crush" -Critical | Out-Null
 
     if ($IsClientMode) {
-        Write-Info "Client (squire-only) mode: Crush defaults to the squire-server at http://${SquireServerIP}:8000/v1."
+        Write-Info "Client (server-only) mode: Crush defaults to the vLLM server at http://${SquireServerIP}:8000/v1."
         Write-Info "Switch server models with 'copilot-local' or the browser page http://${SquireServerIP}:4090/ ."
         if (-not [string]::IsNullOrWhiteSpace($OllamaHost)) {
             Write-Info "Optional remote Ollama provider available at $OllamaHost."
@@ -931,7 +935,7 @@ if ($ShouldInstallSoftware) {
             $crushContent = $crushContent -replace '__SQUIRE_SERVER_IP__', $SquireServerIP
 
             # Prune crush providers + set the default per -Providers / -DefaultProvider.
-            # 'local' -> the localhost Ollama provider ('ollama'); 'squire-server' -> the vLLM server.
+            # 'local' -> the localhost Ollama provider ('ollama'); 'server' -> the vLLM server.
             # Cloud providers (mistral/google/groq/openrouter) are always kept.
             try {
                 $cfg = $crushContent | ConvertFrom-Json
@@ -939,15 +943,15 @@ if ($ShouldInstallSoftware) {
                 if ($provList -notcontains 'local' -and $cfg.providers.PSObject.Properties.Name -contains 'ollama') {
                     $cfg.providers.PSObject.Properties.Remove('ollama')
                 }
-                if ($provList -notcontains 'squire-server' -and $cfg.providers.PSObject.Properties.Name -contains 'squire-server') {
-                    $cfg.providers.PSObject.Properties.Remove('squire-server')
+                if ($provList -notcontains 'server' -and $cfg.providers.PSObject.Properties.Name -contains 'server') {
+                    $cfg.providers.PSObject.Properties.Remove('server')
                 }
                 if ($DefaultProvider -eq 'local') {
                     $cfg.default_provider = 'ollama'   # template models.large/small are already the Ollama defaults
                 } else {
-                    $cfg.default_provider = 'squire-server'
-                    $cfg.models.large = [PSCustomObject]@{ model = 'mistral-small'; provider = 'squire-server'; max_tokens = 8192 }
-                    $cfg.models.small = [PSCustomObject]@{ model = 'mistral-small'; provider = 'squire-server'; max_tokens = 8192 }
+                    $cfg.default_provider = 'server'
+                    $cfg.models.large = [PSCustomObject]@{ model = 'mistral-small'; provider = 'server'; max_tokens = 8192 }
+                    $cfg.models.small = [PSCustomObject]@{ model = 'mistral-small'; provider = 'server'; max_tokens = 8192 }
                 }
                 $crushContent = $cfg | ConvertTo-Json -Depth 100
                 Write-Info "Crush providers=$Providers, default=$DefaultProvider."
@@ -958,9 +962,9 @@ if ($ShouldInstallSoftware) {
             Set-Content -Path $crushConfigDest -Value $crushContent -Encoding UTF8
             Write-Success "Deployed crush.json to $crushConfigDest"
             if ($IsClientMode) {
-                Write-Info "squire-server (vLLM, mistral-small) is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+                Write-Info "server (vLLM, mistral-small) is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
             } else {
-                Write-Info "Local Ollama is the default provider. squire-server (vLLM), Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+                Write-Info "Local Ollama is the default provider. server (vLLM), Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
             }
             Write-Info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
             Write-Info "MCP servers (Word, PowerPoint) are enabled. Run setup-mcp-venvs.ps1 to install them."
@@ -1508,7 +1512,7 @@ if ($IsFullMode) {
     Write-Host "    3. Verify: ollama list" -ForegroundColor Yellow
     Write-Host "    4. Test:   crush" -ForegroundColor Yellow
 } else {
-    Write-Host "    2. Crush defaults to the squire-server (http://${SquireServerIP}:8000/v1); switch models via copilot-local" -ForegroundColor Yellow
+    Write-Host "    2. Crush defaults to the vLLM server (http://${SquireServerIP}:8000/v1); switch models via copilot-local" -ForegroundColor Yellow
     Write-Host "    3. Test remote inference:  crush" -ForegroundColor Yellow
 }
 Write-Host ""

@@ -55,15 +55,26 @@ cd local-llm\windows
 
 ### Install Options
 
+The Windows box runs the **local Ollama** engine (or acts as a **client**); the CachyOS box
+provides the **vLLM** engine, reached here as the `server` Crush provider.
+Provider tokens: `local` = local Ollama · `server` = CachyOS vLLM server.
+
 | Flag | Effect |
 |------|--------|
-| `-ModelProfile Desktop` | RTX 5090 models (default) |
-| `-ModelProfile Server` | RTX 4090 models |
+| `-Install Full` | Local Ollama server + models + client tools (default) |
+| `-Install OllamaOnly` | Local Ollama server + models only (no client tools) |
+| `-Install Client` | Client tools only — no local Ollama; targets the vLLM `server` |
+| `-Providers local,server` | Crush providers to enable (`server` = the CachyOS vLLM provider) |
+| `-DefaultProvider local\|server` | Default Crush provider |
+| `-ModelProfile Desktop` | RTX 5090 roster (default) |
+| `-ModelProfile Server` | RTX 4090 roster |
 | `-SkipModels` | Install software only; pull models later |
 | `-ModelsOnly` | Skip software; just pull/update models |
 | `-ModelPath D:\models` | Custom model storage location |
 | `-EnableLAN` | Expose Ollama to LAN (for laptop access) |
 | `-Help` | Show detailed usage information |
+
+> Legacy `-Mode Full\|Client` and the `squire-server` provider name remain accepted as deprecated aliases.
 
 ## Configure
 

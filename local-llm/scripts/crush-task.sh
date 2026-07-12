@@ -61,19 +61,49 @@ EOF
 }
 
 task="${1:-}"
-DEFAULT_MODEL="qwen36-128k"
-REVIEW_MODEL="qwen3coder-65k"
 SELECTED_MODEL=""
 OFFLOAD_MODE=0
 
-# 5090 model assignments per task profile
+# ── Tier-aware Ollama alias/label registry ────────────────────────────────────
+# Source the installer-generated tier config (~/.config/local-llm/ollama-tier.sh) so this
+# picker presents the aliases that actually exist for the installed GPU tier (4090|5090).
+# Fall back to the 5090 roster if the file is absent.
+declare -A LL_ALIAS
+declare -A LL_LABEL
+LL_OLLAMA_TIER="5090"
+_LL_TIER_CONFIG="${HOME}/.config/local-llm/ollama-tier.sh"
+if [[ -f "$_LL_TIER_CONFIG" ]]; then
+    # shellcheck source=/dev/null
+    source "$_LL_TIER_CONFIG"
+else
+    LL_ALIAS=(
+        [heavy]=qwen36-27b-212k [coder]=qwen3coder-144k [review]=qwen3coder-144k
+        [agentic]=glm47-flash-198k [image_llm]=qwen3:8b
+        [h1]=qwen36-27b-212k [h2]=qwen36-35b-256k [h3]=gemma4-31b-128k [h4]=qwen3coder-144k
+        [h5]=glm47-flash-198k [h6]=northmini-code-256k [h7]=nemotron-c2-256k [h8]=ornith-35b-256k
+        [o2]=qwen3next-80b-offload
+    )
+    LL_LABEL=(
+        [qwen36-27b-212k]="Qwen3.6 27B (+MTP)" [qwen36-35b-256k]="Qwen3.6 35B-A3B MoE"
+        [gemma4-31b-128k]="Gemma 4 31B dense" [qwen3coder-144k]="Qwen3-Coder 30B-A3B"
+        [glm47-flash-198k]="GLM-4.7-Flash" [northmini-code-256k]="North Mini Code 1.0"
+        [nemotron-c2-256k]="Nemotron Cascade 2 30B-A3B" [ornith-35b-256k]="Ornith-1.0-35B"
+        [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (partial offload)" [qwen3:8b]="Qwen3 8B"
+    )
+fi
+_alias() { echo "${LL_ALIAS[$1]:-$1}"; }
+
+DEFAULT_MODEL="$(_alias heavy)"
+REVIEW_MODEL="$(_alias review)"
+
+# Model assignments per task profile (tier-resolved).
 model_for_task() {
     case "$1" in
-        coding)                 echo "qwen36-27b-212k" ;;   # heavy coding default
-        review)                 echo "qwen3coder-144k" ;;   # Qwen3-Coder 30B-A3B
-        general|word|pptx|docs|all) echo "glm47-flash-198k" ;;  # GLM-4.7-Flash tool/MCP
-        image)                  echo "qwen3:8b" ;;          # image-gen companion
-        *)                      echo "qwen36-27b-212k" ;;
+        coding)                 _alias heavy ;;   # heavy coding default
+        review)                 _alias review ;;  # Qwen3-Coder 30B-A3B
+        general|word|pptx|docs|all) _alias agentic ;;  # GLM-4.7-Flash tool/MCP
+        image)                  _alias image_llm ;;    # image-gen companion
+        *)                      _alias heavy ;;
     esac
 }
 
@@ -96,7 +126,7 @@ if [[ -z "$task" ]]; then
     echo "  --- Everything ---"
     echo "  [9] All tools           (GLM-4.7-Flash, all MCP, may be slow)"
     echo
-    echo "  ══ EXPERIMENTAL · models under evaluation ════════════════"
+    echo "  ══ EXPERIMENTAL · models under evaluation ($LL_OLLAMA_TIER tier) ══════════"
     echo "  --- Heavy-coding bench (coding profile, swap model) ---"
     echo "  [H1] Qwen3.6 27B dense (default)"
     echo "  [H2] Qwen3.6 35B-A3B MoE"
@@ -115,7 +145,7 @@ if [[ -z "$task" ]]; then
 
     case "$choice" in
         1) task="coding" ;;
-        2) task="coding"; SELECTED_MODEL="qwen3coder-144k" ;;
+        2) task="coding"; SELECTED_MODEL="$(_alias coder)" ;;
         3) task="review" ;;
         4) task="general" ;;
         5) task="word" ;;
@@ -123,15 +153,15 @@ if [[ -z "$task" ]]; then
         7) task="docs" ;;
         8) task="image" ;;
         9) task="all" ;;
-        [Hh]1) task="coding"; SELECTED_MODEL="qwen36-27b-212k" ;;
-        [Hh]2) task="coding"; SELECTED_MODEL="qwen36-35b-256k" ;;
-        [Hh]3) task="coding"; SELECTED_MODEL="gemma4-31b-128k" ;;
-        [Hh]4) task="coding"; SELECTED_MODEL="qwen3coder-144k" ;;
-        [Hh]5) task="coding"; SELECTED_MODEL="glm47-flash-198k" ;;
-        [Hh]6) task="coding"; SELECTED_MODEL="northmini-code-256k" ;;
-        [Hh]7) task="coding"; SELECTED_MODEL="nemotron-c2-256k" ;;
-        [Hh]8) task="coding"; SELECTED_MODEL="ornith-35b-256k" ;;
-        [Oo]2) task="coding"; SELECTED_MODEL="qwen3next-80b-offload"; OFFLOAD_MODE=1 ;;
+        [Hh]1) task="coding"; SELECTED_MODEL="$(_alias h1)" ;;
+        [Hh]2) task="coding"; SELECTED_MODEL="$(_alias h2)" ;;
+        [Hh]3) task="coding"; SELECTED_MODEL="$(_alias h3)" ;;
+        [Hh]4) task="coding"; SELECTED_MODEL="$(_alias h4)" ;;
+        [Hh]5) task="coding"; SELECTED_MODEL="$(_alias h5)" ;;
+        [Hh]6) task="coding"; SELECTED_MODEL="$(_alias h6)" ;;
+        [Hh]7) task="coding"; SELECTED_MODEL="$(_alias h7)" ;;
+        [Hh]8) task="coding"; SELECTED_MODEL="$(_alias h8)" ;;
+        [Oo]2) task="coding"; SELECTED_MODEL="$(_alias o2)"; OFFLOAD_MODE=1 ;;
         *)
             echo "  Invalid selection, defaulting to heavy coding."
             task="coding"
@@ -144,20 +174,9 @@ if [[ -z "$SELECTED_MODEL" ]]; then SELECTED_MODEL="$(model_for_task "$task")"; 
 DEFAULT_MODEL="$SELECTED_MODEL"
 REVIEW_MODEL="$SELECTED_MODEL"
 
-# Friendly labels for the launch-identity banner (keyed on the resolved alias; doubles as the
-# human-readable bench roster registry).
-declare -A MODEL_LABEL=(
-    [qwen36-27b-212k]="Qwen3.6 27B (+MTP)"
-    [qwen36-35b-256k]="Qwen3.6 35B-A3B MoE"
-    [gemma4-31b-128k]="Gemma 4 31B dense"
-    [qwen3coder-144k]="Qwen3-Coder 30B-A3B"
-    [glm47-flash-198k]="GLM-4.7-Flash"
-    [northmini-code-256k]="North Mini Code 1.0"
-    [nemotron-c2-256k]="Nemotron Cascade 2 30B-A3B"
-    [ornith-35b-256k]="Ornith-1.0-35B"
-    [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (partial offload)"
-)
-MODEL_FRIENDLY="${MODEL_LABEL[$DEFAULT_MODEL]:-$DEFAULT_MODEL}"
+# Friendly label for the launch-identity banner (keyed on the resolved alias; LL_LABEL comes
+# from the sourced tier config or the fallback above).
+MODEL_FRIENDLY="${LL_LABEL[$DEFAULT_MODEL]:-$DEFAULT_MODEL}"
 echo
 echo "  ▶ $MODEL_FRIENDLY  ·  alias=$DEFAULT_MODEL"
 
