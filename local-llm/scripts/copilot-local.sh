@@ -113,8 +113,9 @@ echo "  [D] CachyOS: Devstral-2 24B   (coding-alt, agentic — switches server)"
 echo "  [I] CachyOS: Image gen        (HiDream + Qwen3-4B — switches server)"
 fi
 echo
-read -rp "  Select task [1]: " choice
-choice="${choice:-1}"
+if _ll_has local; then default_choice=1; else default_choice=S; fi
+read -rp "  Select task [$default_choice]: " choice
+choice="${choice:-$default_choice}"
 OFFLOAD_MODE=0
 
 case "$choice" in

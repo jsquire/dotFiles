@@ -59,9 +59,11 @@ echo   [D] CachyOS: Devstral-2 24B   (coding-alt, agentic — switches server^)
 echo   [I] CachyOS: Image gen        (HiDream + Qwen3-4B — switches server^)
 :menu_after_server
 echo.
-set /p choice="  Select task [1]: "
+set "DEFAULT_CHOICE=1"
+echo %LL_PROVIDERS%| findstr /C:"local" >nul || set "DEFAULT_CHOICE=S"
+set /p choice="  Select task [%DEFAULT_CHOICE%]: "
 
-if "%choice%"=="" set choice=1
+if "%choice%"=="" set choice=%DEFAULT_CHOICE%
 
 if "%choice%"=="1" set COPILOT_MODEL=qwen36-27b-212k
 if "%choice%"=="2" set COPILOT_MODEL=qwen3coder-144k

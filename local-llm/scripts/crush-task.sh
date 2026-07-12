@@ -193,8 +193,9 @@ if [[ -z "$task" ]]; then
     echo "  [I] CachyOS: Image gen       (HiDream + Qwen3-4B - switches server)"
     echo
     fi
-    read -rp "  Select profile [1]: " choice
-    choice="${choice:-1}"
+    if _ll_has local; then default_choice=1; else default_choice=S; fi
+    read -rp "  Select profile [$default_choice]: " choice
+    choice="${choice:-$default_choice}"
 
     case "$choice" in
         1) task="coding" ;;

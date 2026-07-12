@@ -156,8 +156,9 @@ if (-not $Task) {
     Write-Host "  [I] CachyOS: Image gen       (HiDream + Qwen3-4B - switches server)"
     Write-Host ""
     }
-    $choice = Read-Host "  Select profile [1]"
-    if (-not $choice) { $choice = "1" }
+    $defaultChoice = if (Test-LlProvider 'local') { "1" } else { "S" }
+    $choice = Read-Host "  Select profile [$defaultChoice]"
+    if (-not $choice) { $choice = $defaultChoice }
 
     switch ($choice.ToUpper()) {
         "1"  { $Task = "coding" }
