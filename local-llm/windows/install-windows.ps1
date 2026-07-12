@@ -879,6 +879,66 @@ if ($ShouldInstallSoftware) {
         }
     }
 
+    # ── Step: csharp-ls (C# language server for Crush's LSP) ─────────────
+    Write-Step "Install csharp-ls (C# language server for Crush LSP)"
+    Write-Info "crush.json declares a csharp-ls LSP; it is a .NET global tool (not a winget package)."
+
+    # Resolve a dotnet executable. 'dotnet tool install' needs an SDK (not just a runtime).
+    $dotnetExe = $null
+    $dotnetCmd = Get-Command dotnet -ErrorAction SilentlyContinue
+    if ($dotnetCmd) { $dotnetExe = $dotnetCmd.Source }
+    elseif (Test-Path "$env:ProgramFiles\dotnet\dotnet.exe") { $dotnetExe = "$env:ProgramFiles\dotnet\dotnet.exe" }
+
+    $hasSdk = $false
+    if ($dotnetExe) { $hasSdk = [bool]((& $dotnetExe --list-sdks 2>$null) | Where-Object { $_ -match '^\d' }) }
+
+    if (-not $hasSdk) {
+        Write-Info ".NET SDK not found — installing Microsoft.DotNet.SDK.10 (required for csharp-ls)."
+        Install-WinGetPackage -Id "Microsoft.DotNet.SDK.10" -Name ".NET SDK 10" | Out-Null
+        # winget PATH changes are not live in this session — re-resolve, falling back to the install path.
+        $dotnetCmd = Get-Command dotnet -ErrorAction SilentlyContinue
+        if ($dotnetCmd) { $dotnetExe = $dotnetCmd.Source }
+        elseif (Test-Path "$env:ProgramFiles\dotnet\dotnet.exe") { $dotnetExe = "$env:ProgramFiles\dotnet\dotnet.exe" }
+        if ($dotnetExe) { $hasSdk = [bool]((& $dotnetExe --list-sdks 2>$null) | Where-Object { $_ -match '^\d' }) }
+    }
+
+    if ($hasSdk) {
+        $globalTools = & $dotnetExe tool list --global 2>$null
+        if ($globalTools -match '(?im)^\s*csharp-ls\s') {
+            Write-Info "csharp-ls already installed — skipping."
+        } else {
+            Write-Host "  Installing csharp-ls (dotnet global tool)..." -ForegroundColor White
+            $csOut = & $dotnetExe tool install --global csharp-ls 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "csharp-ls installed."
+            } else {
+                $csTail = (($csOut | Select-Object -Last 3) -join " | ").Trim()
+                Write-Warn "csharp-ls install failed: $csTail"
+                $script:Failures += "csharp-ls ($csTail)"
+            }
+        }
+
+        # Ensure the dotnet global-tools dir is on the user PATH so Crush can launch csharp-ls.
+        $csToolsDir = Join-Path $env:USERPROFILE ".dotnet\tools"
+        $csUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+        if ($csUserPath -notlike "*$csToolsDir*") {
+            [Environment]::SetEnvironmentVariable("Path", "$csUserPath;$csToolsDir", "User")
+            Write-Success "Added $csToolsDir to user PATH."
+        }
+        if ($env:Path -notlike "*$csToolsDir*") { $env:Path = "$env:Path;$csToolsDir" }
+
+        # Verify the tool actually runs (catches a .NET runtime mismatch).
+        $csExe = Join-Path $csToolsDir "csharp-ls.exe"
+        if (Test-Path $csExe) {
+            $csVer = (& $csExe --version 2>&1 | Select-Object -First 1)
+            if ($LASTEXITCODE -eq 0) { Write-Info "csharp-ls verified: $csVer" }
+            else { Write-Warn "csharp-ls installed but did not run cleanly (may need a specific .NET runtime)." }
+        }
+    } else {
+        Write-Warn "No .NET SDK available — skipping csharp-ls (Crush works without it; C# LSP disabled)."
+        $script:Failures += "csharp-ls (no .NET SDK)"
+    }
+
     # ── Step: Install MCP tools ──────────────────────────────────────────
 
     Write-Step "Install MCP tools (uv global)"
