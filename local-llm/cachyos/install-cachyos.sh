@@ -1107,6 +1107,12 @@ WantedBy=multi-user.target
 "
             if printf '%s' "$vllm_service_content" | run_privileged tee "$local_vllm_service" >/dev/null; then
                 run_privileged systemctl daemon-reload
+                # If vllm is already running (re-install), restart it so base-service arg changes
+                # (served-name, context, etc.) actually take effect. No-op on a fresh install.
+                if systemctl is-active --quiet vllm.service; then
+                    info "vLLM is running — restarting to apply the updated service definition..."
+                    run_privileged systemctl try-restart vllm.service
+                fi
                 success "Created vLLM service at $local_vllm_service"
                 info "Default model: ${VLLM_DEFAULT_MODEL} (served as '${VLLM_DEFAULT_SERVED_NAME}')"
                 info "Listening on: 0.0.0.0:${VLLM_PORT}"
