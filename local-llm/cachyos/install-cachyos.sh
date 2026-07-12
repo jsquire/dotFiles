@@ -574,6 +574,60 @@ install_crush() {
     return 1
 }
 
+ensure_dotnet_tools_on_path() {
+    case ":${PATH}:" in
+        *":${HOME}/.dotnet/tools:"*) ;;
+        *) export PATH="${HOME}/.dotnet/tools:${PATH}" ;;
+    esac
+}
+
+install_csharp_ls() {
+    # csharp-ls is the C# language server referenced by crush.json's lsp block. It is a
+    # .NET global tool (dotnet tool install), NOT a pacman/AUR package.
+    ensure_dotnet_tools_on_path
+
+    if command_exists csharp-ls || [[ -x "${HOME}/.dotnet/tools/csharp-ls" ]]; then
+        info "csharp-ls is already installed: $(csharp-ls --version 2>/dev/null | head -n1 || true)"
+        return 0
+    fi
+
+    # 'dotnet tool install' requires the .NET SDK (not just a runtime). On Arch/CachyOS: dotnet-sdk.
+    if ! command_exists dotnet; then
+        if command_exists pacman && { [[ ${EUID} -eq 0 ]] || command_exists sudo; }; then
+            info "Installing the .NET SDK (dotnet-sdk) — required to install csharp-ls."
+            if ! run_privileged pacman -S --needed --noconfirm dotnet-sdk; then
+                warn "Could not install dotnet-sdk — skipping csharp-ls (Crush works without it)."
+                return 1
+            fi
+        else
+            warn "dotnet not found and pacman/privilege unavailable — skipping csharp-ls."
+            return 1
+        fi
+    fi
+
+    info "Installing csharp-ls (dotnet global tool)."
+    if ! dotnet tool install --global csharp-ls >/dev/null 2>&1; then
+        warn "csharp-ls install failed — skipping (Crush works without it; C# LSP disabled)."
+        return 1
+    fi
+    ensure_dotnet_tools_on_path
+
+    # Persist ~/.dotnet/tools on PATH so Crush finds csharp-ls in future interactive shells.
+    local rc="${HOME}/.bashrc"
+    if [[ -f "$rc" ]] && ! grep -q '\.dotnet/tools' "$rc" 2>/dev/null; then
+        printf '\n# Added by install-cachyos.sh: .NET global tools (csharp-ls for Crush LSP)\nexport PATH="$HOME/.dotnet/tools:$PATH"\n' >> "$rc"
+        info "Added ~/.dotnet/tools to PATH in ~/.bashrc."
+    fi
+
+    # Verify the tool actually runs (catches a .NET runtime mismatch).
+    if csharp-ls --version >/dev/null 2>&1; then
+        success "csharp-ls installed: $(csharp-ls --version 2>/dev/null | head -n1)"
+    else
+        warn "csharp-ls installed but did not run cleanly (may need a specific .NET runtime)."
+    fi
+    return 0
+}
+
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -1573,6 +1627,10 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
     step "Install Crush"
     info "Crush is the CLI agent. Prefer user-local install; use pacman when available."
     install_crush || true
+
+    step "Install csharp-ls (C# language server for Crush LSP)"
+    info "crush.json declares a csharp-ls LSP; it is a .NET global tool (dotnet tool install)."
+    install_csharp_ls || true
 
     step "Install MCP tools"
     info "Installing MCP servers as uv tools (docx-mcp-server, office-powerpoint-mcp-server)."
