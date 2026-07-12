@@ -78,6 +78,7 @@ The `--install` value makes the **inference engine explicit**:
 | `--providers local,server` | Crush providers to enable (`server` = the vLLM provider) |
 | `--skip-models` | Install software only |
 | `--models-only` | Download models only |
+| `--force` | Overwrite existing `crush.json` + Copilot `mcp-config.json` (backs up each to a timestamped `.bak` first) |
 | `--model-path /path` | Custom HuggingFace cache location |
 | `--ollama-host URL` | Remote endpoint (client mode) |
 

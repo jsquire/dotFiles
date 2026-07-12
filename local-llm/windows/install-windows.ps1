@@ -128,6 +128,7 @@ param(
     [switch]$EnableLAN,
     [switch]$TestProfiles,
     [switch]$SkipWslNetworking,
+    [switch]$Force,
 
     [string]$SquireServerIP = "192.168.1.99",
     [string]$SquireSSHTarget = "jesse@192.168.1.99",
@@ -197,6 +198,9 @@ if ($Help) {
     -ModelsOnly          Skip software installation; only pull/update models
     -EnableLAN           Set OLLAMA_HOST=0.0.0.0 so other machines can connect
     -SkipWslNetworking   Don't configure WSL2 mirrored networking (.wslconfig)
+    -Force               Overwrite existing crush.json + Copilot mcp-config.json (skipped by default).
+                         Backs each up to a timestamped .bak first. Use to refresh outdated client
+                         config, e.g. after a provider/roster change.
     -Theme <Dark|Light>  Shortcut icon theme (default: Dark)
                          Dark  = white icons (for dark taskbar/Start Menu)
                          Light = dark icons (for light taskbar/Start Menu)
@@ -208,7 +212,7 @@ if ($Help) {
     .\install-windows.ps1 -Mode Client                      # Profile 2: squire-only client
     .\install-windows.ps1 -Install Full                                                  # 5090: Ollama server + client (local+server)
     .\install-windows.ps1 -Install Client -Providers local,server -DefaultProvider local  # client tools, both, default local
-    .\install-windows.ps1 -Install Client -Providers local -DefaultProvider local        # client tools, local Ollama only
+    .\install-windows.ps1 -Install Client -Providers local,server -DefaultProvider local -Force  # refresh client config on an existing box
     .\install-windows.ps1 -Install Client                                                # server-only client (pointed at vLLM)
     .\install-windows.ps1 -SkipModels                        # Software only, models later
     .\install-windows.ps1 -ModelsOnly                        # Resume interrupted model pull
@@ -919,9 +923,14 @@ if ($ShouldInstallSoftware) {
     $crushConfigDest = Join-Path $CrushDir "crush.json"
 
     if (Test-Path $crushConfigSource) {
-        if (Test-Path $crushConfigDest) {
-            Write-Info "Crush config already exists at $crushConfigDest — skipping (won't overwrite)."
+        if ((Test-Path $crushConfigDest) -and -not $Force) {
+            Write-Info "Crush config already exists at $crushConfigDest — skipping (won't overwrite; use -Force to refresh)."
         } else {
+            if (Test-Path $crushConfigDest) {
+                $crushBak = "$crushConfigDest.$(Get-Date -Format 'yyyyMMdd-HHmmss').bak"
+                Copy-Item $crushConfigDest $crushBak -Force
+                Write-Info "-Force: backed up existing crush.json to $crushBak"
+            }
             # Expand template placeholders for this platform
             $crushContent = Get-Content $crushConfigSource -Raw
             $expandedLocalAppData = ($AiToolsRoot -replace '\\', '/') # ai-tools root (DataRoot or LocalAppData), fwd slashes for JSON
@@ -1015,9 +1024,14 @@ if ($ShouldInstallSoftware) {
 
     if (Test-Path $copilotMcpSource) {
         if (-not (Test-Path $copilotDir)) { New-Item -ItemType Directory -Path $copilotDir -Force | Out-Null }
-        if (Test-Path $copilotMcpDest) {
-            Write-Info "Copilot MCP config already exists at $copilotMcpDest — skipping (won't overwrite)."
+        if ((Test-Path $copilotMcpDest) -and -not $Force) {
+            Write-Info "Copilot MCP config already exists at $copilotMcpDest — skipping (won't overwrite; use -Force to refresh)."
         } else {
+            if (Test-Path $copilotMcpDest) {
+                $mcpBak = "$copilotMcpDest.$(Get-Date -Format 'yyyyMMdd-HHmmss').bak"
+                Copy-Item $copilotMcpDest $mcpBak -Force
+                Write-Info "-Force: backed up existing mcp-config.json to $mcpBak"
+            }
             $mcpContent = Get-Content $copilotMcpSource -Raw
             $expandedLocalAppData = ($AiToolsRoot -replace '\\', '/') # ai-tools root (DataRoot or LocalAppData)
             $expandedConfigDir = ($CrushDir -replace '\\', '/')

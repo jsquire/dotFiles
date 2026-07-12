@@ -22,6 +22,7 @@ OLLAMA_HOST_ARG=""
 MODEL_PATH=""
 SKIP_MODELS=false
 MODELS_ONLY=false
+FORCE=false
 LAN_CIDR=""
 IS_SERVER_MODE=false
 
@@ -101,6 +102,8 @@ Options:
                                Examples: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
   --skip-models                Skip model downloads
   --models-only                Only download models; skip software installation
+  --force                      Overwrite existing crush.json + Copilot mcp-config.json
+                               (each backed up to a timestamped .bak first)
   --help                       Show this help text
 
 Examples:
@@ -111,6 +114,7 @@ Examples:
   ./install-cachyos.sh --install client --providers local,server        # client, both, default local
   ./install-cachyos.sh --install client --providers local               # client, local Ollama only
   ./install-cachyos.sh --install client                                 # server-only client (pointed at remote)
+  ./install-cachyos.sh --install client --force                         # refresh client configs (crush.json + mcp-config.json)
 EOF
 }
 
@@ -638,6 +642,10 @@ parse_args() {
                 ;;
             --models-only)
                 MODELS_ONLY=true
+                shift
+                ;;
+            --force)
+                FORCE=true
                 shift
                 ;;
             --help|-h)
@@ -1591,9 +1599,13 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
     local crush_config_dest="${CRUSH_CONFIG_DIR}/crush.json"
 
     if [[ -f "$crush_config_source" ]]; then
-        if [[ -f "$crush_config_dest" ]]; then
-            info "Crush config already exists at $crush_config_dest — skipping (won't overwrite)."
+        if [[ -f "$crush_config_dest" && "$FORCE" != true ]]; then
+            info "Crush config already exists at $crush_config_dest — skipping (won't overwrite). Use --force to refresh."
         else
+            if [[ -f "$crush_config_dest" ]]; then
+                local crush_backup="${crush_config_dest}.$(date +%Y%m%d-%H%M%S).bak"
+                cp "$crush_config_dest" "$crush_backup" && info "Backed up existing crush.json to $crush_backup"
+            fi
             # Expand template placeholders for Linux
             local linux_app_data="${HOME}/.local/share"
             # Determine vLLM server IP for the placeholder. Non-server installs (5090 full + server-only
@@ -1789,9 +1801,13 @@ with open(p, 'w') as f:
 
     if [[ -f "$copilot_mcp_source" ]]; then
         mkdir -p "$copilot_dir"
-        if [[ -f "$copilot_mcp_dest" ]]; then
-            info "Copilot MCP config already exists at $copilot_mcp_dest — skipping (won't overwrite)."
+        if [[ -f "$copilot_mcp_dest" && "$FORCE" != true ]]; then
+            info "Copilot MCP config already exists at $copilot_mcp_dest — skipping (won't overwrite). Use --force to refresh."
         else
+            if [[ -f "$copilot_mcp_dest" ]]; then
+                local copilot_mcp_backup="${copilot_mcp_dest}.$(date +%Y%m%d-%H%M%S).bak"
+                cp "$copilot_mcp_dest" "$copilot_mcp_backup" && info "Backed up existing mcp-config.json to $copilot_mcp_backup"
+            fi
             local linux_app_data="${HOME}/.local/share"
             local imagegen_host="127.0.0.1"
             [[ "${vllm_ip:-}" != "127.0.0.1" && -n "${vllm_ip:-}" ]] && imagegen_host="$vllm_ip"
