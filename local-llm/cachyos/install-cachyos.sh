@@ -1806,8 +1806,13 @@ with open(p, 'w') as f:
 
     if [[ -f "$crush_task_source" ]]; then
         mkdir -p "${HOME}/.local/bin"
-        install -m 0755 "$crush_task_source" "$crush_task_dest"
-        success "Deployed crush-task to $crush_task_dest"
+        # Substitute the provider gating + Squire Server placeholders so the Remote [S/G/C/D/I]
+        # server group works. Reuses $squire_ip resolved by the copilot-local deploy above.
+        sed -e "s|__SQUIRE_SERVER_IP__|${squire_ip:-192.168.1.99}|g" \
+            -e "s|__LL_PROVIDERS__|${PROVIDERS}|g" \
+            "$crush_task_source" > "$crush_task_dest"
+        chmod 0755 "$crush_task_dest"
+        success "Deployed crush-task to $crush_task_dest (providers $PROVIDERS, server ${squire_ip:-192.168.1.99})"
         info "Usage: crush-task (from any directory)"
     else
         warn "crush-task script not found at $crush_task_source — skipping."

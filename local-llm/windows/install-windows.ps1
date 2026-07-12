@@ -1267,8 +1267,13 @@ TIMESTEP_TOKEN_NUM = 1
         if (-not (Test-Path $cliDir)) {
             New-Item -ItemType Directory -Path $cliDir -Force | Out-Null
         }
-        Copy-Item -Path $crushSource -Destination $crushDest -Force
-        Write-Success "Deployed crush-task.ps1 to $crushDest"
+        # Substitute the provider gating + Squire Server placeholders so the Remote [S/G/C/D/I]
+        # server group works. BOM-free UTF-8 write for consistency with the other launchers.
+        $crushContent = Get-Content $crushSource -Raw
+        $crushContent = $crushContent -replace '__LL_PROVIDERS__', $Providers
+        $crushContent = $crushContent -replace '__SQUIRE_SERVER_IP__', $SquireServerIP
+        [System.IO.File]::WriteAllText($crushDest, $crushContent, (New-Object System.Text.UTF8Encoding($false)))
+        Write-Success "Deployed crush-task.ps1 to $crushDest (providers $Providers, server IP $SquireServerIP)"
     } else {
         Write-Warn "Crush task script not found at $crushSource — skipping."
     }

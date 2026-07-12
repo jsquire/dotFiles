@@ -15,19 +15,49 @@
 #   all     — everything enabled (may degrade with smaller models)
 set -euo pipefail
 
+# ── Provider gating (local Ollama / remote CachyOS server) ────────────────────
+# Baked in by the installer; falls back to both if the placeholder was not substituted.
+LL_PROVIDERS="__LL_PROVIDERS__"
+[[ "$LL_PROVIDERS" == *"__"* || -z "$LL_PROVIDERS" ]] && LL_PROVIDERS="local,server"
+_ll_has() { [[ ",${LL_PROVIDERS}," == *",$1,"* ]]; }
+
+# Switch the CachyOS server's active model via the accountless web endpoint (:4090). The server
+# loads one model at a time, so POST the mode then poll /status until it is loaded before launching
+# Crush (so we never hand Crush a not-yet-ready model).
+squire_switch() {
+    local mode="$1" ip="__SQUIRE_SERVER_IP__" port="4090" i st
+    if ! curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
+            -d "{\"mode\":\"${mode}\"}" "http://${ip}:${port}/switch" >/dev/null 2>&1; then
+        echo "  WARN: could not reach the model-switch service at http://${ip}:${port}/ - is the server up?"
+        return 0
+    fi
+    printf '  ... switching server to %s' "$mode"
+    for i in $(seq 1 30); do
+        st="$(curl -fsS -m 5 "http://${ip}:${port}/status" 2>/dev/null || true)"
+        if [[ "$st" == *"\"mode\": \"${mode}\""* && "$st" == *'"api_up": true'* ]]; then
+            echo " - ready."
+            return 0
+        fi
+        printf '.'
+        sleep 3
+    done
+    echo " (still loading; give it a few more seconds)"
+}
+
 write_crush_config() {
     local word_disabled="$1"
     local pptx_disabled="$2"
     local imagegen_disabled="$3"
     local system_prompt="${4:-}"
     local model_override="${5:-}"
+    local provider="${6:-ollama}"
 
     local providers_block=""
     local models_block=""
     if [[ -n "$system_prompt" ]]; then
         providers_block=",
   \"providers\": {
-    \"ollama\": {
+    \"${provider}\": {
       \"system_prompt_prefix\": $(printf '%s' "$system_prompt" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')
     }
   }"
@@ -37,12 +67,12 @@ write_crush_config() {
   \"models\": {
     \"large\": {
       \"model\": \"${model_override}\",
-      \"provider\": \"ollama\",
+      \"provider\": \"${provider}\",
       \"max_tokens\": 32000
     },
     \"small\": {
       \"model\": \"${model_override}\",
-      \"provider\": \"ollama\",
+      \"provider\": \"${provider}\",
       \"max_tokens\": 32000
     }
   }"
@@ -63,6 +93,11 @@ EOF
 task="${1:-}"
 SELECTED_MODEL=""
 OFFLOAD_MODE=0
+PROVIDER="ollama"
+SWITCH_MODE=""
+SRV_WORD=""
+SRV_PPTX=""
+SRV_IMG=""
 
 # ── Tier-aware Ollama alias/label registry ────────────────────────────────────
 # Source the installer-generated tier config (~/.config/local-llm/ollama-tier.sh) so this
@@ -91,6 +126,13 @@ else
         [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (partial offload)" [qwen3:8b]="Qwen3 8B"
     )
 fi
+# Server (CachyOS vLLM) labels — added unconditionally so the banner resolves them regardless of
+# whether the tier config was sourced (which would otherwise redefine LL_LABEL).
+LL_LABEL[mistral-small]="Mistral-Small (CachyOS vLLM)"
+LL_LABEL[glm-4.7-flash]="GLM-4.7-Flash (CachyOS vLLM)"
+LL_LABEL[qwen3-coder]="Qwen3-Coder (CachyOS vLLM)"
+LL_LABEL[devstral]="Devstral-2 24B (CachyOS vLLM)"
+LL_LABEL[qwen3-4b]="Qwen3-4B image companion (CachyOS vLLM)"
 _alias() { echo "${LL_ALIAS[$1]:-$1}"; }
 
 DEFAULT_MODEL="$(_alias heavy)"
@@ -109,6 +151,7 @@ model_for_task() {
 
 if [[ -z "$task" ]]; then
     echo
+    if _ll_has local; then
     echo "  --- Coding ---"
     echo "  [1] Heavy coding        (Qwen3.6 27B dense, no MCP)"
     echo "  [2] Light coding        (Qwen3-Coder 30B, no MCP)"
@@ -140,6 +183,16 @@ if [[ -z "$task" ]]; then
     echo "  --- Big-MoE expert-offload bench (experts->RAM; partial offload, slower) ---"
     echo "  [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB)"
     echo
+    fi
+    if _ll_has server; then
+    echo "  --- Remote (CachyOS server - one standing model, switch only when needed) ---"
+    echo "  [S] CachyOS: Mistral-Small   (default - office/authoring, 64K)"
+    echo "  [G] CachyOS: GLM-4.7-Flash   (agentic/reasoning - switches server)"
+    echo "  [C] CachyOS: Qwen3-Coder     (coding-first - switches server)"
+    echo "  [D] CachyOS: Devstral-2 24B  (coding-alt, agentic - switches server)"
+    echo "  [I] CachyOS: Image gen       (HiDream + Qwen3-4B - switches server)"
+    echo
+    fi
     read -rp "  Select profile [1]: " choice
     choice="${choice:-1}"
 
@@ -162,6 +215,11 @@ if [[ -z "$task" ]]; then
         [Hh]7) task="coding"; SELECTED_MODEL="$(_alias h7)" ;;
         [Hh]8) task="coding"; SELECTED_MODEL="$(_alias h8)" ;;
         [Oo]2) task="coding"; SELECTED_MODEL="$(_alias o2)"; OFFLOAD_MODE=1 ;;
+        [Ss]) PROVIDER="server"; SWITCH_MODE="mistral";   SELECTED_MODEL="mistral-small"; SRV_WORD=false; SRV_PPTX=false; SRV_IMG=true ;;
+        [Gg]) PROVIDER="server"; SWITCH_MODE="glm";       SELECTED_MODEL="glm-4.7-flash"; SRV_WORD=false; SRV_PPTX=false; SRV_IMG=true ;;
+        [Cc]) PROVIDER="server"; SWITCH_MODE="coder";     SELECTED_MODEL="qwen3-coder";   SRV_WORD=true;  SRV_PPTX=true;  SRV_IMG=true ;;
+        [Dd]) PROVIDER="server"; SWITCH_MODE="coder-alt"; SELECTED_MODEL="devstral";      SRV_WORD=true;  SRV_PPTX=true;  SRV_IMG=true ;;
+        [Ii]) PROVIDER="server"; SWITCH_MODE="image";     SELECTED_MODEL="qwen3-4b";      SRV_WORD=true;  SRV_PPTX=true;  SRV_IMG=false ;;
         *)
             echo "  Invalid selection, defaulting to heavy coding."
             task="coding"
@@ -210,6 +268,11 @@ This server edits Word documents via direct OOXML manipulation. Key tools:
 - Supports footnotes, endnotes, comments, headers/footers, sections
 - All edits create real tracked changes (visible in Word's Review tab)"
 
+if [[ "$PROVIDER" == "server" ]]; then
+    [[ -n "$SWITCH_MODE" ]] && squire_switch "$SWITCH_MODE"
+    write_crush_config "$SRV_WORD" "$SRV_PPTX" "$SRV_IMG" "" "$SELECTED_MODEL" "server"
+    echo "  Profile: Remote CachyOS server ($SELECTED_MODEL via vLLM)"
+else
 case "$task" in
     coding)
         write_crush_config true true true "" "$DEFAULT_MODEL"
@@ -278,6 +341,7 @@ Be direct. If the code is correct, say so briefly."
         echo "  Profile: General (Word MCP + gh CLI)"
         ;;
 esac
+fi
 
 echo "  Config: $(pwd)/.crush.json"
 echo

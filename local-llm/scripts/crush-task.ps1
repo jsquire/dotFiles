@@ -27,6 +27,37 @@ param(
     [string]$Model
 )
 
+# -- Provider gating (local Ollama / remote CachyOS server) --------------------
+# Baked in by the installer; falls back to both if the placeholder was not substituted.
+$LlProviders = "__LL_PROVIDERS__"
+if ($LlProviders -like "*__*" -or [string]::IsNullOrWhiteSpace($LlProviders)) { $LlProviders = "local,server" }
+function Test-LlProvider { param([string]$Name) return ((",$LlProviders,") -like "*,$Name,*") }
+
+# Switch the CachyOS server's active model via the accountless web endpoint (:4090). The server
+# loads one model at a time, so POST the mode then poll /status until it is ready before launching
+# Crush (so we never hand Crush a not-yet-loaded model).
+function Invoke-SquireSwitch {
+    param([string]$Mode)
+    $ip = "__SQUIRE_SERVER_IP__"; $port = "4090"
+    try {
+        Invoke-RestMethod -Uri "http://${ip}:${port}/switch" -Method Post -ContentType 'application/json' `
+            -Body "{`"mode`":`"$Mode`"}" -TimeoutSec 10 -ErrorAction Stop | Out-Null
+    } catch {
+        Write-Host "  WARN: could not reach the model-switch service at http://${ip}:${port}/ - is the server up?"
+        return
+    }
+    Write-Host -NoNewline "  ... switching server to $Mode"
+    for ($i = 0; $i -lt 30; $i++) {
+        try {
+            $st = Invoke-RestMethod -Uri "http://${ip}:${port}/status" -TimeoutSec 5 -ErrorAction Stop
+            if ($st.mode -eq $Mode -and $st.api_up) { Write-Host " - ready."; return }
+        } catch {}
+        Write-Host -NoNewline "."
+        Start-Sleep -Seconds 3
+    }
+    Write-Host " (still loading; give it a few more seconds)"
+}
+
 $DefaultModel = if ($Model) { $Model } else { "qwen36-128k" }
 $ReviewModel  = "qwen3coder-65k"
 
@@ -43,17 +74,21 @@ $ModelByTask = @{
 }
 $SelectedModel = $null
 $OffloadMode = $false
+$Provider = "ollama"
+$SwitchMode = $null
+$ServerMcp = $null
 
 function Write-CrushConfig {
     param(
         [hashtable]$McpOverrides,
         [string]$SystemPromptPrefix,
-        [string]$Model
+        [string]$Model,
+        [string]$Provider = "ollama"
     )
     $config = @{ mcp = $McpOverrides }
     if ($SystemPromptPrefix) {
         $config["providers"] = @{
-            "ollama" = @{
+            $Provider = @{
                 "system_prompt_prefix" = $SystemPromptPrefix
             }
         }
@@ -62,12 +97,12 @@ function Write-CrushConfig {
         $config["models"] = @{
             "large" = @{
                 "model" = $Model
-                "provider" = "ollama"
+                "provider" = $Provider
                 "max_tokens" = 32000
             }
             "small" = @{
                 "model" = $Model
-                "provider" = "ollama"
+                "provider" = $Provider
                 "max_tokens" = 32000
             }
         }
@@ -79,6 +114,7 @@ function Write-CrushConfig {
 # If no task specified, show picker
 if (-not $Task) {
     Write-Host ""
+    if (Test-LlProvider 'local') {
     Write-Host "  --- Coding ---"
     Write-Host "  [1] Heavy coding        (Qwen3.6 27B dense, no MCP)"
     Write-Host "  [2] Light coding        (Qwen3-Coder 30B, no MCP)"
@@ -110,6 +146,16 @@ if (-not $Task) {
     Write-Host "  --- Big-MoE expert-offload bench (experts->RAM; partial offload, slower) ---"
     Write-Host "  [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB)"
     Write-Host ""
+    }
+    if (Test-LlProvider 'server') {
+    Write-Host "  --- Remote (CachyOS server - one standing model, switch only when needed) ---"
+    Write-Host "  [S] CachyOS: Mistral-Small   (default - office/authoring, 64K)"
+    Write-Host "  [G] CachyOS: GLM-4.7-Flash   (agentic/reasoning - switches server)"
+    Write-Host "  [C] CachyOS: Qwen3-Coder     (coding-first - switches server)"
+    Write-Host "  [D] CachyOS: Devstral-2 24B  (coding-alt, agentic - switches server)"
+    Write-Host "  [I] CachyOS: Image gen       (HiDream + Qwen3-4B - switches server)"
+    Write-Host ""
+    }
     $choice = Read-Host "  Select profile [1]"
     if (-not $choice) { $choice = "1" }
 
@@ -132,6 +178,11 @@ if (-not $Task) {
         "H7" { $Task = "coding"; $SelectedModel = "nemotron-c2-256k" }
         "H8" { $Task = "coding"; $SelectedModel = "ornith-35b-256k" }
         "O2" { $Task = "coding"; $SelectedModel = "qwen3next-80b-offload"; $OffloadMode = $true }
+        "S"  { $Provider = "server"; $SwitchMode = "mistral";   $SelectedModel = "mistral-small"; $ServerMcp = @{ "word-mcp" = @{ disabled = $false }; "pptx-mcp" = @{ disabled = $false }; "imagegen-mcp" = @{ disabled = $true } } }
+        "G"  { $Provider = "server"; $SwitchMode = "glm";       $SelectedModel = "glm-4.7-flash"; $ServerMcp = @{ "word-mcp" = @{ disabled = $false }; "pptx-mcp" = @{ disabled = $false }; "imagegen-mcp" = @{ disabled = $true } } }
+        "C"  { $Provider = "server"; $SwitchMode = "coder";     $SelectedModel = "qwen3-coder";   $ServerMcp = @{ "word-mcp" = @{ disabled = $true };  "pptx-mcp" = @{ disabled = $true };  "imagegen-mcp" = @{ disabled = $true } } }
+        "D"  { $Provider = "server"; $SwitchMode = "coder-alt"; $SelectedModel = "devstral";      $ServerMcp = @{ "word-mcp" = @{ disabled = $true };  "pptx-mcp" = @{ disabled = $true };  "imagegen-mcp" = @{ disabled = $true } } }
+        "I"  { $Provider = "server"; $SwitchMode = "image";     $SelectedModel = "qwen3-4b";      $ServerMcp = @{ "word-mcp" = @{ disabled = $true };  "pptx-mcp" = @{ disabled = $true };  "imagegen-mcp" = @{ disabled = $false } } }
         default {
             Write-Host "  Invalid selection, defaulting to heavy coding."
             $Task = "coding"
@@ -151,6 +202,11 @@ $ModelLabel = @{
     "nemotron-c2-256k"      = "Nemotron Cascade 2 30B-A3B"
     "ornith-35b-256k"       = "Ornith-1.0-35B"
     "qwen3next-80b-offload" = "Qwen3-Next-80B-A3B (partial offload)"
+    "mistral-small"         = "Mistral-Small (CachyOS vLLM)"
+    "glm-4.7-flash"         = "GLM-4.7-Flash (CachyOS vLLM)"
+    "qwen3-coder"           = "Qwen3-Coder (CachyOS vLLM)"
+    "devstral"              = "Devstral-2 24B (CachyOS vLLM)"
+    "qwen3-4b"              = "Qwen3-4B image companion (CachyOS vLLM)"
 }
 
 # Resolve the model: explicit -Model wins, then picker selection, then per-task default.
@@ -164,6 +220,12 @@ $ModelFriendly = if ($ModelLabel.ContainsKey($DefaultModel)) { $ModelLabel[$Defa
 Write-Host ""
 Write-Host "  ▶ $ModelFriendly  ·  alias=$DefaultModel" -ForegroundColor Cyan
 
+if ($Provider -eq "server") {
+    if ($SwitchMode) { Invoke-SquireSwitch $SwitchMode }
+    Write-CrushConfig -McpOverrides $ServerMcp -Model $SelectedModel -Provider "server"
+    Write-Host "  Profile: Remote CachyOS server ($SelectedModel via vLLM)"
+}
+else {
 switch ($Task) {
     "coding" {
         Write-CrushConfig -McpOverrides @{
@@ -314,6 +376,7 @@ Check for: overlapping elements, text overflow, low-contrast text, misaligned co
         } -Model $DefaultModel
         Write-Host "  Profile: All tools (93 MCP tools - may be slow with smaller models)"
     }
+}
 }
 
 Write-Host "  Config: $(Resolve-Path .crush.json)"
