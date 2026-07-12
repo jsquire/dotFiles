@@ -6,7 +6,7 @@ set COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=16384
 
 :: Which provider groups this install enabled (baked in by the installer; fallback to both)
 set "LL_PROVIDERS=__LL_PROVIDERS__"
-echo %LL_PROVIDERS%| findstr "__" >nul && set "LL_PROVIDERS=local,squire-server"
+echo %LL_PROVIDERS%| findstr "__" >nul && set "LL_PROVIDERS=local,server"
 
 :: If a model was passed as first argument, use it
 if not "%~1"=="" (
@@ -49,7 +49,7 @@ echo   --- Big-MoE expert-offload bench (experts-^>RAM; slower, for models that 
 echo   --- Big-MoE expert-offload bench (experts-^>RAM; partial offload, slower^) ---
 echo   [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB^)
 :menu_after_local
-echo %LL_PROVIDERS%| findstr /C:"squire-server" >nul || goto :menu_after_squire
+echo %LL_PROVIDERS%| findstr /C:"server" >nul || goto :menu_after_server
 echo.
 echo   --- Remote (CachyOS server — one standing model, switch only when needed) ---
 echo   [S] CachyOS: Mistral-Small   (default — office/authoring, 64K^)
@@ -57,7 +57,7 @@ echo   [G] CachyOS: GLM-4.7-Flash   (agentic/reasoning — switches server^)
 echo   [C] CachyOS: Qwen3-Coder     (coding-first — switches server^)
 echo   [D] CachyOS: Devstral-2 24B   (coding-alt, agentic — switches server^)
 echo   [I] CachyOS: Image gen        (HiDream + Qwen3-4B — switches server^)
-:menu_after_squire
+:menu_after_server
 echo.
 set /p choice="  Select task [1]: "
 

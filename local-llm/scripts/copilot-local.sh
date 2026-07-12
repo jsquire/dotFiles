@@ -4,28 +4,42 @@ set -euo pipefail
 
 # Which provider groups this install enabled (baked in by the installer). Falls back to both.
 LL_PROVIDERS="__LL_PROVIDERS__"
-[[ "$LL_PROVIDERS" == *"__"* || -z "$LL_PROVIDERS" ]] && LL_PROVIDERS="local,squire-server"
+[[ "$LL_PROVIDERS" == *"__"* || -z "$LL_PROVIDERS" ]] && LL_PROVIDERS="local,server"
 _ll_has() { [[ ",${LL_PROVIDERS}," == *",$1,"* ]]; }
 
 export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=51200
 export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=16384
 
-# Friendly labels for the launch-identity banner — keyed on the resolved alias so the banner is
-# correct for every path (picker slot, direct first-arg, or default fallback). Doubles as the
-# human-readable registry of the bench roster.
-declare -A MODEL_LABEL=(
-    [qwen36-27b-212k]="Qwen3.6 27B (+MTP)"
-    [qwen36-35b-256k]="Qwen3.6 35B-A3B MoE"
-    [gemma4-31b-128k]="Gemma 4 31B dense"
-    [qwen3coder-144k]="Qwen3-Coder 30B-A3B"
-    [glm47-flash-198k]="GLM-4.7-Flash"
-    [northmini-code-256k]="North Mini Code 1.0"
-    [nemotron-c2-256k]="Nemotron Cascade 2 30B-A3B"
-    [ornith-35b-256k]="Ornith-1.0-35B"
-    [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (partial offload)"
-    [qwen3:8b]="Qwen3 8B"
-)
-model_label() { echo "${MODEL_LABEL[$1]:-$1}"; }
+# ── Tier-aware Ollama alias/label registry ────────────────────────────────────
+# The installer generates ~/.config/local-llm/ollama-tier.sh with the tier's task->alias
+# SLOT map (LL_ALIAS) + alias->label registry (LL_LABEL). Sourcing it makes this launcher
+# present the correct aliases for whichever GPU tier (4090|5090) was installed. If the file
+# is absent (e.g. a copy not deployed by the installer), fall back to the 5090 roster.
+declare -A LL_ALIAS
+declare -A LL_LABEL
+LL_OLLAMA_TIER="5090"
+_LL_TIER_CONFIG="${HOME}/.config/local-llm/ollama-tier.sh"
+if [[ -f "$_LL_TIER_CONFIG" ]]; then
+    # shellcheck source=/dev/null
+    source "$_LL_TIER_CONFIG"
+else
+    LL_ALIAS=(
+        [heavy]=qwen36-27b-212k [coder]=qwen3coder-144k [review]=qwen3coder-144k
+        [agentic]=glm47-flash-198k [image_llm]=qwen3:8b
+        [h1]=qwen36-27b-212k [h2]=qwen36-35b-256k [h3]=gemma4-31b-128k [h4]=qwen3coder-144k
+        [h5]=glm47-flash-198k [h6]=northmini-code-256k [h7]=nemotron-c2-256k [h8]=ornith-35b-256k
+        [o2]=qwen3next-80b-offload
+    )
+    LL_LABEL=(
+        [qwen36-27b-212k]="Qwen3.6 27B (+MTP)" [qwen36-35b-256k]="Qwen3.6 35B-A3B MoE"
+        [gemma4-31b-128k]="Gemma 4 31B dense" [qwen3coder-144k]="Qwen3-Coder 30B-A3B"
+        [glm47-flash-198k]="GLM-4.7-Flash" [northmini-code-256k]="North Mini Code 1.0"
+        [nemotron-c2-256k]="Nemotron Cascade 2 30B-A3B" [ornith-35b-256k]="Ornith-1.0-35B"
+        [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (partial offload)" [qwen3:8b]="Qwen3 8B"
+    )
+fi
+model_label() { echo "${LL_LABEL[$1]:-$1}"; }
+_alias() { echo "${LL_ALIAS[$1]:-$1}"; }
 
 # Switch the Squire server's active model via the accountless web endpoint (:4090) — no SSH account
 # needed. The server loads one model at a time, so we POST the desired mode then poll /status until it
@@ -63,34 +77,34 @@ fi
 echo
 if _ll_has local; then
 echo "  --- Coding ---"
-echo "  [1] Heavy coding        (qwen36-27b-212k)"
-echo "  [2] Light coding        (qwen3coder-144k)"
-echo "  [3] Code review         (qwen3coder-144k)"
+echo "  [1] Heavy coding        ($(_alias heavy))"
+echo "  [2] Light coding        ($(_alias coder))"
+echo "  [3] Code review         ($(_alias review))"
 echo
 echo "  --- Writing & Documents ---"
-echo "  [4] Technical docs      (qwen36-27b-212k)"
-echo "  [5] Creative writing    (qwen36-27b-212k)"
-echo "  [6] Office documents    (glm47-flash-198k)"
+echo "  [4] Technical docs      ($(_alias heavy))"
+echo "  [5] Creative writing    ($(_alias heavy))"
+echo "  [6] Office documents    ($(_alias agentic))"
 echo
 echo "  --- Visual ---"
-echo "  [7] Image generation    (qwen3:8b + HiDream via MCP)"
+echo "  [7] Image generation    ($(_alias image_llm) + HiDream via MCP)"
 echo
-echo "  ══ EXPERIMENTAL · models under evaluation ════════════════"
+echo "  ══ EXPERIMENTAL · models under evaluation ($LL_OLLAMA_TIER tier) ══════════"
 echo "  --- Heavy-coding bench (VRAM-resident; swap model, all MCP off) ---"
-echo "  [H1] Qwen3.6 27B+MTP        (qwen36-27b-212k)"
-echo "  [H2] Qwen3.6 35B-A3B MoE    (qwen36-35b-256k)"
-echo "  [H3] Gemma 4 31B dense      (gemma4-31b-128k)"
-echo "  [H4] Qwen3-Coder 30B-A3B    (qwen3coder-144k)"
-echo "  [H5] GLM-4.7-Flash          (glm47-flash-198k)"
-echo "  [H6] North Mini Code 1.0    (northmini-code-256k)"
-echo "  [H7] Nemotron Cascade 2 30B (nemotron-c2-256k)"
-echo "  [H8] Ornith-1.0-35B         (ornith-35b-256k)"
+echo "  [H1] Qwen3.6 27B+MTP        ($(_alias h1))"
+echo "  [H2] Qwen3.6 35B-A3B MoE    ($(_alias h2))"
+echo "  [H3] Gemma 4 31B dense      ($(_alias h3))"
+echo "  [H4] Qwen3-Coder 30B-A3B    ($(_alias h4))"
+echo "  [H5] GLM-4.7-Flash          ($(_alias h5))"
+echo "  [H6] North Mini Code 1.0    ($(_alias h6))"
+echo "  [H7] Nemotron Cascade 2 30B ($(_alias h7))"
+echo "  [H8] Ornith-1.0-35B         ($(_alias h8))"
 echo
 echo "  --- Big-MoE expert-offload bench (experts->RAM; partial offload, slower) ---"
 echo "  [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB)"
 fi
 echo
-if _ll_has squire-server; then
+if _ll_has server; then
 echo "  --- Remote (CachyOS server — one standing model, switch only when needed) ---"
 echo "  [S] CachyOS: Mistral-Small   (default — office/authoring, 64K)"
 echo "  [G] CachyOS: GLM-4.7-Flash   (agentic/reasoning — switches server)"
@@ -131,21 +145,21 @@ case "$choice" in
 esac
 
 case "$choice" in
-    1) export COPILOT_MODEL="qwen36-27b-212k" ;;
-    2) export COPILOT_MODEL="qwen3coder-144k" ;;
-    3) export COPILOT_MODEL="qwen3coder-144k" ;;
-    4|5) export COPILOT_MODEL="qwen36-27b-212k" ;;
-    6) export COPILOT_MODEL="glm47-flash-198k" ;;
-    7) export COPILOT_MODEL="qwen3:8b" ;;
-    [oO]2) export COPILOT_MODEL="qwen3next-80b-offload"; OFFLOAD_MODE=1 ;;
-    [Hh]1) export COPILOT_MODEL="qwen36-27b-212k" ;;
-    [Hh]2) export COPILOT_MODEL="qwen36-35b-256k" ;;
-    [Hh]3) export COPILOT_MODEL="gemma4-31b-128k" ;;
-    [Hh]4) export COPILOT_MODEL="qwen3coder-144k" ;;
-    [Hh]5) export COPILOT_MODEL="glm47-flash-198k" ;;
-    [Hh]6) export COPILOT_MODEL="northmini-code-256k" ;;
-    [Hh]7) export COPILOT_MODEL="nemotron-c2-256k" ;;
-    [Hh]8) export COPILOT_MODEL="ornith-35b-256k" ;;
+    1) export COPILOT_MODEL="$(_alias heavy)" ;;
+    2) export COPILOT_MODEL="$(_alias coder)" ;;
+    3) export COPILOT_MODEL="$(_alias review)" ;;
+    4|5) export COPILOT_MODEL="$(_alias heavy)" ;;
+    6) export COPILOT_MODEL="$(_alias agentic)" ;;
+    7) export COPILOT_MODEL="$(_alias image_llm)" ;;
+    [oO]2) export COPILOT_MODEL="$(_alias o2)"; OFFLOAD_MODE=1 ;;
+    [Hh]1) export COPILOT_MODEL="$(_alias h1)" ;;
+    [Hh]2) export COPILOT_MODEL="$(_alias h2)" ;;
+    [Hh]3) export COPILOT_MODEL="$(_alias h3)" ;;
+    [Hh]4) export COPILOT_MODEL="$(_alias h4)" ;;
+    [Hh]5) export COPILOT_MODEL="$(_alias h5)" ;;
+    [Hh]6) export COPILOT_MODEL="$(_alias h6)" ;;
+    [Hh]7) export COPILOT_MODEL="$(_alias h7)" ;;
+    [Hh]8) export COPILOT_MODEL="$(_alias h8)" ;;
     s|S)
         squire_switch mistral
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
@@ -171,7 +185,7 @@ case "$choice" in
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
         export COPILOT_MODEL="qwen3-4b"
         ;;
-    *) echo "  Invalid. Using qwen36-27b-212k"; export COPILOT_MODEL="qwen36-27b-212k" ;;
+    *) echo "  Invalid. Using $(_alias heavy)"; export COPILOT_MODEL="$(_alias heavy)" ;;
 esac
 
 # Git safety: block git write operations

@@ -25,8 +25,12 @@ cd local-llm\windows
 **CachyOS Server:**
 ```bash
 cd local-llm/cachyos
-./install-cachyos.sh --mode server
+./install-cachyos.sh --install server
 ```
+
+> **Engine is explicit in the install/provider vocabulary:** `local` = Ollama · `server` = vLLM ·
+> `client` = client tools only. On the CachyOS box the standing role is `--install server` (vLLM);
+> Windows desktops run `local` (Ollama). Legacy `--mode`/`squire-server` remain accepted aliases.
 
 ## Documentation
 

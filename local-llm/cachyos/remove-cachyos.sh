@@ -20,6 +20,11 @@ CRUSH_BIN_PATH="${HOME}/.local/bin/crush"
 CRUSH_HOME_DIR="${HOME}/.crush"
 CRUSH_CONFIG_DIR="${HOME}/.config/crush"
 OLLAMA_DIR="${HOME}/.ollama"
+COPILOT_LOCAL_LAUNCHER="${HOME}/.local/bin/copilot-local"
+COPILOT_SERVER_LAUNCHER="${HOME}/.local/bin/copilot-server"
+CRUSH_TASK_LAUNCHER="${HOME}/.local/bin/crush-task"
+COPILOT_MCP_CONFIG="${HOME}/.copilot/mcp-config.json"
+OLLAMA_TIER_CONFIG="${HOME}/.config/local-llm/ollama-tier.sh"
 
 STEP_NUMBER=0
 FAILURES=()
@@ -40,7 +45,10 @@ Usage:
   ./remove-cachyos.sh [options]
 
 Options:
-  --mode full|server|client   Removal mode (default: full; server is an alias for full)
+  --install local|server|client  Removal scope (preferred). local==Ollama, server==vLLM.
+                                  (local is an alias for full.)
+  --mode full|server|client   Deprecated alias for --install (full==local).
+  --ollama-models 4090|5090   Accepted for CLI parity with the installer; ignored on removal.
   --keep-models        Keep ~/.ollama/models and ~/.cache/huggingface (vLLM/imagegen weights)
   --keep-config        Keep ~/.crush and ~/.config/crush
   --force              Skip confirmation prompts
@@ -49,7 +57,7 @@ Options:
 Examples:
   ./remove-cachyos.sh
   ./remove-cachyos.sh --keep-models
-  ./remove-cachyos.sh --mode client --keep-config
+  ./remove-cachyos.sh --install client --keep-config
   ./remove-cachyos.sh --force
 EOF
 }
@@ -182,9 +190,23 @@ confirm_action() {
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --install)
+                [[ $# -lt 2 ]] && { fail "--install requires a value."; usage; exit 1; }
+                MODE="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
+                # local==Ollama full removal; server/client map through unchanged.
+                [[ "$MODE" == "local" ]] && MODE="full"
+                shift 2
+                ;;
+            --ollama-models)
+                # Accepted for CLI parity with the installer; the removal path is tier-agnostic.
+                [[ $# -lt 2 ]] && { fail "--ollama-models requires a value."; usage; exit 1; }
+                info "--ollama-models '$2' accepted but ignored (removal is tier-agnostic)."
+                shift 2
+                ;;
             --mode)
                 [[ $# -lt 2 ]] && { fail "--mode requires a value."; usage; exit 1; }
                 MODE="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
+                [[ "$MODE" == "local" ]] && MODE="full"
                 shift 2
                 ;;
             --keep-models)
@@ -249,6 +271,10 @@ printf '%b\n' "    • ${CRUSH_BIN_PATH} (or pacman package if installed)"
 printf '%b\n' "    • ${HOME}/.local/bin/uv and uvx"
 printf '%b\n' "    • ${UV_SHARE_DIR}"
 printf '%b\n' "    • ${AI_TOOLS_DIR}"
+printf '%b\n' "    • copilot-local, copilot-server, crush-task launchers + Ollama tier config"
+if [[ "$KEEP_CONFIG" == false ]]; then
+    printf '%b\n' "    • ${COPILOT_MCP_CONFIG}"
+fi
 if [[ "$KEEP_CONFIG" == false ]]; then
     printf '%b\n' "    • ${CRUSH_HOME_DIR} and ${CRUSH_CONFIG_DIR}"
 fi
@@ -403,6 +429,17 @@ remove_user_path "$UV_SHARE_DIR" 'uv shared data'
 
 step "Remove MCP environments"
 remove_user_path "$AI_TOOLS_DIR" 'AI tools directory'
+
+step "Remove launcher scripts and tier config"
+remove_user_path "$COPILOT_LOCAL_LAUNCHER" 'copilot-local launcher'
+remove_user_path "$COPILOT_SERVER_LAUNCHER" 'copilot-server launcher'
+remove_user_path "$CRUSH_TASK_LAUNCHER" 'crush-task launcher'
+remove_user_path "$OLLAMA_TIER_CONFIG" 'Ollama launcher tier config'
+if [[ "$KEEP_CONFIG" == false ]]; then
+    remove_user_path "$COPILOT_MCP_CONFIG" 'Copilot MCP config'
+else
+    info 'Keeping ~/.copilot/mcp-config.json as requested (--keep-config).'
+fi
 
 if [[ "$KEEP_CONFIG" == false ]]; then
     step "Remove Crush configuration"

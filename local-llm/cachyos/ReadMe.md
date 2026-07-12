@@ -53,26 +53,36 @@ Clients connect via `http://server-ip:8000/v1` — same OpenAI API as Ollama.
 cd ~/dotFiles/local-llm/cachyos
 chmod +x install-cachyos.sh
 
-# Server install (default for CachyOS)
-./install-cachyos.sh --mode server
+# Server install — vLLM engine (default role for the CachyOS box)
+./install-cachyos.sh --install server
 
 # Skip model downloads (install software first)
-./install-cachyos.sh --mode server --skip-models
+./install-cachyos.sh --install server --skip-models
 
 # Custom model storage path
-./install-cachyos.sh --mode server --model-path /srv/models
+./install-cachyos.sh --install server --model-path /srv/models
 ```
 
 ### Install Options
 
+The `--install` value makes the **inference engine explicit**:
+`local` = Ollama · `server` = vLLM · `client` = tools only (no local engine).
+
 | Flag | Effect |
 |------|--------|
-| `--mode server` | Full vLLM server (default on CachyOS) |
-| `--mode client` | Client-only (Crush + MCP, no inference) |
+| `--install server` | vLLM server (Ollama-free) — the standing role for this box |
+| `--install local` | Local Ollama server + client tools |
+| `--install client` | Client only (Crush + MCP, no local inference) |
+| `--ollama-models 4090\|5090` | Ollama roster GPU tier (`--install local` only): 4090 (24GB) or 5090 (32GB) |
+| `--no-client-tools` | With `--install local`: install the Ollama server + models only (no Crush/MCP) |
+| `--providers local,server` | Crush providers to enable (`server` = the vLLM provider) |
 | `--skip-models` | Install software only |
 | `--models-only` | Download models only |
 | `--model-path /path` | Custom HuggingFace cache location |
 | `--ollama-host URL` | Remote endpoint (client mode) |
+
+> Legacy `--mode`/`--model-profile` and the `squire-server` provider name are still accepted as
+> deprecated aliases (`--mode server` → `--install server`, `--model-profile server` → `--ollama-models 4090`).
 
 ## Configure
 
@@ -303,9 +313,9 @@ Plex hardware transcoding uses NVENC (dedicated silicon) — runs simultaneously
 ## Uninstall
 
 ```bash
-./remove-cachyos.sh               # Full removal
-./remove-cachyos.sh --keep-models # Keep HuggingFace model cache
-./remove-cachyos.sh --mode client # Client-only removal
+./remove-cachyos.sh                  # Full removal
+./remove-cachyos.sh --keep-models    # Keep HuggingFace model cache
+./remove-cachyos.sh --install client # Client-only removal
 ```
 
 ## Troubleshooting

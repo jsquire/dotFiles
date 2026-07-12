@@ -9,7 +9,7 @@
         {
           "name": "Qwen3.6 27B dense (Heavy coding \u2014 default)",
           "id": "qwen36-27b-212k",
-          "context_window": 262144,
+          "context_window": 217088,
           "default_max_tokens": 32000,
           "can_reason": true
         },
@@ -30,7 +30,7 @@
         {
           "name": "Qwen3-Coder 30B-A3B (Light coding / review)",
           "id": "qwen3coder-144k",
-          "context_window": 262144,
+          "context_window": 147456,
           "default_max_tokens": 32000,
           "can_reason": true
         },
@@ -50,7 +50,7 @@
         }
       ]
     },
-    "squire-server": {
+    "server": {
       "name": "Squire Server (CachyOS Linux \u2014 vLLM)",
       "base_url": "http://__SQUIRE_SERVER_IP__:8000/v1/",
       "type": "openai",

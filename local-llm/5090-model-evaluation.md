@@ -54,7 +54,7 @@ Current plan and corrections (authoritative sources flagged):
   serves one model at a time (24 GB), so a **mode switch** (`cachyos-switch-model`)
   loads coder / vision / image modes on demand. Image mode = HiDream (imagegen.service)
   + Qwen3-4B companion. **Minimize switching** — GLM covers everyday needs with no swap.
-- **Client launchers mirror the server**: the `squire-server` provider / `[S][C][V][I]`
+- **Client launchers mirror the server**: the `server` provider / `[S][C][V][I]`
   entries derive their ids from the active `--served-model-name`, so they can't drift.
 - **Qwen3.6-27B coding numbers ARE authoritative** (LiveCodeBench 83.9 / SWE-bench
   Verified 77.2 / Terminal-Bench2 59.3) — sourced from the HF model card via BenchLM's
@@ -424,7 +424,7 @@ For the top 1-2 candidates:
    - `VLLM_GPU_MEMORY_UTILIZATION` → 0.90
    - `VLLM_MAX_MODEL_LEN` → 32768
    - Add `--kv-cache-dtype fp8_e5m2` to ExecStart
-3. Update `config/crush.json` → squire-server model list
+3. Update `config/crush.json` → server (vLLM) model list
 4. Update server model descriptions in `install-cachyos.sh`
 5. Test: 2 concurrent requests at 32K context (verify no OOM)
 
