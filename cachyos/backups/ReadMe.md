@@ -74,7 +74,11 @@ Once complete, the following are configured:
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
+<<<<<<< Updated upstream
 | Kopia repository | `/mnt/nas-backups/Jesse-CachyOS/` | Snapshot storage on samba share |
+=======
+| Kopia repository | `/mnt/nas-backups/Squire-Server/` | Snapshot storage on the NAS backups export (NFS) |
+>>>>>>> Stashed changes
 | Nightly backup script | `/usr/local/bin/nightly-backup.sh` | Captures manifests + snapshots |
 | systemd timer | `nightly-backup.timer` | Fires at 02:00 AM daily |
 | Failure notification | KDE notify-send + `~/Desktop/BACKUP_FAILED.txt` | Alerts on failed backup |

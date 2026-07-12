@@ -14,7 +14,11 @@ set -euo pipefail
 # Run with: sudo ./kopia-restore.sh
 ############################################
 
+<<<<<<< Updated upstream
 REPO_PATH="/mnt/nas-backups/Jesse-CachyOS"
+=======
+REPO_PATH="/mnt/nas-backups/Squire-Server"
+>>>>>>> Stashed changes
 USERNAME="jesse"
 
 ############################################

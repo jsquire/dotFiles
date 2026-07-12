@@ -12,6 +12,8 @@ FORCE=false
 
 AI_TOOLS_DIR="${HOME}/.local/share/ai-tools"
 UV_SHARE_DIR="${HOME}/.local/share/uv"
+VLLM_VENV_DIR="${HOME}/.local/share/vllm-env"
+HF_CACHE_DIR="${HOME}/.cache/huggingface"
 UV_BIN_PATH="${HOME}/.local/bin/uv"
 UVX_BIN_PATH="${HOME}/.local/bin/uvx"
 CRUSH_BIN_PATH="${HOME}/.local/bin/crush"
@@ -39,7 +41,7 @@ Usage:
 
 Options:
   --mode full|server|client   Removal mode (default: full; server is an alias for full)
-  --keep-models        Keep ~/.ollama/models
+  --keep-models        Keep ~/.ollama/models and ~/.cache/huggingface (vLLM/imagegen weights)
   --keep-config        Keep ~/.crush and ~/.config/crush
   --force              Skip confirmation prompts
   --help               Show this help text
@@ -148,6 +150,24 @@ remove_system_path() {
     fi
 }
 
+# Loop-delete every ufw rule whose `ufw status numbered` line matches the pattern.
+remove_ufw_rules() {
+    local pattern="$1"
+    local label="$2"
+    local removed=0 num
+    while true; do
+        num="$(run_privileged ufw status numbered 2>/dev/null | grep -E "$pattern" | head -n1 | sed -n 's/^\[\s*\([0-9]*\)\].*/\1/p' || true)"
+        [[ -z "$num" ]] && break
+        run_privileged ufw --force delete "$num" >/dev/null 2>&1 || true
+        removed=$((removed + 1))
+    done
+    if (( removed > 0 )); then
+        success "Removed ${removed} ufw rule(s) for ${label}."
+    else
+        info "No ufw rules found for ${label}."
+    fi
+}
+
 confirm_action() {
     local prompt="$1"
 
@@ -217,6 +237,13 @@ if [[ "$MODE" == "full" ]]; then
     else
         printf '%b\n' "    • ${OLLAMA_DIR} (except models/)"
     fi
+    printf '%b\n' '    • vLLM server stack (services, /etc/vllm, switch scripts, vllm-model-control account)'
+    printf '%b\n' '    • ufw rules for ports 8000/8001/4090'
+    if [[ "$KEEP_MODELS" == false ]]; then
+        printf '%b\n' "    • ${HF_CACHE_DIR} (downloaded model weights)"
+    else
+        printf '%b\n' "    • Hugging Face weights kept (--keep-models)"
+    fi
 fi
 printf '%b\n' "    • ${CRUSH_BIN_PATH} (or pacman package if installed)"
 printf '%b\n' "    • ${HOME}/.local/bin/uv and uvx"
@@ -277,6 +304,47 @@ if [[ "$MODE" == "full" ]]; then
         info "${OLLAMA_DIR} not found — skipping."
     fi
 
+    step "Stop and disable vLLM server stack"
+    if command_exists systemctl; then
+        for svc in vllm-switch-web.service vllm.service vllm@glm.service vllm@coder.service vllm@coder-alt.service vllm@image.service imagegen.service; do
+            run_privileged systemctl stop "$svc" >/dev/null 2>&1 || true
+            run_privileged systemctl disable "$svc" >/dev/null 2>&1 || true
+        done
+        success 'vLLM/imagegen/switch-web services stopped and disabled.'
+    else
+        info 'systemctl is not available — skipping vLLM service stop/disable.'
+    fi
+
+    step "Remove vLLM server files"
+    remove_system_path '/etc/systemd/system/vllm-switch-web.service' 'model-switch web service'
+    remove_system_path '/etc/systemd/system/vllm.service' 'vLLM service (default/Mistral)'
+    remove_system_path '/etc/systemd/system/vllm@.service' 'vLLM templated mode service'
+    remove_system_path '/etc/systemd/system/imagegen.service' 'image-gen service'
+    remove_system_path '/usr/local/bin/vllm-switch-web' 'model-switch web daemon'
+    remove_system_path '/usr/local/bin/cachyos-switch-model' 'model-switch CLI'
+    remove_system_path '/usr/local/bin/cachyos-vllm-serve' 'vLLM serve wrapper'
+    remove_system_path '/usr/local/bin/server-desktop' 'desktop/headless toggle'
+    remove_system_path '/etc/vllm' 'vLLM mode env directory'
+    remove_system_path '/etc/sudoers.d/cachyos-vllm-switch' 'switch sudoers drop-in'
+    remove_system_path '/etc/sudoers.d/vllm-model-control' 'model-control sudoers drop-in'
+    remove_user_path "$VLLM_VENV_DIR" 'vLLM virtualenv'
+    if command_exists systemctl; then
+        run_privileged systemctl daemon-reload >/dev/null 2>&1 || true
+        run_privileged systemctl reset-failed >/dev/null 2>&1 || true
+        success 'Reloaded systemd state.'
+    fi
+
+    step "Remove vllm-model-control service account"
+    if id -u vllm-model-control >/dev/null 2>&1; then
+        if run_privileged userdel vllm-model-control >/dev/null 2>&1; then
+            success 'Removed the vllm-model-control account.'
+        else
+            add_warning 'Could not remove the vllm-model-control account — remove manually: sudo userdel vllm-model-control'
+        fi
+    else
+        info 'vllm-model-control account not present — skipping.'
+    fi
+
     step "Clean up firewall rules"
     if command_exists ufw; then
         # Remove Ollama LAN allow rule if present
@@ -290,8 +358,17 @@ if [[ "$MODE" == "full" ]]; then
         else
             info "No ufw rules found for Ollama."
         fi
+        # Remove vLLM / image-gen / model-switch rules (allow + deny) by comment or port.
+        remove_ufw_rules 'vLLM|ImageGen|model-switch|8000/tcp|8001/tcp|4090/tcp' 'vLLM server stack (ports 8000/8001/4090)'
     else
         info "ufw is not installed — no firewall rules to clean up."
+    fi
+
+    step "Remove downloaded model weights (Hugging Face cache)"
+    if [[ "$KEEP_MODELS" == true ]]; then
+        info "Keeping ${HF_CACHE_DIR} as requested (--keep-models)."
+    else
+        remove_user_path "$HF_CACHE_DIR" 'Hugging Face model cache (vLLM/imagegen weights)'
     fi
 else
     step "Skip Ollama removal"
@@ -356,6 +433,13 @@ if [[ "$MODE" == "full" ]]; then
         printf '%b\n' '  • Ollama models and config'
     else
         printf '%b\n' '  • Ollama config (models kept)'
+    fi
+    printf '%b\n' '  • vLLM server stack (services, /etc/vllm, switch scripts + web service, sudoers, vLLM venv, vllm-model-control account)'
+    printf '%b\n' '  • ufw rules for ports 8000/8001/4090'
+    if [[ "$KEEP_MODELS" == false ]]; then
+        printf '%b\n' '  • Hugging Face model weights (~/.cache/huggingface)'
+    else
+        printf '%b\n' '  • Hugging Face weights kept (--keep-models)'
     fi
 fi
 printf '%b\n' '  • Crush'

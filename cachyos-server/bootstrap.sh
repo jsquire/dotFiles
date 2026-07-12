@@ -20,6 +20,9 @@ Options:
   --nas-media-export PATH    NFS export path on the NAS for the Plex media (Group 2) pool.
   --nas-media-mount PATH     Local mount point for the NAS media export.
                              Default: /mnt/plex-media
+  --nas-backup-export PATH   NFS export path on the NAS for the Kopia backup repo.
+  --nas-backup-mount PATH    Local mount point for the NAS backup export.
+                             Default: /mnt/nas-backups
 USAGE
 }
 
@@ -39,6 +42,8 @@ INSTALL_DIR="/srv/squire-server"
 NAS_HOST=""
 NAS_MEDIA_EXPORT=""
 NAS_MEDIA_MOUNT="/mnt/plex-media"
+NAS_BACKUP_EXPORT=""
+NAS_BACKUP_MOUNT="/mnt/nas-backups"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -55,6 +60,12 @@ while [[ $# -gt 0 ]]; do
         --nas-media-mount)
             [[ -n "${2:-}" ]] || { echo "--nas-media-mount requires a path" >&2; exit 1; }
             NAS_MEDIA_MOUNT="$2"; shift 2 ;;
+        --nas-backup-export)
+            [[ -n "${2:-}" ]] || { echo "--nas-backup-export requires a path" >&2; exit 1; }
+            NAS_BACKUP_EXPORT="$2"; shift 2 ;;
+        --nas-backup-mount)
+            [[ -n "${2:-}" ]] || { echo "--nas-backup-mount requires a path" >&2; exit 1; }
+            NAS_BACKUP_MOUNT="$2"; shift 2 ;;
         *)
             echo "Unknown argument: $1" >&2
             usage
@@ -67,6 +78,7 @@ done
 
 INSTALL_DIR="${INSTALL_DIR%/}"
 NAS_MEDIA_MOUNT="${NAS_MEDIA_MOUNT%/}"
+NAS_BACKUP_MOUNT="${NAS_BACKUP_MOUNT%/}"
 
 
 ############################################
@@ -342,13 +354,36 @@ if ! command -v kopia &>/dev/null; then
 fi
 
 # Non-interactive server backup configuration.
-# Repo lives on the external-backups drive; sources are home, /etc, /boot, and the install dir.
+# Repo lives on the NAS backups export (NFS, Collaborative/all-squash); the Kopia
+# repo is the Squire-Server subdirectory. Sources are LOCAL only (home, /etc, /boot,
+# install dir) and never the NAS mounts — enforced with --one-file-system below.
 
-KOPIA_REPO="/mnt/external-backups"
+KOPIA_REPO="${NAS_BACKUP_MOUNT}/Squire-Server"
 KOPIA_BACKUP_SCRIPT="/usr/local/bin/nightly-backup.sh"
 KOPIA_MANIFEST_DIR="$HOME/.local/share/system-backup/manifests"
 KOPIA_SCHEDULE="02:00:00"
 KOPIA_SOURCES=( "$HOME" "/etc" "/boot" "$INSTALL_DIR" )
+
+# Mount the NAS backups export (NFS) so the Kopia repo is reachable.
+# Kopia runs as root; writes are accepted under the NAS all-squash policy
+# (mapped to the share's anon owner) — no no_root_squash required on the NAS.
+
+if [[ -n "$NAS_HOST" && -n "$NAS_BACKUP_EXPORT" ]]; then
+    sudo mkdir -p "$NAS_BACKUP_MOUNT"
+
+    backup_fstab_line="${NAS_HOST}:${NAS_BACKUP_EXPORT}  ${NAS_BACKUP_MOUNT}  nfs  _netdev,x-systemd.automount,noatime,nofail  0  0"
+
+    if ! grep -Eq "[[:space:]]${NAS_BACKUP_MOUNT}[[:space:]]+nfs([[:space:]]|$)" /etc/fstab; then
+        printf '%s\n' "$backup_fstab_line" | sudo tee -a /etc/fstab >/dev/null
+        sudo systemctl daemon-reload
+    fi
+
+    # Trigger the automount so the export is available immediately.
+    sudo systemctl start "$(systemd-escape -p --suffix=automount "$NAS_BACKUP_MOUNT")" 2>/dev/null || true
+
+    # Ensure the repo subdirectory exists on the share.
+    sudo mkdir -p "$KOPIA_REPO" 2>/dev/null || true
+fi
 
 # Connect to repository if not already connected
 if sudo test -f /root/.config/kopia/repository.config; then
@@ -363,8 +398,9 @@ else
             echo "Created new Kopia repository at $KOPIA_REPO"
         fi
     else
-        echo "WARNING: Kopia repo path $KOPIA_REPO not mounted. Skipping repository setup."
-        echo "  Mount the external drive and re-run bootstrap to complete Kopia setup."
+        echo "WARNING: Kopia repo path $KOPIA_REPO not available (NAS backups export not mounted)."
+        echo "  Pass --nas-host and --nas-backup-export (and ensure the NAS is reachable),"
+        echo "  then re-run bootstrap to complete Kopia setup."
     fi
 fi
 
@@ -375,6 +411,7 @@ if sudo kopia repository status &>/dev/null; then
 
     for src in "${KOPIA_SOURCES[@]}"; do
         sudo kopia policy set "$src" \
+            --one-file-system=true \
             --keep-daily=7 \
             --keep-weekly=4 \
             --keep-monthly=3
@@ -465,7 +502,7 @@ sudo chmod 755 "$KOPIA_BACKUP_SCRIPT"
 
 # Systemd units for scheduled backup
 
-KOPIA_MOUNT_POINT=$(findmnt -n -o TARGET --target "$KOPIA_REPO" 2>/dev/null || echo "/mnt/external-backups")
+KOPIA_MOUNT_POINT=$(findmnt -n -o TARGET --target "$KOPIA_REPO" 2>/dev/null || echo "$NAS_BACKUP_MOUNT")
 
 backup_service="[Unit]
 Description=Nightly Kopia Backup

@@ -24,7 +24,11 @@ set -euo pipefail
 
 BACKUP_USER="${SUDO_USER:-$(whoami)}"
 BACKUP_HOME="/home/${BACKUP_USER}"
+<<<<<<< Updated upstream
 REPO_PATH="/mnt/nas-backups/Jesse-CachyOS"
+=======
+REPO_PATH="/mnt/nas-backups/Squire-Server"
+>>>>>>> Stashed changes
 BACKUP_SCRIPT="/usr/local/bin/nightly-backup.sh"
 SCHEDULE_TIME="02:00:00"
 
@@ -201,6 +205,7 @@ kopia policy set --global --compression=zstd
 
 for SRC in "${SOURCES[@]}"; do
     kopia policy set "${SRC}" \
+        --one-file-system=true \
         --keep-daily="${KEEP_DAILY}" \
         --keep-weekly="${KEEP_WEEKLY}" \
         --keep-monthly="${KEEP_MONTHLY}"

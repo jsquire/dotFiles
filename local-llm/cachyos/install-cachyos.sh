@@ -9,6 +9,10 @@
 set -euo pipefail
 
 MODE="full"
+INSTALL=""
+PROVIDERS=""
+DEFAULT_PROVIDER=""
+SHOULD_INSTALL_CLIENT_TOOLS=true
 MODEL_PROFILE="server"
 OLLAMA_HOST_ARG=""
 MODEL_PATH=""
@@ -24,6 +28,11 @@ CRUSH_HOME_DIR="${HOME}/.crush"
 CRUSH_CONFIG_DIR="${HOME}/.config/crush"
 DEFAULT_MODEL_ROOT="${HOME}/.ollama/models"
 VLLM_PORT=8000
+# LAN model-switch web service (browser button page so non-technical/Windows users can switch
+# models without an SSH account). Runs as the unprivileged VLLM_SWITCH_USER; port verified free
+# on the server (clear of AdGuard 3000/53/80/443, Plex 32400/8080, vLLM 8000/8001).
+VLLM_SWITCH_WEB_PORT=4090
+VLLM_SWITCH_USER="vllm-model-control"
 # Standing default served model = Mistral-Small-3.2-24B-Instruct (authoring/office focus). See the base
 # vllm.service comment for the gghfez-weights + jeffcookio-tokenizer rationale. GLM-4.7-Flash is retained
 # as an on-demand switch mode (cachyos-switch-model glm) for agentic/reasoning/coding tasks.
@@ -61,31 +70,36 @@ Usage:
   ./install-cachyos.sh [options]
 
 Options:
-  --mode client|full|server    Install mode (default: full)
-                               client — no Ollama, points at remote host
-                               full   — local Ollama on localhost only
-                               server — full + LAN firewall + client instructions
+  --install full|client|ollama-only|server   What to install (supersedes --mode; default: full)
+                               full        — local Ollama server + models + client tools
+                               client      — client tools only (no local Ollama)
+                               ollama-only — local Ollama server + models only (no client tools)
+                               server      — vLLM server host (+ models + switch service + LAN firewall)
+  --mode client|full|server    Legacy alias for --install (kept for back-compat)
+  --providers <list>           Comma list of crush providers to enable: local,squire-server
+                               (default: full->local,squire-server; client/server->squire-server)
+  --default-provider <p>       Default crush provider: local | squire-server
+                               (default: full->local; client/server->squire-server)
   --model-profile desktop|server
                                GPU profile: desktop (5090, 32GB) or server (4090, 24GB dedicated)
                                Default: server
-  --ollama-host <url>          Remote endpoint URL (required for client mode)
-                               Can be Ollama (http://host:11434) or vLLM (http://host:8000/v1)
+  --squire-server-ip <ip>      Squire-server address for client/full installs (default: 192.168.1.99)
+  --ollama-host <url>          Optional extra remote Ollama provider (NOT required for client mode)
+                               Example: http://host:11434
   --model-path <path>          Custom Ollama model directory (sets OLLAMA_MODELS; full mode only)
   --lan-cidr <cidr>            Override LAN CIDR for firewall (auto-detected if omitted)
                                Examples: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
-  --squire-server-ip <ip>      IP/host of the CachyOS vLLM server for the copilot-local
-                               Remote options (default: auto-derived; client host or this box)
-  --squire-ssh-target <t>      SSH target for 'cachyos-switch-model' (default: jesse@192.168.1.99)
   --skip-models                Skip model downloads
   --models-only                Only download models; skip software installation
   --help                       Show this help text
 
 Examples:
-  ./install-cachyos.sh                                                  # Full local (Ollama, localhost)
-  ./install-cachyos.sh --mode server                                    # vLLM server + LAN exposure
-  ./install-cachyos.sh --mode server --lan-cidr 10.0.0.0/8              # vLLM server on 10.x LAN
-  ./install-cachyos.sh --mode client --ollama-host http://192.168.1.50:8000/v1
-  ./install-cachyos.sh --models-only
+  ./install-cachyos.sh --install full                                   # Ollama server + client (local+squire)
+  ./install-cachyos.sh --install client --providers local,squire-server --default-provider local  # client, both, default local
+  ./install-cachyos.sh --install client --providers local --default-provider local  # client, local Ollama only
+  ./install-cachyos.sh --install client                                 # squire-only client (pointed here)
+  ./install-cachyos.sh --install ollama-only                            # Ollama server + models only
+  ./install-cachyos.sh --install server                                 # vLLM server host + LAN exposure
 EOF
 }
 
@@ -413,6 +427,21 @@ parse_args() {
                 MODE="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
                 shift 2
                 ;;
+            --install)
+                [[ $# -lt 2 ]] && { fail "--install requires a value."; usage; exit 1; }
+                INSTALL="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
+                shift 2
+                ;;
+            --providers)
+                [[ $# -lt 2 ]] && { fail "--providers requires a value (e.g. local,squire-server)."; usage; exit 1; }
+                PROVIDERS="$(printf '%s' "$2" | tr '[:upper:] ' '[:lower:]' | tr -d ' ')"
+                shift 2
+                ;;
+            --default-provider)
+                [[ $# -lt 2 ]] && { fail "--default-provider requires a value (local|squire-server)."; usage; exit 1; }
+                DEFAULT_PROVIDER="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
+                shift 2
+                ;;
             --model-profile)
                 [[ $# -lt 2 ]] && { fail "--model-profile requires a value."; usage; exit 1; }
                 MODEL_PROFILE="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
@@ -474,6 +503,19 @@ printf '%b\n' "${COLOR_MAGENTA}║   Ollama · Crush · uv · MCP Servers       
 printf '%b\n' "${COLOR_MAGENTA}╚══════════════════════════════════════════════════════════════╝${COLOR_RESET}"
 printf '%b\n' ""
 
+# Reconcile --install (primary) with legacy --mode (alias). --install takes precedence.
+if [[ -n "$INSTALL" ]]; then
+    case "$INSTALL" in
+        full)        MODE="full";   SHOULD_INSTALL_CLIENT_TOOLS=true ;;
+        client)      MODE="client"; SHOULD_INSTALL_CLIENT_TOOLS=true ;;
+        ollama-only) MODE="full";   SHOULD_INSTALL_CLIENT_TOOLS=false ;;
+        server)      MODE="server"; SHOULD_INSTALL_CLIENT_TOOLS=true ;;
+        *) fail "--install must be full, client, ollama-only, or server."; exit 1 ;;
+    esac
+else
+    INSTALL="$MODE"   # legacy --mode path
+fi
+
 case "$MODE" in
     full|client|server) ;;
     *) fail "--mode must be client, full, or server."; exit 1 ;;
@@ -484,9 +526,8 @@ case "$MODEL_PROFILE" in
     *) fail "--model-profile must be 'desktop' or 'server'."; exit 1 ;;
 esac
 
-if [[ "$MODE" == "client" && -z "$OLLAMA_HOST_ARG" ]]; then
-    fail "--ollama-host is required when --mode client is used."
-    exit 1
+if [[ "$MODE" == "client" && -n "$OLLAMA_HOST_ARG" ]]; then
+    info "Client mode targets the squire-server; --ollama-host will be kept only as an optional extra remote-Ollama provider."
 fi
 
 if [[ "$MODE" == "client" && "$MODELS_ONLY" == true ]]; then
@@ -544,7 +585,34 @@ else
     MODEL_PROFILE_LABEL="n/a (client mode)"
 fi
 
-info "Mode: $MODE"
+# Client-side provider selection (crush providers + launcher entries). N/A for ollama-only (no client tools).
+if [[ -z "$PROVIDERS" ]]; then
+    case "$MODE" in
+        full) PROVIDERS="local,squire-server" ;;
+        *)    PROVIDERS="squire-server" ;;   # client, server
+    esac
+fi
+if [[ -z "$DEFAULT_PROVIDER" ]]; then
+    case "$MODE" in
+        full) DEFAULT_PROVIDER="local" ;;
+        *)    DEFAULT_PROVIDER="squire-server" ;;
+    esac
+fi
+for pv in ${PROVIDERS//,/ }; do
+    case "$pv" in
+        local|squire-server) ;;
+        *) fail "--providers entries must be 'local' or 'squire-server' (got '$pv')."; exit 1 ;;
+    esac
+done
+case "$DEFAULT_PROVIDER" in
+    local|squire-server) ;;
+    *) fail "--default-provider must be 'local' or 'squire-server'."; exit 1 ;;
+esac
+if [[ ",$PROVIDERS," != *",$DEFAULT_PROVIDER,"* ]]; then
+    fail "--default-provider '$DEFAULT_PROVIDER' must be one of --providers '$PROVIDERS'."; exit 1
+fi
+
+info "Install: $INSTALL"
 info "Model profile: $MODEL_PROFILE_LABEL"
 if [[ "$IS_FULL_MODE" == true ]]; then
     info "$MODEL_SOURCE_MESSAGE"
@@ -1032,7 +1100,9 @@ mode=\"\${1:-mistral}\"
 SUDO=\"\"
 [[ \$EUID -ne 0 ]] && SUDO=\"sudo\"
 stop_all() {
-    \$SUDO systemctl stop vllm.service vllm@glm.service vllm@coder.service vllm@coder-alt.service vllm@image.service imagegen.service 2>/dev/null || true
+    for u in vllm.service vllm@glm.service vllm@coder.service vllm@coder-alt.service vllm@image.service imagegen.service; do
+        \$SUDO systemctl stop \"\$u\" 2>/dev/null || true
+    done
 }
 case \"\$mode\" in
     mistral)   stop_all; \$SUDO systemctl start vllm.service ;;
@@ -1101,6 +1171,105 @@ esac
 
             run_privileged systemctl daemon-reload
             info "Standing default: Mistral-Small-3.2 (vllm.service). Switch with: cachyos-switch-model {mistral|glm|coder|coder-alt|image}"
+
+            # ── Model-switch web service (LAN, port ${VLLM_SWITCH_WEB_PORT}) ──────────────
+            # Dependency-free browser button page so LAN users (esp. Windows / non-technical)
+            # can switch models without an SSH account or password. Runs as the unprivileged
+            # ${VLLM_SWITCH_USER} account; the actual switch is performed by cachyos-switch-model
+            # via the narrow passwordless-sudo grant below. LAN-only via ufw.
+            step "Configure model-switch web service (port ${VLLM_SWITCH_WEB_PORT})"
+
+            # Dedicated login-less system account (idempotent).
+            if id -u "$VLLM_SWITCH_USER" >/dev/null 2>&1; then
+                info "Account $VLLM_SWITCH_USER already exists."
+            elif run_privileged useradd --system --no-create-home --shell /usr/sbin/nologin "$VLLM_SWITCH_USER"; then
+                run_privileged usermod -L "$VLLM_SWITCH_USER" 2>/dev/null || true
+                success "Created system account $VLLM_SWITCH_USER (nologin, locked)."
+            else
+                add_warning "Could not create $VLLM_SWITCH_USER account."
+            fi
+
+            # Deploy the daemon (shipped alongside this installer).
+            if [[ -f "${SCRIPT_DIR}/vllm-switch-web.py" ]]; then
+                if run_privileged install -m 0755 "${SCRIPT_DIR}/vllm-switch-web.py" /usr/local/bin/vllm-switch-web; then
+                    success "Installed /usr/local/bin/vllm-switch-web"
+                else
+                    add_failure "Failed to install vllm-switch-web daemon."
+                fi
+            else
+                add_warning "vllm-switch-web.py not found next to the installer — skipping web switch service."
+            fi
+
+            # Passwordless sudo for the service account (same narrow unit whitelist as the CLI switch).
+            local sw_sudoers="Defaults:${VLLM_SWITCH_USER} !requiretty
+${VLLM_SWITCH_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@glm.service, /usr/bin/systemctl stop vllm@glm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@coder-alt.service, /usr/bin/systemctl stop vllm@coder-alt.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
+            if printf '%s\n' "$sw_sudoers" | run_privileged tee /etc/sudoers.d/vllm-model-control >/dev/null; then
+                run_privileged chmod 0440 /etc/sudoers.d/vllm-model-control
+                if run_privileged visudo -c -f /etc/sudoers.d/vllm-model-control >/dev/null 2>&1; then
+                    success "Configured passwordless systemctl for $VLLM_SWITCH_USER"
+                else
+                    run_privileged rm -f /etc/sudoers.d/vllm-model-control
+                    add_warning "sudoers validation failed for $VLLM_SWITCH_USER; removed drop-in."
+                fi
+            else
+                add_warning "Could not write sudoers drop-in for $VLLM_SWITCH_USER."
+            fi
+
+            # systemd unit. Hardened, but deliberately NOT NoNewPrivileges (would break the sudo switch).
+            local sw_unit="[Unit]
+Description=vLLM model-switch web service (LAN)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${VLLM_SWITCH_USER}
+RuntimeDirectory=vllm-switch-web
+Environment=\"VLLM_SWITCH_WEB_PORT=${VLLM_SWITCH_WEB_PORT}\"
+Environment=\"VLLM_SWITCH_WEB_BIND=0.0.0.0\"
+Environment=\"VLLM_SWITCH_LOCK=/run/vllm-switch-web/switch.lock\"
+ExecStart=/usr/bin/python3 /usr/local/bin/vllm-switch-web
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=no
+ProtectHome=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target"
+            printf '%s\n' "$sw_unit" | run_privileged tee /etc/systemd/system/vllm-switch-web.service >/dev/null
+
+            # Firewall: mirror the vLLM LAN-allow + non-LAN-deny pattern.
+            step "Configure firewall (model-switch port ${VLLM_SWITCH_WEB_PORT})"
+            if command_exists ufw; then
+                local sw_ufw_status; sw_ufw_status="$(run_privileged ufw status 2>/dev/null || true)"
+                if grep -Fq "$LAN_CIDR" <<<"$sw_ufw_status" && grep -Fq "${VLLM_SWITCH_WEB_PORT}" <<<"$sw_ufw_status"; then
+                    info "ufw already has a LAN rule for port ${VLLM_SWITCH_WEB_PORT}."
+                elif run_privileged ufw allow from "$LAN_CIDR" to any port "${VLLM_SWITCH_WEB_PORT}" proto tcp comment 'vLLM model-switch LAN' >/dev/null; then
+                    success "Added ufw allow rule for $LAN_CIDR -> ${VLLM_SWITCH_WEB_PORT}/tcp"
+                else
+                    add_warning "Could not add ufw allow rule for port ${VLLM_SWITCH_WEB_PORT}."
+                fi
+                if ! grep -Fq "${VLLM_SWITCH_WEB_PORT}/tcp" <<<"$sw_ufw_status" || ! grep -Fq 'DENY' <<<"$sw_ufw_status"; then
+                    if run_privileged ufw deny "${VLLM_SWITCH_WEB_PORT}/tcp" comment 'Block non-LAN model-switch' >/dev/null; then
+                        success "Added ufw deny rule for non-LAN access to ${VLLM_SWITCH_WEB_PORT}/tcp"
+                    else
+                        add_warning "Could not add ufw deny rule for port ${VLLM_SWITCH_WEB_PORT}."
+                    fi
+                fi
+            else
+                info "ufw is not installed — skipping model-switch firewall."
+            fi
+
+            run_privileged systemctl daemon-reload
+            if run_privileged systemctl enable --now vllm-switch-web.service >/dev/null 2>&1; then
+                success "Enabled + started vllm-switch-web.service — browser: http://<server-ip>:${VLLM_SWITCH_WEB_PORT}/"
+            else
+                add_warning "Could not enable/start vllm-switch-web.service."
+            fi
         else
             # ── Ollama (full mode, single-user, localhost only) ────────────────
             step "Install Ollama"
@@ -1154,10 +1323,13 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
             fi
         fi
     else
-        step "Validate remote Ollama endpoint"
-        info "Client mode will use remote Ollama at $OLLAMA_HOST_ARG"
+        step "Client mode (squire-only)"
+        info "Crush will default to the squire-server; switch models with copilot-local or the :4090 browser page."
+        [[ -n "$OLLAMA_HOST_ARG" ]] && info "Optional extra remote Ollama provider: $OLLAMA_HOST_ARG"
     fi
 
+    # Client tools (Crush/Copilot/uv/MCP/launchers) — skipped for --install ollama-only.
+    if [[ "$SHOULD_INSTALL_CLIENT_TOOLS" == true ]]; then
     step "Install uv"
     info "uv manages Python versions and isolated environments without touching system Python."
     install_uv || true
@@ -1210,15 +1382,18 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
         else
             # Expand template placeholders for Linux
             local linux_app_data="${HOME}/.local/share"
-            # Determine vLLM server IP for the placeholder
-            local vllm_ip="127.0.0.1"
+            # Determine vLLM server IP for the placeholder. Non-server installs (5090 full + squire-only
+            # client) point at the squire-server, which is fixed at 192.168.1.99 unless overridden.
+            local vllm_ip
             if [[ "$IS_SERVER_MODE" == true ]]; then
-                vllm_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' || echo '127.0.0.1')"
+                vllm_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' || echo '192.168.1.99')"
             elif [[ "$IS_CLIENT_MODE" == true && -n "$OLLAMA_HOST_ARG" ]]; then
-                # Extract host from the provided URL
+                # Back-compat: derive the squire host from a provided --ollama-host URL.
                 vllm_ip="$(echo "$OLLAMA_HOST_ARG" | sed -E 's|https?://||;s|:[0-9]+.*||')"
+            else
+                vllm_ip="192.168.1.99"
             fi
-            # Explicit --squire-server-ip overrides the auto-derived value.
+            # Explicit --squire-server-ip overrides the derived value.
             [[ -n "$SQUIRE_SERVER_IP" ]] && vllm_ip="$SQUIRE_SERVER_IP"
             # Determine imagegen host — same as vLLM for server/client modes, localhost for standalone
             local imagegen_host="127.0.0.1"
@@ -1247,33 +1422,42 @@ with open('$crush_config_dest', 'w') as f:
     json.dump(cfg, f, indent=2)
 " 2>/dev/null && info "Swapped PPTX MCP: pptx-mcp disabled, pptx-mcp-xplat enabled (cross-platform)" || true
 
-            # Server + thin-client profiles default crush to the squire-server (vLLM) provider.
-            # The single-GPU server hosts one model at a time, so large AND small both map to the
-            # standing default (mistral-small). Dev/full mode keeps the local Ollama default.
-            if [[ "$IS_SERVER_MODE" == true || "$IS_CLIENT_MODE" == true ]]; then
-                python3 -c "
-import json
+            # Prune crush providers + set the default per --providers / --default-provider.
+            # 'local' -> the localhost Ollama provider ('ollama'); 'squire-server' -> the vLLM server.
+            # Cloud providers (mistral/google/groq/openrouter) are always kept. Single-GPU server hosts
+            # one model at a time, so squire large+small both map to the standing default (mistral-small).
+            CRUSH_PROVIDERS="$PROVIDERS" CRUSH_DEFAULT="$DEFAULT_PROVIDER" python3 -c "
+import json, os
 p = '$crush_config_dest'
+prov = os.environ['CRUSH_PROVIDERS'].split(',')
+default = os.environ['CRUSH_DEFAULT']
 with open(p) as f:
     cfg = json.load(f)
-cfg['default_provider'] = 'squire-server'
-cfg['models'] = {
-    'large': {'model': 'mistral-small', 'provider': 'squire-server', 'max_tokens': 8192},
-    'small': {'model': 'mistral-small', 'provider': 'squire-server', 'max_tokens': 8192},
-}
+providers = cfg['providers']
+if 'local' not in prov and 'ollama' in providers:
+    del providers['ollama']
+if 'squire-server' not in prov and 'squire-server' in providers:
+    del providers['squire-server']
+if default == 'local':
+    cfg['default_provider'] = 'ollama'   # template models.large/small are already the Ollama defaults
+else:
+    cfg['default_provider'] = 'squire-server'
+    cfg['models'] = {
+        'large': {'model': 'mistral-small', 'provider': 'squire-server', 'max_tokens': 8192},
+        'small': {'model': 'mistral-small', 'provider': 'squire-server', 'max_tokens': 8192},
+    }
 with open(p, 'w') as f:
     json.dump(cfg, f, indent=2)
-" 2>/dev/null && info "Crush default provider set to squire-server (mistral-small) for ${MODE} mode." || true
-            fi
+" 2>/dev/null && info "Crush providers=${PROVIDERS}, default=${DEFAULT_PROVIDER}." || add_warning "Could not apply crush provider selection."
 
             success "Deployed crush.json to $crush_config_dest"
-            if [[ "$IS_SERVER_MODE" == true ]]; then
-                info "vLLM server provider configured at http://${vllm_ip}:${VLLM_PORT}/v1"
+            if [[ ",$PROVIDERS," == *",squire-server,"* ]]; then
+                info "squire-server (vLLM) provider configured at http://${vllm_ip}:${VLLM_PORT}/v1"
             fi
-            if [[ "$IS_SERVER_MODE" == true || "$IS_CLIENT_MODE" == true ]]; then
-                info "squire-server (vLLM, mistral-small) is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+            if [[ "$DEFAULT_PROVIDER" == "local" ]]; then
+                info "Default provider: local Ollama. Enabled: ${PROVIDERS} (+ Mistral/Google/Groq/OpenRouter when keys are set)."
             else
-                info "Local Ollama is the default provider. squire-server (vLLM), Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+                info "Default provider: squire-server (mistral-small). Enabled: ${PROVIDERS} (+ Mistral/Google/Groq/OpenRouter when keys are set)."
             fi
             info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
             info "MCP servers (Word, PowerPoint) are enabled. Run setup-mcp-venvs.sh to install them."
@@ -1305,19 +1489,24 @@ with open(p, 'w') as f:
 
     if [[ -f "$launcher_source" ]]; then
         mkdir -p "${HOME}/.local/bin"
-        # Resolve the Squire Server IP: explicit override, else client host, else this box's LAN IP.
+        # Resolve the Squire Server IP for the launcher's [S]/[G]/[C]/[D]/[I] entries.
+        # Server install = this box (self). Non-server (5090 full or squire-only client) = the
+        # squire-server, fixed at 192.168.1.99 unless overridden by --squire-server-ip/--ollama-host.
         local squire_ip="$SQUIRE_SERVER_IP"
         if [[ -z "$squire_ip" ]]; then
-            if [[ "${IS_CLIENT_MODE:-false}" == true && -n "$OLLAMA_HOST_ARG" ]]; then
+            if [[ "$IS_SERVER_MODE" == true ]]; then
+                squire_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' || echo '192.168.1.99')"
+            elif [[ "${IS_CLIENT_MODE:-false}" == true && -n "$OLLAMA_HOST_ARG" ]]; then
                 squire_ip="$(echo "$OLLAMA_HOST_ARG" | sed -E 's|https?://||;s|:[0-9]+.*||')"
             else
-                squire_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' || echo '127.0.0.1')"
+                squire_ip="192.168.1.99"
             fi
-            [[ -z "$squire_ip" ]] && squire_ip="127.0.0.1"
+            [[ -z "$squire_ip" ]] && squire_ip="192.168.1.99"
         fi
         # Substitute the Squire Server placeholders so the Remote [S]/[C]/[V]/[I] options work.
         sed -e "s|__SQUIRE_SERVER_IP__|${squire_ip}|g" \
             -e "s|__SQUIRE_SSH_TARGET__|${SQUIRE_SSH_TARGET}|g" \
+            -e "s|__LL_PROVIDERS__|${PROVIDERS}|g" \
             "$launcher_source" > "$launcher_dest"
         chmod 0755 "$launcher_dest"
         success "Deployed copilot-local to $launcher_dest (server $squire_ip, ssh $SQUIRE_SSH_TARGET)"
@@ -1424,6 +1613,9 @@ with open(p, 'w') as f:
         fi
     else
         warn "imagegen-mcp-server.py not found — skipping."
+    fi
+    else
+        info "Skipping client tools (--install ollama-only): installing the local Ollama server + models only."
     fi
 fi
 
@@ -1586,8 +1778,8 @@ fi
 if [[ "$IS_CLIENT_MODE" == true ]]; then
     echo
     printf '%b\n' 'Next steps:'
-    printf '%b\n' "  1. Launch Crush and point it at ${OLLAMA_HOST_ARG}"
-    printf '%b\n' '  2. Verify remote endpoint: curl http://server:8000/v1/models (vLLM) or :11434/api/tags (Ollama)'
+    printf '%b\n' "  1. Run 'crush' — it defaults to the squire-server; switch models with 'copilot-local' (or http://<server>:4090/)"
+    printf '%b\n' '  2. Verify the server: curl http://192.168.1.99:8000/v1/models'
     printf '%b\n' '  3. Create MCP venvs under ~/.local/share/ai-tools as needed'
 elif [[ "$IS_SERVER_MODE" == true ]]; then
     # Detect LAN IP for client connection instructions
@@ -1597,7 +1789,8 @@ elif [[ "$IS_SERVER_MODE" == true ]]; then
     printf '%b\n' ""
     printf '%b\n' "  vLLM API:    http://${local_ip}:${VLLM_PORT}/v1"
     printf '%b\n' "  Image Gen:   http://${local_ip}:8001/v1/images/generations"
-    printf '%b\n' "  Firewall:    ufw allow from ${LAN_CIDR} to port ${VLLM_PORT},8001/tcp"
+    printf '%b\n' "  Model Switch: http://${local_ip}:${VLLM_SWITCH_WEB_PORT}/  (browser button page — no login)"
+    printf '%b\n' "  Firewall:    ufw allow from ${LAN_CIDR} to port ${VLLM_PORT},8001,${VLLM_SWITCH_WEB_PORT}/tcp"
     printf '%b\n' ""
     printf '%b\n' "  Verify from any LAN machine:"
     printf '%b\n' "    curl http://${local_ip}:${VLLM_PORT}/v1/models"
@@ -1609,9 +1802,9 @@ elif [[ "$IS_SERVER_MODE" == true ]]; then
     printf '%b\n' "  CachyOS client install:"
     printf '%b\n' "    ./install-cachyos.sh --mode client --ollama-host http://${local_ip}:${VLLM_PORT}/v1"
     printf '%b\n' ""
-    printf '%b\n' "  Switch model (one mode at a time — GLM is the standing default):"
-    printf '%b\n' "    cachyos-switch-model mistral | glm | coder | coder-alt | image"
-    printf '%b\n' "    sudo systemctl restart vllm"
+    printf '%b\n' "  Switch model (one mode at a time — Mistral is the standing default):"
+    printf '%b\n' "    Browser (any LAN device, no login):  http://${local_ip}:${VLLM_SWITCH_WEB_PORT}/"
+    printf '%b\n' "    CLI on server:  cachyos-switch-model mistral | glm | coder | coder-alt | image"
     printf '%b\n' ""
     printf '%b\n' "${COLOR_CYAN}──────────────────────────────────────────────────────────────${COLOR_RESET}"
     echo
