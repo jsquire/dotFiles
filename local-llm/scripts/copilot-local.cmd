@@ -4,6 +4,10 @@ setlocal enabledelayedexpansion
 set COPILOT_PROVIDER_MAX_PROMPT_TOKENS=51200
 set COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=16384
 
+:: Which provider groups this install enabled (baked in by the installer; fallback to both)
+set "LL_PROVIDERS=__LL_PROVIDERS__"
+echo %LL_PROVIDERS%| findstr "__" >nul && set "LL_PROVIDERS=local,squire-server"
+
 :: If a model was passed as first argument, use it
 if not "%~1"=="" (
     echo %~1 | findstr /C:":" >nul 2>&1
@@ -15,6 +19,7 @@ if not "%~1"=="" (
 )
 
 :: No model specified — show picker
+echo %LL_PROVIDERS%| findstr /C:"local" >nul || goto :menu_after_local
 echo.
 echo   --- Coding ---
 echo   [1] Heavy coding        (qwen36-27b-212k^)
@@ -43,6 +48,8 @@ echo.
 echo   --- Big-MoE expert-offload bench (experts-^>RAM; slower, for models that don't fit^) ---
 echo   --- Big-MoE expert-offload bench (experts-^>RAM; partial offload, slower^) ---
 echo   [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB^)
+:menu_after_local
+echo %LL_PROVIDERS%| findstr /C:"squire-server" >nul || goto :menu_after_squire
 echo.
 echo   --- Remote (CachyOS server — one standing model, switch only when needed) ---
 echo   [S] CachyOS: Mistral-Small   (default — office/authoring, 64K^)
@@ -50,6 +57,7 @@ echo   [G] CachyOS: GLM-4.7-Flash   (agentic/reasoning — switches server^)
 echo   [C] CachyOS: Qwen3-Coder     (coding-first — switches server^)
 echo   [D] CachyOS: Devstral-2 24B   (coding-alt, agentic — switches server^)
 echo   [I] CachyOS: Image gen        (HiDream + Qwen3-4B — switches server^)
+:menu_after_squire
 echo.
 set /p choice="  Select task [1]: "
 
@@ -73,27 +81,27 @@ if /i "%choice%"=="H8" set COPILOT_MODEL=ornith-35b-256k
 if /i "%choice%"=="O2" set COPILOT_MODEL=qwen3next-80b-offload
 if /i "%choice%"=="O2" set OFFLOAD=1
 if /i "%choice%"=="S" (
-    ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model mistral" 2>nul
+    call :squire_switch mistral
     set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
     set COPILOT_MODEL=mistral-small
 )
 if /i "%choice%"=="G" (
-    ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model glm" 2>nul
+    call :squire_switch glm
     set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
     set COPILOT_MODEL=glm-4.7-flash
 )
 if /i "%choice%"=="C" (
-    ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model coder" 2>nul
+    call :squire_switch coder
     set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
     set COPILOT_MODEL=qwen3-coder
 )
 if /i "%choice%"=="D" (
-    ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model coder-alt" 2>nul
+    call :squire_switch coder-alt
     set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
     set COPILOT_MODEL=devstral
 )
 if /i "%choice%"=="I" (
-    ssh __SQUIRE_SSH_TARGET__ "cachyos-switch-model image" 2>nul
+    call :squire_switch image
     set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
     set COPILOT_MODEL=qwen3-4b
 )
@@ -172,3 +180,31 @@ if defined COPILOT_PROVIDER_BASE_URL (
         copilot --model %COPILOT_MODEL% -- %MCP_FLAGS% %GIT_SAFETY% %EXTRA_FLAGS% %1 %2 %3 %4 %5 %6 %7 %8 %9
     )
 )
+exit /b
+
+:: ── Squire server model switch via the accountless :4090 web endpoint (no SSH account) ──
+:: %1 = mode (mistral|glm|coder|coder-alt|image). POSTs the switch, then polls /status until the
+:: model has finished loading so the client isn't launched against a not-yet-ready model.
+:squire_switch
+set "SW_IP=__SQUIRE_SERVER_IP__"
+set "SW_PORT=4090"
+curl -fsS -m 10 -X POST -H "Content-Type: application/json" -d "{\"mode\":\"%~1\"}" "http://%SW_IP%:%SW_PORT%/switch" >nul 2>&1
+if errorlevel 1 (
+    echo   [!] Could not reach the model-switch service at http://%SW_IP%:%SW_PORT%/ -- is the server up?
+    goto :eof
+)
+echo   ... switching server to %~1 ^(waiting for it to load^)
+set /a SW_TRIES=0
+:squire_switch_wait
+curl -fsS -m 5 "http://%SW_IP%:%SW_PORT%/status" 2>nul | findstr /R "api_up.*true" >nul 2>&1
+if not errorlevel 1 (
+    echo   ready.
+    goto :eof
+)
+set /a SW_TRIES+=1
+if !SW_TRIES! geq 30 (
+    echo   still loading; give it a few more seconds.
+    goto :eof
+)
+ping -n 4 127.0.0.1 >nul 2>&1
+goto :squire_switch_wait
