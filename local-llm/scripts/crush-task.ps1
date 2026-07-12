@@ -83,15 +83,23 @@ function Write-CrushConfig {
         [hashtable]$McpOverrides,
         [string]$SystemPromptPrefix,
         [string]$Model,
-        [string]$Provider = "ollama"
+        [string]$Provider = "ollama",
+        [string]$ActiveLabel
     )
     $config = @{ mcp = $McpOverrides }
+    $providerBlock = @{}
+    # Server provider: expose ONE 'active-model' entry (so /model can't pick a not-yet-loaded model),
+    # relabeled "Active: <model>" for visibility.
+    if ($ActiveLabel) {
+        $providerBlock["models"] = @(
+            @{ name = "Active: $ActiveLabel"; id = "active-model"; context_window = 65536; default_max_tokens = 32000 }
+        )
+    }
     if ($SystemPromptPrefix) {
-        $config["providers"] = @{
-            $Provider = @{
-                "system_prompt_prefix" = $SystemPromptPrefix
-            }
-        }
+        $providerBlock["system_prompt_prefix"] = $SystemPromptPrefix
+    }
+    if ($providerBlock.Count -gt 0) {
+        $config["providers"] = @{ $Provider = $providerBlock }
     }
     if ($Model) {
         $config["models"] = @{
@@ -223,8 +231,8 @@ Write-Host "  ▶ $ModelFriendly  ·  alias=$DefaultModel" -ForegroundColor Cyan
 
 if ($Provider -eq "server") {
     if ($SwitchMode) { Invoke-SquireSwitch $SwitchMode }
-    Write-CrushConfig -McpOverrides $ServerMcp -Model $SelectedModel -Provider "server"
-    Write-Host "  Profile: Remote CachyOS server ($SelectedModel via vLLM)"
+    Write-CrushConfig -McpOverrides $ServerMcp -Model "active-model" -Provider "server" -ActiveLabel $SelectedModel
+    Write-Host "  Profile: Remote CachyOS server ($SelectedModel via vLLM, addressed as active-model)"
 }
 else {
 switch ($Task) {

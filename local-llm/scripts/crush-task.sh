@@ -51,14 +51,34 @@ write_crush_config() {
     local system_prompt="${4:-}"
     local model_override="${5:-}"
     local provider="${6:-ollama}"
+    local active_label="${7:-}"   # server mode: friendly label for the single 'active-model' entry
 
     local providers_block=""
     local models_block=""
+
+    # Per-provider override. For the server provider we expose ONE 'active-model' entry (so crush's
+    # /model can never pick a not-yet-loaded model), and relabel it "Active: <model>" for visibility.
+    local prov_inner=""
+    if [[ -n "$active_label" ]]; then
+        prov_inner="\"models\": [
+        { \"name\": \"Active: ${active_label}\", \"id\": \"active-model\", \"context_window\": 65536, \"default_max_tokens\": 32000 }
+      ]"
+    fi
     if [[ -n "$system_prompt" ]]; then
+        local sp_json
+        sp_json="$(printf '%s' "$system_prompt" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')"
+        if [[ -n "$prov_inner" ]]; then
+            prov_inner="${prov_inner},
+      \"system_prompt_prefix\": ${sp_json}"
+        else
+            prov_inner="\"system_prompt_prefix\": ${sp_json}"
+        fi
+    fi
+    if [[ -n "$prov_inner" ]]; then
         providers_block=",
   \"providers\": {
     \"${provider}\": {
-      \"system_prompt_prefix\": $(printf '%s' "$system_prompt" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')
+      ${prov_inner}
     }
   }"
     fi
@@ -271,8 +291,8 @@ This server edits Word documents via direct OOXML manipulation. Key tools:
 
 if [[ "$PROVIDER" == "server" ]]; then
     [[ -n "$SWITCH_MODE" ]] && squire_switch "$SWITCH_MODE"
-    write_crush_config "$SRV_WORD" "$SRV_PPTX" "$SRV_IMG" "" "$SELECTED_MODEL" "server"
-    echo "  Profile: Remote CachyOS server ($SELECTED_MODEL via vLLM)"
+    write_crush_config "$SRV_WORD" "$SRV_PPTX" "$SRV_IMG" "" "active-model" "server" "$SELECTED_MODEL"
+    echo "  Profile: Remote CachyOS server ($SELECTED_MODEL via vLLM, addressed as active-model)"
 else
 case "$task" in
     coding)

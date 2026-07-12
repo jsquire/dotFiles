@@ -1077,7 +1077,7 @@ ExecStart=${VLLM_VENV}/bin/python -m vllm.entrypoints.openai.api_server \\
     --max-num-seqs \${VLLM_MAX_NUM_SEQS} \\
     --gpu-memory-utilization \${VLLM_GPU_MEMORY_UTILIZATION} \\
     --kv-cache-dtype \${VLLM_KV_CACHE_DTYPE} \\
-    --served-model-name \${VLLM_SERVED_NAME} \\
+    --served-model-name \${VLLM_SERVED_NAME} active-model \\
     --enable-auto-tool-choice \\
     --tool-call-parser \${VLLM_TOOL_PARSER}
 # Standing default = Mistral-Small-3.2-24B (authoring). Weights = gghfez AWQ (compressed-tensors, auto-
@@ -1270,7 +1270,7 @@ args=(
     --max-num-seqs \"\${VLLM_MAX_NUM_SEQS:-16}\"
     --gpu-memory-utilization \"\${VLLM_GPU_MEMORY_UTILIZATION:-0.90}\"
     --kv-cache-dtype \"\${VLLM_KV_CACHE_DTYPE:-fp8_e5m2}\"
-    --served-model-name \"\${VLLM_SERVED_NAME}\"
+    --served-model-name \"\${VLLM_SERVED_NAME}\" active-model
 )
 if [[ -n \"\${VLLM_QUANTIZATION:-}\" ]]; then
     args+=(--quantization \"\${VLLM_QUANTIZATION}\")
@@ -1709,7 +1709,8 @@ with open('$crush_config_dest', 'w') as f:
             # Prune crush providers + set the default per --providers / --default-provider.
             # 'local' -> the localhost Ollama provider ('ollama'); 'server' -> the vLLM server.
             # Cloud providers (mistral/google/groq/openrouter) are always kept. Single-GPU server hosts
-            # one model at a time, so server large+small both map to the standing default (mistral-small).
+            # one model at a time; every mode also answers to the constant 'active-model' name, so crush
+            # addresses 'active-model' and always hits whatever is loaded (no 404 from /model).
             CRUSH_PROVIDERS="$PROVIDERS" CRUSH_DEFAULT="$DEFAULT_PROVIDER" python3 -c "
 import json, os
 p = '$crush_config_dest'
@@ -1727,8 +1728,8 @@ if default == 'local':
 else:
     cfg['default_provider'] = 'server'
     cfg['models'] = {
-        'large': {'model': 'mistral-small', 'provider': 'server', 'max_tokens': 8192},
-        'small': {'model': 'mistral-small', 'provider': 'server', 'max_tokens': 8192},
+        'large': {'model': 'active-model', 'provider': 'server', 'max_tokens': 8192},
+        'small': {'model': 'active-model', 'provider': 'server', 'max_tokens': 8192},
     }
 with open(p, 'w') as f:
     json.dump(cfg, f, indent=2)
@@ -1741,7 +1742,7 @@ with open(p, 'w') as f:
             if [[ "$DEFAULT_PROVIDER" == "local" ]]; then
                 info "Default provider: local Ollama. Enabled: ${PROVIDERS} (+ Mistral/Google/Groq/OpenRouter when keys are set)."
             else
-                info "Default provider: server (vLLM, mistral-small). Enabled: ${PROVIDERS} (+ Mistral/Google/Groq/OpenRouter when keys are set)."
+                info "Default provider: server (vLLM, active-model = whatever is loaded). Enabled: ${PROVIDERS} (+ Mistral/Google/Groq/OpenRouter when keys are set)."
             fi
             info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
             info "MCP servers (Word, PowerPoint) are enabled. Run setup-mcp-venvs.sh to install them."

@@ -57,39 +57,11 @@
       "api_key": "unused",
       "models": [
         {
-          "name": "Mistral-Small-3.2 24B (default \u2014 office/authoring, 64K)",
-          "id": "mistral-small",
+          "name": "Active model (squire-server \u2014 whatever is currently loaded)",
+          "id": "active-model",
           "context_window": 65536,
           "default_max_tokens": 8192,
           "can_reason": false
-        },
-        {
-          "name": "GLM-4.7-Flash (agentic/reasoning \u2014 requires server switch)",
-          "id": "glm-4.7-flash",
-          "context_window": 45056,
-          "default_max_tokens": 8192,
-          "can_reason": true
-        },
-        {
-          "name": "Qwen3-Coder 30B-A3B (coding-first \u2014 requires server switch)",
-          "id": "qwen3-coder",
-          "context_window": 32768,
-          "default_max_tokens": 8192,
-          "can_reason": true
-        },
-        {
-          "name": "Devstral-2 24B (coding-alt, agentic \u2014 requires server switch)",
-          "id": "devstral",
-          "context_window": 32768,
-          "default_max_tokens": 8192,
-          "can_reason": true
-        },
-        {
-          "name": "Qwen3 4B (image-gen companion \u2014 requires server switch)",
-          "id": "qwen3-4b",
-          "context_window": 32768,
-          "default_max_tokens": 4096,
-          "can_reason": true
         }
       ]
     },

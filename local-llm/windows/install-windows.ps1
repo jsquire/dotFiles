@@ -1019,8 +1019,8 @@ if ($ShouldInstallSoftware) {
                     $cfg.default_provider = 'ollama'   # template models.large/small are already the Ollama defaults
                 } else {
                     $cfg.default_provider = 'server'
-                    $cfg.models.large = [PSCustomObject]@{ model = 'mistral-small'; provider = 'server'; max_tokens = 8192 }
-                    $cfg.models.small = [PSCustomObject]@{ model = 'mistral-small'; provider = 'server'; max_tokens = 8192 }
+                    $cfg.models.large = [PSCustomObject]@{ model = 'active-model'; provider = 'server'; max_tokens = 8192 }
+                    $cfg.models.small = [PSCustomObject]@{ model = 'active-model'; provider = 'server'; max_tokens = 8192 }
                 }
                 $crushContent = $cfg | ConvertTo-Json -Depth 100
                 Write-Info "Crush providers=$Providers, default=$DefaultProvider."
@@ -1031,7 +1031,7 @@ if ($ShouldInstallSoftware) {
             Set-Content -Path $crushConfigDest -Value $crushContent -Encoding UTF8
             Write-Success "Deployed crush.json to $crushConfigDest"
             if ($IsClientMode) {
-                Write-Info "server (vLLM, mistral-small) is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
+                Write-Info "server (vLLM, active-model = whatever is loaded) is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
             } else {
                 Write-Info "Local Ollama is the default provider. server (vLLM), Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
             }
