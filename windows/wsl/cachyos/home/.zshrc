@@ -1,5 +1,7 @@
 # GPG needs the real TTY before p10k instant prompt redirects stdin
-export GPG_TTY=$(tty)
+# Use zsh's $TTY (not $(tty)): under Powerlevel10k instant prompt, stdin is
+# redirected so $(tty) yields "not a tty", which breaks pinentry. $TTY is always correct.
+export GPG_TTY=$TTY
 
 # Set plugins BEFORE sourcing CachyOS config (it respects pre-set plugins)
 plugins=(git fzf extract nvm dotnet docker docker-compose)

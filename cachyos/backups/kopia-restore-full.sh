@@ -18,11 +18,7 @@ set -euo pipefail
 
 BACKUP_USER="jesse"
 BACKUP_HOME="/home/jesse"
-<<<<<<< Updated upstream
 REPO_PATH="/mnt/nas-backups/Jesse-CachyOS"
-=======
-REPO_PATH="/mnt/nas-backups/Squire-Server"
->>>>>>> Stashed changes
 MOUNT_POINT="/mnt/nas-backups"
 STAGING_DIR="/tmp/kopia-restore-staging"
 

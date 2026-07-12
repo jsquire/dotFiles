@@ -44,7 +44,9 @@ export NVM_DIR="$HOME/.nvm"
 [[ -s "$NVM_DIR/bash_completion" ]] && \. "$NVM_DIR/bash_completion"
 
 # enable GPG signing
-export GPG_TTY=$(tty)
+# Use zsh's $TTY (not $(tty)): under Powerlevel10k instant prompt, stdin is
+# redirected so $(tty) yields "not a tty", which breaks pinentry. $TTY is always correct.
+export GPG_TTY=$TTY
 
 # History
 HISTSIZE=50000

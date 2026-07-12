@@ -24,11 +24,7 @@ set -euo pipefail
 
 BACKUP_USER="${SUDO_USER:-$(whoami)}"
 BACKUP_HOME="/home/${BACKUP_USER}"
-<<<<<<< Updated upstream
 REPO_PATH="/mnt/nas-backups/Jesse-CachyOS"
-=======
-REPO_PATH="/mnt/nas-backups/Squire-Server"
->>>>>>> Stashed changes
 BACKUP_SCRIPT="/usr/local/bin/nightly-backup.sh"
 SCHEDULE_TIME="02:00:00"
 
