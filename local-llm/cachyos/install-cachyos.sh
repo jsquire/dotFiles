@@ -958,7 +958,7 @@ WantedBy=multi-user.target
                 run_privileged systemctl daemon-reload
                 success "Created imagegen.service (HiDream-O1-Image-Dev)"
                 info "Model: HiDream-O1-Image-Dev on port ${IMAGEGEN_PORT}"
-                info "Start with: sudo systemctl enable --now imagegen"
+                info "On-demand only — do NOT enable on boot (single GPU). Reach it with: cachyos-switch-model image"
             else
                 add_failure "Failed to create imagegen systemd service."
             fi
@@ -1809,11 +1809,12 @@ elif [[ "$IS_SERVER_MODE" == true ]]; then
     printf '%b\n' "${COLOR_CYAN}──────────────────────────────────────────────────────────────${COLOR_RESET}"
     echo
     printf '%b\n' 'Next steps:'
-    printf '%b\n' "  1. Start services: sudo systemctl enable --now vllm imagegen"
+    printf '%b\n' "  1. Enable the default on boot: sudo systemctl enable --now vllm"
+    printf '%b\n' "     (Do NOT enable imagegen — single GPU; it is on-demand via 'cachyos-switch-model image'.)"
     printf '%b\n' "  2. Verify vLLM: curl http://127.0.0.1:${VLLM_PORT}/v1/models"
-    printf '%b\n' "  3. Verify image gen: curl http://127.0.0.1:8001/health"
+    printf '%b\n' "  3. Image gen (on demand): cachyos-switch-model image  then  curl http://127.0.0.1:8001/health"
     printf '%b\n' "  4. Verify from LAN: curl http://${local_ip}:${VLLM_PORT}/v1/models"
-    printf '%b\n' '  5. Launch Crush and select vllm-server provider'
+    printf '%b\n' "  5. Switch models from any LAN device: http://${local_ip}:${VLLM_SWITCH_WEB_PORT}/  (or 'copilot-local')"
 else
     echo
     printf '%b\n' 'Next steps:'

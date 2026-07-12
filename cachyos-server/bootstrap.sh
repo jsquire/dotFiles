@@ -518,7 +518,8 @@ sudo chmod 755 "$KOPIA_BACKUP_SCRIPT"
 
 # Systemd units for scheduled backup
 
-KOPIA_MOUNT_POINT=$(findmnt -n -o TARGET --target "$KOPIA_REPO" 2>/dev/null || echo "$NAS_BACKUP_MOUNT")
+KOPIA_MOUNT_POINT=$(findmnt -n -o TARGET --target "$KOPIA_REPO" 2>/dev/null | head -n1)
+KOPIA_MOUNT_POINT="${KOPIA_MOUNT_POINT:-$NAS_BACKUP_MOUNT}"
 
 backup_service="[Unit]
 Description=Nightly Kopia Backup
