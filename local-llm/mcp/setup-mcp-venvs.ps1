@@ -1,7 +1,12 @@
-# MCP Tool Setup — Windows
+# Office authoring library warm-up — Windows
 #
-# Installs MCP servers as uv tools (globally accessible via uvx).
-# Run this AFTER install-windows.ps1 has installed uv and Python.
+# Office authoring no longer uses always-on MCP servers (their tool schemas cost
+# ~37K tokens per request, exceeding most served context windows). Instead, the
+# vendored 'office' skill instructs the model to write python-docx / python-pptx /
+# openpyxl code and run it via 'uv run --with ...'.
+#
+# This script primes the uv cache so document authoring works offline afterward.
+# Run AFTER install-windows.ps1 has installed uv and Python.
 #
 # Usage:
 #   .\setup-mcp-venvs.ps1
@@ -10,29 +15,21 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$McpTools = @(
-    @{ Package = "ppt-mcp";          Python = $null;  Description = "PowerPoint COM automation (154 tools)" }
-    @{ Package = "docx-mcp-server";  Python = "3.12"; Description = "Word OOXML editing (45 tools)" }
-)
+$OfficeLibs = @("python-docx", "python-pptx", "openpyxl")
 
-foreach ($tool in $McpTools) {
-    Write-Host "`n── Installing $($tool.Description) ──" -ForegroundColor Cyan
+Write-Host "`n── Warming office authoring libraries ($($OfficeLibs -join ', ')) ──" -ForegroundColor Cyan
 
-    $args = @("tool", "install", $tool.Package)
-    if ($tool.Python) {
-        $args += "--python"
-        $args += $tool.Python
-    }
+$warmArgs = @("run", "--python", "3.12")
+foreach ($lib in $OfficeLibs) { $warmArgs += @("--with", $lib) }
+$warmArgs += @("python", "-c", "import docx, pptx, openpyxl")
 
-    & uv @args
+& uv @warmArgs
 
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "  ✓ $($tool.Package) ready" -ForegroundColor Green
-    } else {
-        Write-Host "  ✗ Failed to install $($tool.Package)" -ForegroundColor Red
-    }
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "  ✓ Office libraries cached" -ForegroundColor Green
+} else {
+    Write-Host "  ✗ Warm-up failed — libraries will resolve on first use via 'uv run --with ...'" -ForegroundColor Red
 }
 
 Write-Host "`n── Done ──" -ForegroundColor Cyan
-Write-Host "MCP tools installed globally via uv. Use 'uvx <tool>' to run."
-Write-Host "Config files point to 'uvx' command — no path changes needed."
+Write-Host "Office authoring runs via the 'office' skill: 'uv run --with python-docx --with python-pptx --with openpyxl script.py'."

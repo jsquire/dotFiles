@@ -1,69 +1,66 @@
-# OfficeMCP Setup Guide
+# MCP servers & office authoring
 
-OfficeMCP is a .NET-based MCP server from Microsoft that provides Word, PowerPoint, Excel, and PDF creation/editing capabilities.  No Office license is required — it manipulates the underlying XML inside `.docx`, `.pptx`, and `.xlsx` files directly.
+This stack keeps its always-on tool surface tiny. Only **one** MCP server ships enabled:
+`imagegen-mcp` (HiDream image generation), which genuinely needs a tool call to drive the
+image pipeline.
 
-## Prerequisites
+Office authoring (Word / PowerPoint / Excel) is **no longer done via MCP servers**.
 
-- .NET 8.0 SDK or Runtime (`winget install Microsoft.DotNet.SDK.8` or `pacman -S dotnet-sdk`)
-- Crush configured with MCP server support
+## Why office MCP was retired
 
-## Installation (Windows)
+The office MCP servers (`ppt-mcp`, `docx-mcp-server`, `office-powerpoint-mcp-server`) injected
+their full tool schemas into **every** request, always-on:
 
-```powershell
-# Clone the repository
-git clone https://github.com/anthropics/office-mcp.git "$env:LOCALAPPDATA\ai-tools\office-mcp"
+- `pptx-mcp` ≈ 154 tools
+- `docx-mcp-server` ≈ 45 tools
+- `office-powerpoint-mcp-server` ≈ 32 tools
 
-# Build
-cd "$env:LOCALAPPDATA\ai-tools\office-mcp"
-dotnet build -c Release
+That is roughly **37K tokens of tool schema on every call** — before any user content. Served
+context windows here are 32K (coder/devstral/image), 45K (glm), and 65K (mistral), so the tool
+surface alone exceeded most windows and requests failed before the prompt was even considered.
+This is unfixable by token tuning, so office MCP was removed entirely.
 
-# Verify
-dotnet run --project src/OfficeMcp -- --help
-```
+## The replacement: the `office` skill (code generation)
 
-## Installation (Linux)
+Office authoring now runs as a lean, vendored Crush skill at
+`config/skills/office/SKILL.md` (deployed to `~/.config/crush/skills/office/SKILL.md`).
+
+Instead of calling MCP tools, the model **writes a short Python script** using
+[`python-docx`](https://python-docx.readthedocs.io/),
+[`python-pptx`](https://python-pptx.readthedocs.io/), and
+[`openpyxl`](https://openpyxl.readthedocs.io/), then runs it with `uv`:
 
 ```bash
-git clone https://github.com/anthropics/office-mcp.git ~/.local/share/ai-tools/office-mcp
-cd ~/.local/share/ai-tools/office-mcp
-dotnet build -c Release
+uv run --with python-docx --with python-pptx --with openpyxl script.py
 ```
 
-## Configure in Crush
+This costs **zero standing tokens** (Crush loads the skill body on demand via progressive
+disclosure; Copilot CLI injects it via `--custom-instructions`), works on every window including
+the 32K server modes, and is host-agnostic (uv caches the wheels — no venv paths baked in).
 
-Add to `~/.crush/mcp-servers.json`:
+### How each launcher exposes it
 
-```json
-{
-    "office-mcp": {
-        "command": "dotnet",
-        "args": ["run", "--project", "%LOCALAPPDATA%\\ai-tools\\office-mcp\\src\\OfficeMcp"],
-        "description": "Microsoft Office document creation"
-    }
-}
+- **crush-task** — the office skill is discovered natively from the deployed skills directory.
+- **copilot-local** — the "Office documents" profile passes
+  `--custom-instructions <deployed office SKILL.md>` (Copilot CLI has no native skill discovery).
+
+## Warming the uv cache
+
+The installers prime the uv wheel cache once so document authoring works offline afterward. To
+re-run the warm-up manually:
+
+```powershell
+# Windows
+.\setup-mcp-venvs.ps1
 ```
 
-## Capabilities
-
-| Feature | Supported |
-|---------|-----------|
-| Create Word documents | ✅ Headings, tables, images, lists, formatting |
-| Create PowerPoint decks | ✅ Slides, text, tables, shapes |
-| Create Excel workbooks | ✅ Sheets, formulas, formatting |
-| Read/modify existing docs | ✅ Full round-trip |
-| Apply branded templates | ✅ Provide .pptx/.docx template files in `mcp/templates/` |
-| Complex charts, SmartArt | ⚠️ Charts are basic; SmartArt unsupported |
-| Macro-enabled documents | ❌ Not supported |
-
-## Alternative Python-Based Servers
-
-For finer PowerPoint or Word control, use the Python-based MCP servers instead:
-
-- **Office-PowerPoint-MCP-Server** — themes, templates, charts, images
-- **Office-Word-MCP-Server** — headings, tables, images, PDF conversion
-
-These are set up automatically by `setup-mcp-venvs.ps1` / `setup-mcp-venvs.sh`.
+```bash
+# Linux
+./setup-mcp-venvs.sh
+```
 
 ## Templates
 
-Place branded `.docx` and `.pptx` templates in `mcp/templates/`.  The MCP server can use these as starting points for new documents, applying your organization's styles, logos, and formatting.
+Place branded `.docx` / `.pptx` template files in `mcp/templates/`. The generated Python can open
+a template as a starting point (`Document("template.docx")` / `Presentation("template.pptx")`) to
+apply your styles, logos, and formatting.

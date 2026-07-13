@@ -181,34 +181,6 @@
     }
   },
   "mcp": {
-    "word-mcp": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": [
-        "--python",
-        "3.12",
-        "docx-mcp-server"
-      ],
-      "disabled": true
-    },
-    "pptx-mcp": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": [
-        "ppt-mcp"
-      ],
-      "disabled": true
-    },
-    "pptx-mcp-xplat": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": [
-        "--python",
-        "3.12",
-        "office-powerpoint-mcp-server"
-      ],
-      "disabled": true
-    },
     "imagegen-mcp": {
       "type": "stdio",
       "command": "__LOCALAPPDATA__/ai-tools/mcp-imagegen/__VENV_BIN__/python__EXE__",

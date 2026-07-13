@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# MCP Tool Setup — Linux
+# Office authoring library warm-up — Linux
 #
-# Installs MCP servers as uv tools (globally accessible via uvx).
-# Run this AFTER install-cachyos.sh has installed uv and Python.
+# Office authoring no longer uses always-on MCP servers (their tool schemas cost
+# ~37K tokens per request, exceeding most served context windows). Instead, the
+# vendored 'office' skill instructs the model to write python-docx / python-pptx /
+# openpyxl code and run it via 'uv run --with ...'.
 #
-# Note: ppt-mcp (COM automation) is Windows-only.
-# On Linux, docx-mcp-server handles Word editing; PPTX editing is
-# done on Windows clients connecting to the headless server.
+# This script primes the uv cache so document authoring works offline afterward.
+# Run AFTER install-cachyos.sh has installed uv and Python.
 #
 # Usage:
 #   chmod +x setup-mcp-venvs.sh
@@ -14,14 +15,14 @@
 
 set -euo pipefail
 
-echo "── Installing docx-mcp-server (Word OOXML editing, 45 tools) ──"
-if uv tool install docx-mcp-server --python 3.12; then
-    echo "  ✓ docx-mcp-server ready"
+echo "── Warming office authoring libraries (python-docx, python-pptx, openpyxl) ──"
+if uv run --python 3.12 --with python-docx --with python-pptx --with openpyxl \
+    python -c "import docx, pptx, openpyxl"; then
+    echo "  ✓ Office libraries cached"
 else
-    echo "  ✗ Failed to install docx-mcp-server" >&2
+    echo "  ✗ Warm-up failed — libraries will resolve on first use via 'uv run --with ...'" >&2
 fi
 
 echo ""
 echo "── Done ──"
-echo "MCP tools installed globally via uv. Use 'uvx <tool>' to run."
-echo "Note: ppt-mcp (PowerPoint COM) is Windows-only — not installed on Linux."
+echo "Office authoring runs via the 'office' skill: 'uv run --with python-docx --with python-pptx --with openpyxl script.py'."

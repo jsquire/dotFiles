@@ -939,36 +939,28 @@ if ($ShouldInstallSoftware) {
         $script:Failures += "csharp-ls (no .NET SDK)"
     }
 
-    # ── Step: Install MCP tools ──────────────────────────────────────────
+    # ── Step: Warm office authoring libraries (uv cache) ────────────────
 
-    Write-Step "Install MCP tools (uv global)"
-    Write-Info "MCP servers installed as uv tools — accessible via 'uvx' command."
+    Write-Step "Warm office authoring libraries (uv cache)"
+    Write-Info "Office authoring uses the 'office' skill: the model writes python-docx/python-pptx/openpyxl code"
+    Write-Info "and runs it via 'uv run --with ...' — no always-on MCP tool schemas. Priming the uv cache now"
+    Write-Info "so document authoring works offline afterward."
 
-    $mcpTools = @(
-        @{ Package = "ppt-mcp";         Python = "3.12"; Desc = "PowerPoint COM automation" }
-        @{ Package = "docx-mcp-server"; Python = "3.12"; Desc = "Word OOXML editing" }
-    )
-
-    # Snapshot already-installed uv tools so we can skip redundant re-installs.
-    $installedTools = (uv tool list 2>$null) -join "`n"
-    foreach ($tool in $mcpTools) {
-        if ($installedTools -match "(?m)^\s*$([regex]::Escape($tool.Package))\s") {
-            Write-Info "$($tool.Package) already installed — skipping."
-            continue
-        }
-        Write-Host "  Installing $($tool.Desc)..." -ForegroundColor White
-        # --force overwrites orphaned executable shims left by older/aborted installs;
-        # without it uv exits non-zero with "Executable already exists". Capture output
-        # so a real failure is reported instead of being silently swallowed.
-        $uvArgs = @("tool", "install", $tool.Package, "--python", $tool.Python, "--force")
-        $uvOutput = uv @uvArgs 2>&1
+    $officeLibs = @("python-docx", "python-pptx", "openpyxl")
+    try {
+        $warmArgs = @("run", "--python", "3.12")
+        foreach ($lib in $officeLibs) { $warmArgs += @("--with", $lib) }
+        $warmArgs += @("python", "-c", "import docx, pptx, openpyxl")
+        $warmOutput = uv @warmArgs 2>&1
         if ($LASTEXITCODE -eq 0) {
-            Write-Success "$($tool.Package) ready."
+            Write-Success "Office libraries cached ($($officeLibs -join ', '))."
         } else {
-            $errTail = (($uvOutput | Select-Object -Last 3) -join " | ").Trim()
-            Write-Warn "$($tool.Package) install failed: $errTail"
-            $script:Failures += "MCP: $($tool.Package) ($errTail)"
+            $errTail = (($warmOutput | Select-Object -Last 3) -join " | ").Trim()
+            Write-Warn "Office library warm-up failed: $errTail (will resolve on first use)."
+            $script:Failures += "Office libs warm-up ($errTail)"
         }
+    } catch {
+        Write-Warn "Office library warm-up skipped: $_"
     }
 
     if (-not (Test-Path $CrushDir)) {
@@ -1055,24 +1047,13 @@ if ($ShouldInstallSoftware) {
         Write-Success "Deployed MCP servers to $mcpDestDir"
     }
 
-    # Deploy local skills from dotFiles
+    # Deploy local skills from dotFiles (includes the vendored 'office' authoring skill)
     $skillsSourceDir = Join-Path $PSScriptRoot "..\config\skills"
     $skillsDestDir = Join-Path $CrushDir "skills"
     if (Test-Path $skillsSourceDir) {
         New-Item -ItemType Directory -Path $skillsDestDir -Force | Out-Null
         Copy-Item "$skillsSourceDir\*" $skillsDestDir -Recurse -Force
-        Write-Success "Deployed local skills (git-safety) to $skillsDestDir"
-    }
-
-    # Download latest doc-coauthoring skill from anthropics/skills
-    $docCoauthoringDir = Join-Path $skillsDestDir "doc-coauthoring"
-    New-Item -ItemType Directory -Path $docCoauthoringDir -Force | Out-Null
-    $docCoauthoringUrl = "https://raw.githubusercontent.com/anthropics/skills/main/skills/doc-coauthoring/SKILL.md"
-    try {
-        Invoke-WebRequest -Uri $docCoauthoringUrl -OutFile (Join-Path $docCoauthoringDir "SKILL.md") -ErrorAction Stop
-        Write-Success "Downloaded latest doc-coauthoring skill from anthropics/skills"
-    } catch {
-        Write-Warn "Could not download doc-coauthoring skill: $_"
+        Write-Success "Deployed local skills (git-safety, office) to $skillsDestDir"
     }
 
     # ── Step: Deploy Copilot CLI MCP configuration ────────────────────

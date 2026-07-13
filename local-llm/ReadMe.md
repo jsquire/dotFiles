@@ -78,10 +78,10 @@ local-llm/
 │   ├── crush.json                   # Crush config template (all providers)
 │   ├── copilot-mcp-config.json      # Copilot CLI MCP server config
 │   ├── ollama-models.txt            # Custom model list (optional)
-│   ├── pptx-instructions.md         # PowerPoint MCP system prompt
 │   ├── mcp/                         # MCP server configs (placeholder)
 │   └── skills/
-│       └── git-safety/SKILL.md      # Git safety skill definition
+│       ├── git-safety/SKILL.md      # Git safety skill definition
+│       └── office/SKILL.md          # Office authoring skill (docx/pptx/xlsx via Python)
 ├── mcp/
 │   ├── ReadMe.md                    # MCP setup documentation
 │   ├── imagegen-mcp-server.py       # Image generation MCP server

@@ -119,29 +119,18 @@ choice="${choice:-$default_choice}"
 OFFLOAD_MODE=0
 
 case "$choice" in
-    1|2|3)
-        MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp)
-        ;;
-    4|5|6)
-        MCP_FLAGS=(--disable-mcp-server imagegen-mcp)
-        ;;
     7)
-        MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat)
-        ;;
-    [oO]1|[oO]2)
-        MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp)
-        ;;
-    [Hh][1-8])
-        MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp)
-        ;;
-    s|S|g|G)
-        MCP_FLAGS=(--disable-mcp-server imagegen-mcp)
-        ;;
-    c|C|d|D)
-        MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp)
+        # Image generation — keep imagegen-mcp enabled
+        MCP_FLAGS=()
         ;;
     i|I)
-        MCP_FLAGS=(--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat)
+        # Remote image mode — keep imagegen-mcp enabled
+        MCP_FLAGS=()
+        ;;
+    *)
+        # Everything else: no document MCP servers (office authoring uses the code-gen skill);
+        # imagegen-mcp is the only MCP server and is off outside the image profiles.
+        MCP_FLAGS=(--disable-mcp-server imagegen-mcp)
         ;;
 esac
 
@@ -198,11 +187,12 @@ GIT_SAFETY=(
     --deny-tool='shell(git revert)' --deny-tool='shell(git tag)'
 )
 
-# PPTX instructions for doc profiles
+# Office authoring guidance for the Office documents profile: inject the vendored 'office' skill
+# (deployed by the installer) as custom instructions — Copilot CLI has no native skill discovery.
 EXTRA_FLAGS=()
 if [[ "$choice" == "6" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    EXTRA_FLAGS=(--custom-instructions "$SCRIPT_DIR/../config/pptx-instructions.md")
+    OFFICE_SKILL="${HOME}/.config/crush/skills/office/SKILL.md"
+    [[ -f "$OFFICE_SKILL" ]] && EXTRA_FLAGS=(--custom-instructions "$OFFICE_SKILL")
 fi
 
 case "$choice" in

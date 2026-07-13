@@ -1,17 +1,5 @@
 {
   "mcpServers": {
-    "word-mcp": {
-      "tools": ["*"],
-      "type": "local",
-      "command": "uvx",
-      "args": ["--python", "3.12", "docx-mcp-server"]
-    },
-    "pptx-mcp": {
-      "type": "local",
-      "command": "uvx",
-      "args": ["ppt-mcp"],
-      "tools": ["*"]
-    },
     "imagegen-mcp": {
       "type": "local",
       "command": "__LOCALAPPDATA__/ai-tools/mcp-imagegen/__VENV_BIN__/python__EXE__",

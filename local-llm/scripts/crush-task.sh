@@ -7,12 +7,9 @@
 # Profiles:
 #   coding  — no MCP servers (code tools + LSP only)
 #   review  — Qwen3-Coder model, no MCP (different perspective)
-#   general — Word MCP + gh CLI (research & document authoring)
-#   word    — word-mcp only (Word document editing)
-#   pptx    — pptx-mcp only (PowerPoint editing)
-#   docs    — doc-coauthoring skill + Word MCP (structured workflow)
+#   docs    — office authoring (docx/pptx/xlsx) via the 'office' skill: the model writes
+#             python-docx/python-pptx/openpyxl and runs it with uv (no document MCP servers)
 #   image   — imagegen-mcp (image generation)
-#   all     — everything enabled (may degrade with smaller models)
 set -euo pipefail
 
 # ── Provider gating (local Ollama / remote CachyOS server) ────────────────────
@@ -45,13 +42,11 @@ squire_switch() {
 }
 
 write_crush_config() {
-    local word_disabled="$1"
-    local pptx_disabled="$2"
-    local imagegen_disabled="$3"
-    local system_prompt="${4:-}"
-    local model_override="${5:-}"
-    local provider="${6:-ollama}"
-    local active_label="${7:-}"   # server mode: friendly label for the single 'active-model' entry
+    local imagegen_disabled="$1"
+    local system_prompt="${2:-}"
+    local model_override="${3:-}"
+    local provider="${4:-ollama}"
+    local active_label="${5:-}"   # server mode: friendly label for the single 'active-model' entry
 
     local providers_block=""
     local models_block=""
@@ -114,9 +109,6 @@ write_crush_config() {
     cat > .crush.json <<EOF
 {
   "mcp": {
-    "word-mcp": { "disabled": ${word_disabled} },
-    "pptx-mcp": { "disabled": true },
-    "pptx-mcp-xplat": { "disabled": ${pptx_disabled} },
     "imagegen-mcp": { "disabled": ${imagegen_disabled} }
   }${providers_block}${models_block}
 }
@@ -128,8 +120,6 @@ SELECTED_MODEL=""
 OFFLOAD_MODE=0
 PROVIDER="ollama"
 SWITCH_MODE=""
-SRV_WORD=""
-SRV_PPTX=""
 SRV_IMG=""
 
 # ── Tier-aware Ollama alias/label registry ────────────────────────────────────
@@ -174,11 +164,11 @@ REVIEW_MODEL="$(_alias review)"
 # Model assignments per task profile (tier-resolved).
 model_for_task() {
     case "$1" in
-        coding)                 _alias heavy ;;   # heavy coding default
-        review)                 _alias review ;;  # Qwen3-Coder 30B-A3B
-        general|word|pptx|docs|all) _alias agentic ;;  # GLM-4.7-Flash tool/MCP
-        image)                  _alias image_llm ;;    # image-gen companion
-        *)                      _alias heavy ;;
+        coding)   _alias heavy ;;   # heavy coding default
+        review)   _alias review ;;  # Qwen3-Coder 30B-A3B
+        docs)     _alias agentic ;; # GLM-4.7-Flash for office authoring (roomy, capable)
+        image)    _alias image_llm ;;    # image-gen companion
+        *)        _alias heavy ;;
     esac
 }
 
@@ -191,16 +181,10 @@ if [[ -z "$task" ]]; then
     echo "  [3] Code review         (Qwen3-Coder 30B, no MCP)"
     echo
     echo "  --- Writing & Documents ---"
-    echo "  [4] General research    (GLM-4.7-Flash + Word MCP)"
-    echo "  [5] Word editing        (GLM-4.7-Flash + Word MCP)"
-    echo "  [6] PowerPoint          (GLM-4.7-Flash + PPTX MCP)"
-    echo "  [7] Guided authoring    (GLM-4.7-Flash + doc skill)"
+    echo "  [4] Documents           (GLM-4.7-Flash + office skill: docx/pptx/xlsx via Python)"
     echo
     echo "  --- Visual ---"
-    echo "  [8] Image generation    (Qwen3 8B + HiDream MCP)"
-    echo
-    echo "  --- Everything ---"
-    echo "  [9] All tools           (GLM-4.7-Flash, all MCP, may be slow)"
+    echo "  [5] Image generation    (Qwen3 8B + HiDream MCP)"
     echo
     echo "  ══ EXPERIMENTAL · models under evaluation ($LL_OLLAMA_TIER tier) ══════════"
     echo "  --- Heavy-coding bench (coding profile, swap model) ---"
@@ -234,12 +218,8 @@ if [[ -z "$task" ]]; then
         1) task="coding" ;;
         2) task="coding"; SELECTED_MODEL="$(_alias coder)" ;;
         3) task="review" ;;
-        4) task="general" ;;
-        5) task="word" ;;
-        6) task="pptx" ;;
-        7) task="docs" ;;
-        8) task="image" ;;
-        9) task="all" ;;
+        4) task="docs" ;;
+        5) task="image" ;;
         [Hh]1) task="coding"; SELECTED_MODEL="$(_alias h1)" ;;
         [Hh]2) task="coding"; SELECTED_MODEL="$(_alias h2)" ;;
         [Hh]3) task="coding"; SELECTED_MODEL="$(_alias h3)" ;;
@@ -249,11 +229,11 @@ if [[ -z "$task" ]]; then
         [Hh]7) task="coding"; SELECTED_MODEL="$(_alias h7)" ;;
         [Hh]8) task="coding"; SELECTED_MODEL="$(_alias h8)" ;;
         [Oo]2) task="coding"; SELECTED_MODEL="$(_alias o2)"; OFFLOAD_MODE=1 ;;
-        [Ss]) PROVIDER="server"; SWITCH_MODE="mistral";   SELECTED_MODEL="mistral-small"; SRV_WORD=false; SRV_PPTX=false; SRV_IMG=true ;;
-        [Gg]) PROVIDER="server"; SWITCH_MODE="glm";       SELECTED_MODEL="glm-4.7-flash"; SRV_WORD=false; SRV_PPTX=false; SRV_IMG=true ;;
-        [Cc]) PROVIDER="server"; SWITCH_MODE="coder";     SELECTED_MODEL="qwen3-coder";   SRV_WORD=true;  SRV_PPTX=true;  SRV_IMG=true ;;
-        [Dd]) PROVIDER="server"; SWITCH_MODE="coder-alt"; SELECTED_MODEL="devstral";      SRV_WORD=true;  SRV_PPTX=true;  SRV_IMG=true ;;
-        [Ii]) PROVIDER="server"; SWITCH_MODE="image";     SELECTED_MODEL="qwen3-4b";      SRV_WORD=true;  SRV_PPTX=true;  SRV_IMG=false ;;
+        [Ss]) PROVIDER="server"; SWITCH_MODE="mistral";   SELECTED_MODEL="mistral-small"; SRV_IMG=true ;;
+        [Gg]) PROVIDER="server"; SWITCH_MODE="glm";       SELECTED_MODEL="glm-4.7-flash"; SRV_IMG=true ;;
+        [Cc]) PROVIDER="server"; SWITCH_MODE="coder";     SELECTED_MODEL="qwen3-coder";   SRV_IMG=true ;;
+        [Dd]) PROVIDER="server"; SWITCH_MODE="coder-alt"; SELECTED_MODEL="devstral";      SRV_IMG=true ;;
+        [Ii]) PROVIDER="server"; SWITCH_MODE="image";     SELECTED_MODEL="qwen3-4b";      SRV_IMG=false ;;
         *)
             echo "  Invalid selection, defaulting to heavy coding."
             task="coding"
@@ -272,49 +252,15 @@ MODEL_FRIENDLY="${LL_LABEL[$DEFAULT_MODEL]:-$DEFAULT_MODEL}"
 echo
 echo "  ▶ $MODEL_FRIENDLY  ·  alias=$DEFAULT_MODEL"
 
-PPTX_GUIDE="IMPORTANT: Be concise. Do not explain what you will do — just do it. Minimize output.
-
-office-powerpoint-mcp-server provides cross-platform PPTX editing via python-pptx (32 tools).
-
-WORKFLOW: create_presentation or open existing → edit slides → save
-Operates on .pptx files directly (no live PowerPoint needed).
-
-KEY TOOLS:
-- create_presentation, add_slide, update_slide, delete_slide
-- add_text_box, update_text_box, add_image, add_shape
-- add_table, update_table, add_chart
-- apply_theme, set_slide_layout
-- get_presentation_info, get_slide_info
-- export_to_pdf, export_to_images (if LibreOffice available)
-
-DESIGN PRINCIPLES:
-- Set a consistent theme before adding content
-- Every slide needs a visual element: image, chart, shape, or table
-- Don't repeat the same layout on consecutive slides
-- Typography: Title 36-44pt bold, Body 14-16pt, Captions 10-12pt"
-
-WORD_GUIDE="docx-mcp-server Tool Guide:
-This server edits Word documents via direct OOXML manipulation. Key tools:
-- Open/create documents, then edit with tracked changes visible in Word
-- search_and_replace: Find and replace text
-- add_paragraph / add_heading / add_table: Add content
-- format_text: Apply formatting
-- Supports footnotes, endnotes, comments, headers/footers, sections
-- All edits create real tracked changes (visible in Word's Review tab)"
-
 if [[ "$PROVIDER" == "server" ]]; then
     [[ -n "$SWITCH_MODE" ]] && squire_switch "$SWITCH_MODE"
-    write_crush_config "$SRV_WORD" "$SRV_PPTX" "$SRV_IMG" "" "active-model" "server" "$SELECTED_MODEL"
+    write_crush_config "$SRV_IMG" "" "active-model" "server" "$SELECTED_MODEL"
     echo "  Profile: Remote CachyOS server ($SELECTED_MODEL via vLLM, addressed as active-model)"
 else
 case "$task" in
     coding)
-        write_crush_config true true true "" "$DEFAULT_MODEL"
+        write_crush_config true "" "$DEFAULT_MODEL"
         echo "  Profile: Coding ($DEFAULT_MODEL, no MCP servers)"
-        ;;
-    general)
-        write_crush_config false true true "" "$DEFAULT_MODEL"
-        echo "  Profile: General (Word MCP + gh CLI)"
         ;;
     review)
         REVIEW_GUIDE="You are a code reviewer. Focus on:
@@ -325,54 +271,24 @@ case "$task" in
 - Concurrency issues (race conditions, deadlocks)
 Do NOT comment on style, formatting, or naming conventions unless they cause bugs.
 Be direct. If the code is correct, say so briefly."
-        write_crush_config true true true "$REVIEW_GUIDE" "$REVIEW_MODEL"
+        write_crush_config true "$REVIEW_GUIDE" "$REVIEW_MODEL"
         echo "  Profile: Code review (Qwen3-Coder 30B)"
         ;;
-    word)
-        write_crush_config false true true "$WORD_GUIDE" "$DEFAULT_MODEL"
-        echo "  Profile: Word (docx-mcp-server, 45 tools)"
-        ;;
-    pptx)
-        write_crush_config true false true "$PPTX_GUIDE" "$DEFAULT_MODEL"
-        echo "  Profile: PowerPoint (office-powerpoint-mcp-server, 32 tools)"
-        ;;
     docs)
-        # Download latest doc-coauthoring skill
-        DOC_SKILL_DIR="${HOME}/.config/crush/skills/doc-coauthoring"
-        DOC_SKILL_FILE="${DOC_SKILL_DIR}/SKILL.md"
-        mkdir -p "$DOC_SKILL_DIR"
-        if [[ -f "$DOC_SKILL_FILE" ]]; then
-            # Cached version exists — update in background, use cached now
-            (curl -fsSL --max-time 5 \
-                "https://raw.githubusercontent.com/anthropics/skills/main/skills/doc-coauthoring/SKILL.md" \
-                -o "$DOC_SKILL_FILE" 2>/dev/null) &
-            DOCS_GUIDE="$(cat "$DOC_SKILL_FILE")"
-        else
-            # No cached version — block on download
-            echo "  Downloading doc-coauthoring skill..."
-            if curl -fsSL --max-time 10 \
-                "https://raw.githubusercontent.com/anthropics/skills/main/skills/doc-coauthoring/SKILL.md" \
-                -o "$DOC_SKILL_FILE" 2>/dev/null && [[ -f "$DOC_SKILL_FILE" ]]; then
-                DOCS_GUIDE="$(cat "$DOC_SKILL_FILE")"
-            else
-                DOCS_GUIDE="You are a document co-authoring assistant. Guide the user through structured document creation."
-            fi
-        fi
-        write_crush_config false true true "$DOCS_GUIDE" "$DEFAULT_MODEL"
-        echo "  Profile: Guided document authoring (doc-coauthoring skill + Word MCP)"
+        # Office authoring uses the vendored 'office' skill (discovered natively by crush from
+        # ~/.config/crush/skills/office). The model writes python-docx/python-pptx/openpyxl and
+        # runs it via `uv run --with ...` — no document MCP servers, near-zero context cost.
+        write_crush_config true "" "$DEFAULT_MODEL"
+        echo "  Profile: Documents / office authoring ($DEFAULT_MODEL + office skill: docx/pptx/xlsx via Python)"
         ;;
     image)
-        write_crush_config true true false "" "$SELECTED_MODEL"
+        write_crush_config false "" "$SELECTED_MODEL"
         echo "  Profile: Image generation (HiDream) — using $SELECTED_MODEL for VRAM headroom"
         ;;
-    all)
-        write_crush_config false false false "" "$DEFAULT_MODEL"
-        echo "  Profile: All tools (93 MCP tools - may be slow with smaller models)"
-        ;;
     *)
-        echo "  Unknown profile '$task', defaulting to general."
-        write_crush_config false true true "" "$DEFAULT_MODEL"
-        echo "  Profile: General (Word MCP + gh CLI)"
+        echo "  Unknown profile '$task', defaulting to coding."
+        write_crush_config true "" "$DEFAULT_MODEL"
+        echo "  Profile: Coding ($DEFAULT_MODEL, no MCP servers)"
         ;;
 esac
 fi

@@ -90,7 +90,7 @@ conflicts with this banner, **this banner wins.**
 ### Software Stack
 - **Backend**: Ollama (with vendored llama.cpp)
 - **Frontend**: Crush CLI (task profiles), Copilot CLI (legacy scripts)
-- **MCP servers**: docx-mcp-server (Word), ppt-mcp (PowerPoint), HiDream-O1 (image gen)
+- **MCP servers**: imagegen-mcp (HiDream-O1 image gen). Office authoring (Word/PowerPoint/Excel) uses the vendored `office` skill (python-docx/python-pptx/openpyxl via `uv run`), not MCP — see `mcp/ReadMe.md`.
 - **Env vars**: `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`
 
 ### Current Model Set
@@ -367,8 +367,7 @@ python bench-run.py
 For each candidate that passes speed threshold (≥20 tok/s average):
 1. Create a `.crush.json` with the model name
 2. Run Crush with the coding profile — verify it generates correct tool calls
-3. Run Crush with the Word profile — verify it calls docx-mcp-server tools correctly
-4. Run Crush with the PPTX profile — verify it calls ppt-mcp tools correctly
+3. Run Crush with the Documents (office) profile — verify it writes correct python-docx/python-pptx/openpyxl code and runs it via `uv run`
 
 ### Step 7: Long Session Test
 For the top 1-2 candidates:

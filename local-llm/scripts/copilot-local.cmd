@@ -108,27 +108,12 @@ if /i "%choice%"=="I" (
     set COPILOT_MODEL=qwen3-4b
 )
 
-:: Set MCP flags based on task category
-:: Coding (1-3): disable all MCP servers — max context for code
-:: Docs (4-6): enable word + pptx, disable imagegen
-:: Image (7): enable imagegen, disable word + pptx
-:: Server (S): disable all MCP (remote, no local MCP)
-set MCP_FLAGS=
-if "%choice%"=="1" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
-if "%choice%"=="2" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
-if "%choice%"=="3" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
-if "%choice%"=="4" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
-if "%choice%"=="5" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
-if "%choice%"=="6" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
-if "%choice%"=="7" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat
-:: Heavy-coding bench (H1-H8): disable all MCP servers — max context for code
-if /i "%choice:~0,1%"=="H" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
-if /i "%choice%"=="O2" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
-if /i "%choice%"=="S" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
-if /i "%choice%"=="G" set MCP_FLAGS=--disable-mcp-server imagegen-mcp
-if /i "%choice%"=="C" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
-if /i "%choice%"=="D" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat --disable-mcp-server imagegen-mcp
-if /i "%choice%"=="I" set MCP_FLAGS=--disable-mcp-server word-mcp --disable-mcp-server pptx-mcp --disable-mcp-server pptx-mcp-xplat
+:: Set MCP flags based on task category. imagegen-mcp is the only MCP server now (office
+:: authoring uses the code-gen skill, not MCP). Image profiles (7, I) keep it enabled; all
+:: other profiles disable it.
+set MCP_FLAGS=--disable-mcp-server imagegen-mcp
+if "%choice%"=="7" set MCP_FLAGS=
+if /i "%choice%"=="I" set MCP_FLAGS=
 
 if not defined COPILOT_MODEL (
     echo   Invalid selection.
@@ -138,9 +123,10 @@ if not defined COPILOT_MODEL (
 :: Git safety: block git write operations
 set GIT_SAFETY=--deny-tool="shell(git add)" --deny-tool="shell(git commit)" --deny-tool="shell(git push)" --deny-tool="shell(git merge)" --deny-tool="shell(git rebase)" --deny-tool="shell(git reset)" --deny-tool="shell(git stash)" --deny-tool="shell(git cherry-pick)" --deny-tool="shell(git revert)" --deny-tool="shell(git tag)"
 
-:: Set PPTX instructions for doc profiles (6 = Office documents)
+:: Office authoring guidance for the Office documents profile (6): inject the vendored 'office'
+:: skill (deployed by the installer) as custom instructions — Copilot CLI has no native skill discovery.
 set EXTRA_FLAGS=
-if "%choice%"=="6" set EXTRA_FLAGS=--custom-instructions "D:\personal\dotFiles\local-llm\config\pptx-instructions.md"
+if "%choice%"=="6" set EXTRA_FLAGS=--custom-instructions "%USERPROFILE%\.config\crush\skills\office\SKILL.md"
 
 :launch
 :: Friendly label for the launch-identity banner (keyed on the resolved model alias).

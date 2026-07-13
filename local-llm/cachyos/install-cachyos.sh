@@ -1638,21 +1638,18 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
     info "crush.json declares a csharp-ls LSP; it is a .NET global tool (dotnet tool install)."
     install_csharp_ls || true
 
-    step "Install MCP tools"
-    info "Installing MCP servers as uv tools (docx-mcp-server, office-powerpoint-mcp-server)."
+    step "Warm office authoring libraries (uv cache)"
+    info "Office authoring uses the 'office' skill: the model writes python-docx/python-pptx/openpyxl"
+    info "code and runs it via 'uv run --with ...' — no always-on MCP tool schemas. Priming the uv cache."
     if command_exists uv; then
-        if uv tool install docx-mcp-server --python 3.12 >/dev/null 2>&1; then
-            success "docx-mcp-server installed (Word OOXML editing)"
+        if uv run --python 3.12 --with python-docx --with python-pptx --with openpyxl \
+            python -c "import docx, pptx, openpyxl" >/dev/null 2>&1; then
+            success "Office libraries cached (python-docx, python-pptx, openpyxl)"
         else
-            add_warning "Failed to install docx-mcp-server. Run 'uv tool install docx-mcp-server --python 3.12' manually."
-        fi
-        if uv tool install office-powerpoint-mcp-server --python 3.12 >/dev/null 2>&1; then
-            success "office-powerpoint-mcp-server installed (cross-platform PPTX editing)"
-        else
-            add_warning "Failed to install office-powerpoint-mcp-server. Run 'uv tool install office-powerpoint-mcp-server --python 3.12' manually."
+            add_warning "Office library warm-up failed. It will resolve on first use via 'uv run --with ...'."
         fi
     else
-        add_warning "uv not found — cannot install MCP tools. Install uv first."
+        add_warning "uv not found — cannot warm office libraries. Install uv first."
     fi
     mkdir -p "$CRUSH_HOME_DIR" "$CRUSH_CONFIG_DIR"
     success "Prepared Crush config directories: ${CRUSH_HOME_DIR} and ${CRUSH_CONFIG_DIR}"
@@ -1696,21 +1693,6 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
                 -e "s|__SQUIRE_SERVER_IP__|${vllm_ip}|g" \
                 -e "s|__IMAGEGEN_HOST__|${imagegen_host}|g" \
                 "$crush_config_source" > "$crush_config_dest"
-
-            # On Linux: disable COM-based pptx-mcp, enable cross-platform pptx-mcp-xplat
-            sed -i '/"pptx-mcp":/{ /pptx-mcp-xplat/!s/"disabled": *false/"disabled": true/; /pptx-mcp-xplat/!s/\(\"pptx-mcp\".*\)/\1/ }' "$crush_config_dest" 2>/dev/null || true
-            python3 -c "
-import json, sys
-with open('$crush_config_dest', 'r') as f:
-    cfg = json.load(f)
-mcps = cfg.get('mcp', cfg.get('mcpServers', {}))
-if 'pptx-mcp' in mcps:
-    mcps['pptx-mcp']['disabled'] = True
-if 'pptx-mcp-xplat' in mcps:
-    mcps['pptx-mcp-xplat'].pop('disabled', None)
-with open('$crush_config_dest', 'w') as f:
-    json.dump(cfg, f, indent=2)
-" 2>/dev/null && info "Swapped PPTX MCP: pptx-mcp disabled, pptx-mcp-xplat enabled (cross-platform)" || true
 
             # Prune crush providers + set the default per --providers / --default-provider.
             # 'local' -> the localhost Ollama provider ('ollama'); 'server' -> the vLLM server.
@@ -1844,23 +1826,13 @@ with open(p, 'w') as f:
         success "Deployed MCP servers to $mcp_dest_dir"
     fi
 
-    # Deploy local skills from dotFiles
+    # Deploy local skills from dotFiles (includes the vendored 'office' authoring skill)
     local skills_source_dir="${SCRIPT_DIR}/../config/skills"
     local skills_dest_dir="${CRUSH_CONFIG_DIR}/skills"
     if [[ -d "$skills_source_dir" ]]; then
         mkdir -p "$skills_dest_dir"
         cp -r "$skills_source_dir"/* "$skills_dest_dir"/
-        success "Deployed local skills (git-safety) to $skills_dest_dir"
-    fi
-
-    # Download latest doc-coauthoring skill from anthropics/skills
-    local doc_coauth_dir="${skills_dest_dir}/doc-coauthoring"
-    mkdir -p "$doc_coauth_dir"
-    local doc_coauth_url="https://raw.githubusercontent.com/anthropics/skills/main/skills/doc-coauthoring/SKILL.md"
-    if curl -fsSL "$doc_coauth_url" -o "${doc_coauth_dir}/SKILL.md" 2>/dev/null; then
-        success "Downloaded latest doc-coauthoring skill from anthropics/skills"
-    else
-        warn "Could not download doc-coauthoring skill from GitHub"
+        success "Deployed local skills (git-safety, office) to $skills_dest_dir"
     fi
 
     # ── Deploy Copilot CLI MCP configuration ──────────────────────────────
