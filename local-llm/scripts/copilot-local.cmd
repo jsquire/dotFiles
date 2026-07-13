@@ -106,6 +106,10 @@ if /i "%choice%"=="I" (
     call :squire_switch image
     set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
     set COPILOT_MODEL=qwen3-4b
+    rem Image companion serves a 16K window (desktop-up 1.7B tier; headless 4B is at least this).
+    rem Shrink the global caps so prompt+output stay under it (mirrors the crush ctx_win=16384 floor).
+    set COPILOT_PROVIDER_MAX_PROMPT_TOKENS=10240
+    set COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=4096
 )
 
 :: Set MCP flags based on task category. imagegen-mcp is the only MCP server now (office
