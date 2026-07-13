@@ -81,16 +81,18 @@ function Write-CrushConfig {
         [string]$ActiveLabel
     )
     $config = @{ mcp = $McpOverrides }
-    # Output cap + assumed window, by provider. Server (vLLM on the 4090) runs small windows (coder/
-    # devstral/image 32K, glm 44K, mistral 64K) -> cap output at 8K and assume the 32K floor so agentic
-    # context isn't starved. Local Ollama runs 128K-256K windows, so a larger 32K cap is cheap.
+    # Output cap + assumed window, by provider. Server (vLLM on the 4090) window per mode: coder/devstral
+    # 56K, glm 54K, mistral 64K, image companion 16K -> cap output at 8K so agentic context isn't starved.
+    # Local Ollama runs 128K-256K windows, so a larger 32K cap is cheap.
     $maxTok = 16384; $ctxWin = 65536
     if ($Provider -eq "server") {
         $maxTok = 8192
         switch ($ActiveLabel) {
             "mistral-small" { $ctxWin = 65536 }
-            "glm-4.7-flash" { $ctxWin = 45056 }
-            "qwen3-4b"      { $ctxWin = 16384 }  # image companion: safe floor (desktop-up 1.7B tier serves 16K; headless 4B >= this)
+            "glm-4.7-flash" { $ctxWin = 55296 }
+            "qwen3-coder"   { $ctxWin = 57344 }
+            "devstral"      { $ctxWin = 57344 }
+            "qwen3-4b"      { $ctxWin = 16384 }  # image companion: 1.7B single-tier, 16K served (desktop-up + headless)
             default         { $ctxWin = 32768 }
         }
     }

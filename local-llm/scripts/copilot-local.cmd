@@ -85,21 +85,33 @@ if /i "%choice%"=="S" (
     call :squire_switch mistral
     set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
     set COPILOT_MODEL=mistral-small
+    rem Server window 64K. Cap prompt+output under it (output 8192 leaves ~54K prompt); mirrors crush.
+    set COPILOT_PROVIDER_MAX_PROMPT_TOKENS=54272
+    set COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8192
 )
 if /i "%choice%"=="G" (
     call :squire_switch glm
     set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
     set COPILOT_MODEL=glm-4.7-flash
+    rem Server window 54K. Cap prompt+output under it (output 8192 leaves ~44K prompt); mirrors crush.
+    set COPILOT_PROVIDER_MAX_PROMPT_TOKENS=44032
+    set COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8192
 )
 if /i "%choice%"=="C" (
     call :squire_switch coder
     set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
     set COPILOT_MODEL=qwen3-coder
+    rem Server window 56K. Cap prompt+output under it (output 8192 leaves ~46K prompt); mirrors crush.
+    set COPILOT_PROVIDER_MAX_PROMPT_TOKENS=46080
+    set COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8192
 )
 if /i "%choice%"=="D" (
     call :squire_switch coder-alt
     set COPILOT_PROVIDER_BASE_URL=http://__SQUIRE_SERVER_IP__:8000/v1
     set COPILOT_MODEL=devstral
+    rem Server window 56K. Cap prompt+output under it (output 8192 leaves ~46K prompt); mirrors crush.
+    set COPILOT_PROVIDER_MAX_PROMPT_TOKENS=46080
+    set COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8192
 )
 if /i "%choice%"=="I" (
     call :squire_switch image

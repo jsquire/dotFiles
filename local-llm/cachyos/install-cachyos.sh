@@ -203,7 +203,8 @@ model_description() {
         jeffcookio/Mistral-Small-3.2-24B-Instruct-2506-awq-sym) printf '%s' 'Mistral-Small-3.2 tokenizer source (tekken.json for --tokenizer-mode mistral); weights unused' ;;
         cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit) printf '%s' 'Devstral-2 24B AWQ — agentic-coding alternative (switch mode, dense, 384k ctx, compressed-tensors), ~14 GB' ;;
         Qwen/Qwen3-4B-Instruct-2507) printf '%s' 'Qwen3 4B — image-gen companion LLM (co-resides with HiDream), ~8 GB' ;;
-        cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit) printf '%s' 'Qwen3 4B AWQ-4bit — image-gen companion LLM (co-resides with HiDream), ~3.4 GB' ;;
+        cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit) printf '%s' 'Qwen3 4B AWQ-4bit — former image-gen companion (superseded by 1.7B), ~3.4 GB' ;;
+        Orion-zhen/Qwen3-1.7B-AWQ) printf '%s' 'Qwen3 1.7B AWQ — image-gen companion LLM (co-resides with HiDream, 16K ctx), ~1.3 GB' ;;
         Qwen/Qwen3.6-27B-Instruct-GPTQ) printf '%s' 'Qwen3.6 27B GPTQ — primary model (32k ctx, FP8 KV), ~15 GB' ;;
         Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4) printf '%s' 'Qwen2.5-Coder 32B GPTQ — heavy coding, ~18 GB' ;;
         btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit) printf '%s' 'Qwen3-Coder 30B MoE GPTQ — heavy coding (agentic), ~19 GB' ;;
@@ -426,9 +427,9 @@ load_effective_model_config() {
             "QuantTrio/GLM-4.7-Flash-AWQ"
             "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit"
             "cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit"
-            "cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit"
+            "Orion-zhen/Qwen3-1.7B-AWQ"
         )
-        EFFECTIVE_MODEL_REQUIRED_GB=111
+        EFFECTIVE_MODEL_REQUIRED_GB=109
         OLLAMA_TIER_LABEL="n/a (vLLM)"
         MODEL_SOURCE_MESSAGE="Using vLLM (server) HuggingFace model roster."
     else
@@ -1325,12 +1326,13 @@ VLLM_SERVED_NAME=qwen3-coder
 VLLM_QUANTIZATION=gptq
 VLLM_HOST=0.0.0.0
 VLLM_PORT=${VLLM_PORT}
-VLLM_MAX_MODEL_LEN=32768
+VLLM_MAX_MODEL_LEN=57344
 VLLM_GPU_MEMORY_UTILIZATION=0.90
 VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
             # glm: GLM-4.7-Flash — the former default, kept as an agentic/reasoning/coding switch mode.
-            # MLA on Ada needs kv auto (no fp8); glm47 tool + reasoning parsers; ~44K ctx (maxseqs 16).
+            # MLA on Ada needs kv auto (no fp8); glm47 tool + reasoning parsers. 54K ctx @ util 0.92
+            # (MLA KV ~0.052 MiB/tok; measured ceiling 57.9K@0.92, ~727 MiB desktop-up margin, conc 1.05x).
             local glm_env="VLLM_MODEL=QuantTrio/GLM-4.7-Flash-AWQ
 VLLM_SERVED_NAME=glm-4.7-flash
 VLLM_QUANTIZATION=awq
@@ -1338,9 +1340,9 @@ VLLM_TOOL_PARSER=glm47
 VLLM_REASONING_PARSER=glm47
 VLLM_HOST=0.0.0.0
 VLLM_PORT=${VLLM_PORT}
-VLLM_MAX_MODEL_LEN=45056
+VLLM_MAX_MODEL_LEN=55296
 VLLM_MAX_NUM_SEQS=16
-VLLM_GPU_MEMORY_UTILIZATION=0.90
+VLLM_GPU_MEMORY_UTILIZATION=0.92
 VLLM_KV_CACHE_DTYPE=auto
 "
             # coder-alt: Devstral-2 24B (dense, agentic-SWE) — AWQ is compressed-tensors format,
@@ -1349,18 +1351,21 @@ VLLM_KV_CACHE_DTYPE=auto
 VLLM_SERVED_NAME=devstral
 VLLM_HOST=0.0.0.0
 VLLM_PORT=${VLLM_PORT}
-VLLM_MAX_MODEL_LEN=32768
+VLLM_MAX_MODEL_LEN=57344
 VLLM_GPU_MEMORY_UTILIZATION=0.90
 VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
-            # Image companion: small, unquantized (no VLLM_QUANTIZATION), low util to leave
-            # VRAM for HiDream (imagegen.service) which runs alongside it.
-            local image_env="VLLM_MODEL=cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit
+            # Image companion: 1.7B AWQ (quant auto-detected), low util to co-reside with HiDream
+            # (imagegen.service). Single tier: 16K served desktop-up AND headless (validated 942 MiB free
+            # desktop-up, 3x 1024 gens PASS; headless frees only ~530 MiB so no larger tier warrants a swap).
+            # served-name stays qwen3-4b so crush/copilot are unchanged.
+            local image_env="VLLM_MODEL=Orion-zhen/Qwen3-1.7B-AWQ
 VLLM_SERVED_NAME=qwen3-4b
 VLLM_HOST=0.0.0.0
 VLLM_PORT=${VLLM_PORT}
-VLLM_MAX_MODEL_LEN=32768
-VLLM_GPU_MEMORY_UTILIZATION=0.20
+VLLM_MAX_MODEL_LEN=16384
+VLLM_MAX_NUM_SEQS=8
+VLLM_GPU_MEMORY_UTILIZATION=0.16
 VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
             printf '%s' "$coder_env"     | run_privileged tee /etc/vllm/modes/coder.env     >/dev/null

@@ -154,21 +154,33 @@ case "$choice" in
         squire_switch mistral
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
         export COPILOT_MODEL="mistral-small"
+        # Server window 64K. Cap prompt+output under it (output 8192 leaves ~54K prompt); mirrors crush.
+        export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=54272
+        export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8192
         ;;
     g|G)
         squire_switch glm
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
         export COPILOT_MODEL="glm-4.7-flash"
+        # Server window 54K. Cap prompt+output under it (output 8192 leaves ~44K prompt); mirrors crush.
+        export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=44032
+        export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8192
         ;;
     c|C)
         squire_switch coder
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
         export COPILOT_MODEL="qwen3-coder"
+        # Server window 56K. Cap prompt+output under it (output 8192 leaves ~46K prompt); mirrors crush.
+        export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=46080
+        export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8192
         ;;
     d|D)
         squire_switch coder-alt
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
         export COPILOT_MODEL="devstral"
+        # Server window 56K. Cap prompt+output under it (output 8192 leaves ~46K prompt); mirrors crush.
+        export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=46080
+        export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8192
         ;;
     i|I)
         squire_switch image
