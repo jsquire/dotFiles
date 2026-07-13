@@ -56,12 +56,25 @@ write_crush_config() {
     local providers_block=""
     local models_block=""
 
+    # Output cap + assumed window, by provider. The server (vLLM on the 4090) runs SMALL windows
+    # (coder/devstral/image 32K, glm 44K, mistral 64K), so cap output at 8K to avoid starving agentic
+    # context and assume the 32K floor. Local Ollama runs 128K-256K windows, so a larger 32K cap is cheap.
+    local max_tok=16384 ctx_win=65536
+    if [[ "$provider" == "server" ]]; then
+        max_tok=8192
+        case "$active_label" in
+            mistral-small)  ctx_win=65536 ;;
+            glm-4.7-flash)  ctx_win=45056 ;;
+            *)              ctx_win=32768 ;;
+        esac
+    fi
+
     # Per-provider override. For the server provider we expose ONE 'active-model' entry (so crush's
     # /model can never pick a not-yet-loaded model), and relabel it "Active: <model>" for visibility.
     local prov_inner=""
     if [[ -n "$active_label" ]]; then
         prov_inner="\"models\": [
-        { \"name\": \"Active: ${active_label}\", \"id\": \"active-model\", \"context_window\": 65536, \"default_max_tokens\": 32000 }
+        { \"name\": \"Active: ${active_label}\", \"id\": \"active-model\", \"context_window\": ${ctx_win}, \"default_max_tokens\": ${max_tok} }
       ]"
     fi
     if [[ -n "$system_prompt" ]]; then
@@ -88,12 +101,12 @@ write_crush_config() {
     \"large\": {
       \"model\": \"${model_override}\",
       \"provider\": \"${provider}\",
-      \"max_tokens\": 32000
+      \"max_tokens\": ${max_tok}
     },
     \"small\": {
       \"model\": \"${model_override}\",
       \"provider\": \"${provider}\",
-      \"max_tokens\": 32000
+      \"max_tokens\": ${max_tok}
     }
   }"
     fi

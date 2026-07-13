@@ -10,35 +10,35 @@
           "name": "Qwen3.6 27B dense (Heavy coding \u2014 default)",
           "id": "qwen36-27b-212k",
           "context_window": 217088,
-          "default_max_tokens": 32000,
+          "default_max_tokens": 16384,
           "can_reason": true
         },
         {
           "name": "Qwen3.6 35B-A3B MoE (Heavy coding bench)",
           "id": "qwen36-35b-256k",
           "context_window": 262144,
-          "default_max_tokens": 32000,
+          "default_max_tokens": 16384,
           "can_reason": true
         },
         {
           "name": "Gemma 4 31B dense (Heavy coding bench \u2014 re-test)",
           "id": "gemma4-31b-128k",
           "context_window": 131072,
-          "default_max_tokens": 32000,
+          "default_max_tokens": 16384,
           "can_reason": true
         },
         {
           "name": "Qwen3-Coder 30B-A3B (Light coding / review)",
           "id": "qwen3coder-144k",
           "context_window": 147456,
-          "default_max_tokens": 32000,
+          "default_max_tokens": 16384,
           "can_reason": true
         },
         {
           "name": "GLM-4.7-Flash (Agentic / all MCP+tools)",
           "id": "glm47-flash-198k",
           "context_window": 202752,
-          "default_max_tokens": 32000,
+          "default_max_tokens": 16384,
           "can_reason": true
         },
         {
@@ -59,7 +59,7 @@
         {
           "name": "Active model (squire-server \u2014 whatever is currently loaded)",
           "id": "active-model",
-          "context_window": 65536,
+          "context_window": 32768,
           "default_max_tokens": 8192,
           "can_reason": false
         }
@@ -172,7 +172,7 @@
     "large": {
       "model": "qwen36-27b-212k",
       "provider": "ollama",
-      "max_tokens": 32000
+      "max_tokens": 16384
     },
     "small": {
       "model": "qwen3coder-144k",

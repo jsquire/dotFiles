@@ -87,12 +87,24 @@ function Write-CrushConfig {
         [string]$ActiveLabel
     )
     $config = @{ mcp = $McpOverrides }
+    # Output cap + assumed window, by provider. Server (vLLM on the 4090) runs small windows (coder/
+    # devstral/image 32K, glm 44K, mistral 64K) -> cap output at 8K and assume the 32K floor so agentic
+    # context isn't starved. Local Ollama runs 128K-256K windows, so a larger 32K cap is cheap.
+    $maxTok = 16384; $ctxWin = 65536
+    if ($Provider -eq "server") {
+        $maxTok = 8192
+        switch ($ActiveLabel) {
+            "mistral-small" { $ctxWin = 65536 }
+            "glm-4.7-flash" { $ctxWin = 45056 }
+            default         { $ctxWin = 32768 }
+        }
+    }
     $providerBlock = @{}
     # Server provider: expose ONE 'active-model' entry (so /model can't pick a not-yet-loaded model),
     # relabeled "Active: <model>" for visibility.
     if ($ActiveLabel) {
         $providerBlock["models"] = @(
-            @{ name = "Active: $ActiveLabel"; id = "active-model"; context_window = 65536; default_max_tokens = 32000 }
+            @{ name = "Active: $ActiveLabel"; id = "active-model"; context_window = $ctxWin; default_max_tokens = $maxTok }
         )
     }
     if ($SystemPromptPrefix) {
@@ -106,12 +118,12 @@ function Write-CrushConfig {
             "large" = @{
                 "model" = $Model
                 "provider" = $Provider
-                "max_tokens" = 32000
+                "max_tokens" = $maxTok
             }
             "small" = @{
                 "model" = $Model
                 "provider" = $Provider
-                "max_tokens" = 32000
+                "max_tokens" = $maxTok
             }
         }
     }
