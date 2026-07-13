@@ -440,6 +440,9 @@ fi
 
 cat > "$HOME/.kopiaignore" << 'KOPIAIGNORE'
 .cache/
+# LLM models (large, re-downloadable) — explicit even though .cache/ already covers HF
+.cache/huggingface/
+.ollama/
 .var/app/*/cache/
 .vscode/extensions/
 .config/Code/Cache/

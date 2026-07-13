@@ -213,6 +213,9 @@ kopia maintenance set --full-interval=720h
 # Exclusions for home directory via .kopiaignore (idempotent)
 cat > "${BACKUP_HOME}/.kopiaignore" << 'KOPIAIGNORE'
 .cache/
+# LLM models (large, re-downloadable) — explicit even though .cache/ already covers HF
+.cache/huggingface/
+.ollama/
 .var/app/*/cache/
 .vscode/extensions/
 .config/Code/Cache/
