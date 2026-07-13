@@ -203,6 +203,7 @@ model_description() {
         jeffcookio/Mistral-Small-3.2-24B-Instruct-2506-awq-sym) printf '%s' 'Mistral-Small-3.2 tokenizer source (tekken.json for --tokenizer-mode mistral); weights unused' ;;
         cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit) printf '%s' 'Devstral-2 24B AWQ — agentic-coding alternative (switch mode, dense, 384k ctx, compressed-tensors), ~14 GB' ;;
         Qwen/Qwen3-4B-Instruct-2507) printf '%s' 'Qwen3 4B — image-gen companion LLM (co-resides with HiDream), ~8 GB' ;;
+        cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit) printf '%s' 'Qwen3 4B AWQ-4bit — image-gen companion LLM (co-resides with HiDream), ~3.4 GB' ;;
         Qwen/Qwen3.6-27B-Instruct-GPTQ) printf '%s' 'Qwen3.6 27B GPTQ — primary model (32k ctx, FP8 KV), ~15 GB' ;;
         Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4) printf '%s' 'Qwen2.5-Coder 32B GPTQ — heavy coding, ~18 GB' ;;
         btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit) printf '%s' 'Qwen3-Coder 30B MoE GPTQ — heavy coding (agentic), ~19 GB' ;;
@@ -425,9 +426,9 @@ load_effective_model_config() {
             "QuantTrio/GLM-4.7-Flash-AWQ"
             "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit"
             "cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit"
-            "Qwen/Qwen3-4B-Instruct-2507"
+            "cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit"
         )
-        EFFECTIVE_MODEL_REQUIRED_GB=115
+        EFFECTIVE_MODEL_REQUIRED_GB=111
         OLLAMA_TIER_LABEL="n/a (vLLM)"
         MODEL_SOURCE_MESSAGE="Using vLLM (server) HuggingFace model roster."
     else
@@ -1354,12 +1355,12 @@ VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
             # Image companion: small, unquantized (no VLLM_QUANTIZATION), low util to leave
             # VRAM for HiDream (imagegen.service) which runs alongside it.
-            local image_env="VLLM_MODEL=Qwen/Qwen3-4B-Instruct-2507
+            local image_env="VLLM_MODEL=cyankiwi/Qwen3-4B-Instruct-2507-AWQ-4bit
 VLLM_SERVED_NAME=qwen3-4b
 VLLM_HOST=0.0.0.0
 VLLM_PORT=${VLLM_PORT}
 VLLM_MAX_MODEL_LEN=32768
-VLLM_GPU_MEMORY_UTILIZATION=0.25
+VLLM_GPU_MEMORY_UTILIZATION=0.20
 VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
             printf '%s' "$coder_env"     | run_privileged tee /etc/vllm/modes/coder.env     >/dev/null

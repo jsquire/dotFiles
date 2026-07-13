@@ -60,6 +60,7 @@ write_crush_config() {
         case "$active_label" in
             mistral-small)  ctx_win=65536 ;;
             glm-4.7-flash)  ctx_win=45056 ;;
+            qwen3-4b)       ctx_win=16384 ;;  # image companion: safe floor (desktop-up 1.7B tier serves 16K; headless 4B >= this)
             *)              ctx_win=32768 ;;
         esac
     fi

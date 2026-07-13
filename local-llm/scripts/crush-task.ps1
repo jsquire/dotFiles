@@ -90,6 +90,7 @@ function Write-CrushConfig {
         switch ($ActiveLabel) {
             "mistral-small" { $ctxWin = 65536 }
             "glm-4.7-flash" { $ctxWin = 45056 }
+            "qwen3-4b"      { $ctxWin = 16384 }  # image companion: safe floor (desktop-up 1.7B tier serves 16K; headless 4B >= this)
             default         { $ctxWin = 32768 }
         }
     }
