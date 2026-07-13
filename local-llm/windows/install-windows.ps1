@@ -1028,7 +1028,7 @@ if ($ShouldInstallSoftware) {
                 Write-Info "Local Ollama is the default provider. server (vLLM), Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
             }
             Write-Info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
-            Write-Info "MCP servers (Word, PowerPoint) are enabled. Run setup-mcp-venvs.ps1 to install them."
+            Write-Info "Office authoring (Word/PowerPoint/Excel) uses the 'office' skill — the model writes python-docx/python-pptx/openpyxl code and runs it via 'uv run'. The imagegen-mcp server is the only MCP enabled."
         }
     } else {
         Write-Warn "Config template not found at $crushConfigSource — skipping Crush config."
