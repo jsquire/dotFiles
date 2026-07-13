@@ -45,7 +45,6 @@ echo   [H6] North Mini Code 1.0    (northmini-code-256k^)
 echo   [H7] Nemotron Cascade 2 30B (nemotron-c2-256k^)
 echo   [H8] Ornith-1.0-35B         (ornith-35b-256k^)
 echo.
-echo   --- Big-MoE expert-offload bench (experts-^>RAM; slower, for models that don't fit^) ---
 echo   --- Big-MoE expert-offload bench (experts-^>RAM; partial offload, slower^) ---
 echo   [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB^)
 :menu_after_local
