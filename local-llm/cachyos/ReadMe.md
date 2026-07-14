@@ -74,7 +74,7 @@ The `--install` value makes the **inference engine explicit**:
 | `--install local` | Local Ollama server + client tools |
 | `--install client` | Client only (Crush + MCP, no local inference) |
 | `--ollama-models 4090\|5090` | Ollama roster GPU tier: 4090 (24GB) or 5090 (32GB). Applies to `--install local`, and to `--install client` when `--providers` includes `local` |
-| `--test-profiles` | Also install the experimental/bench models (North Mini Code, Nemotron Cascade 2, Ornith-1.0-35B, Qwen3-Next-80B); default is the 6 production models only |
+| `--test-profiles` | Also install the experimental/bench models (North Mini Code, Nemotron 3 Nano, Ornith-1.0-35B, Devstral Small 2, Qwen3-Next-80B); default is the 6 production models only |
 | `--no-client-tools` | With `--install local`: install the Ollama server + models only (no Crush/MCP) |
 | `--providers local,server` | Crush providers to enable (`server` = the vLLM provider) |
 | `--skip-models` | Install software only |

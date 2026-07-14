@@ -27,14 +27,15 @@ else
         [heavy]=qwen36-27b-212k [coder]=qwen3coder-144k [review]=qwen3coder-144k
         [agentic]=glm47-flash-198k [image_llm]=qwen3:8b
         [h1]=qwen36-27b-212k [h2]=qwen36-35b-256k [h3]=gemma4-31b-128k [h4]=qwen3coder-144k
-        [h5]=glm47-flash-198k [h6]=northmini-code-256k [h7]=nemotron-c2-256k [h8]=ornith-35b-256k
-        [o2]=qwen3next-80b-offload
+        [h5]=glm47-flash-198k [h6]=northmini-code-256k [h7]=nemotron3-nano-256k [h8]=ornith-35b-256k
+        [h9]=devstral2-24b-128k [o2]=qwen3next-80b-offload
     )
     LL_LABEL=(
         [qwen36-27b-212k]="Qwen3.6 27B (+MTP)" [qwen36-35b-256k]="Qwen3.6 35B-A3B MoE"
         [gemma4-31b-128k]="Gemma 4 31B dense" [qwen3coder-144k]="Qwen3-Coder 30B-A3B"
         [glm47-flash-198k]="GLM-4.7-Flash" [northmini-code-256k]="North Mini Code 1.0"
-        [nemotron-c2-256k]="Nemotron Cascade 2 30B-A3B" [ornith-35b-256k]="Ornith-1.0-35B"
+        [nemotron3-nano-256k]="Nemotron 3 Nano 30B-A3B" [ornith-35b-256k]="Ornith-1.0-35B"
+        [devstral2-24b-128k]="Devstral Small 2 (24B)"
         [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (partial offload)" [qwen3:8b]="Qwen3 8B"
     )
 fi
@@ -97,8 +98,9 @@ echo "  [H3] Gemma 4 31B dense      ($(_alias h3))"
 echo "  [H4] Qwen3-Coder 30B-A3B    ($(_alias h4))"
 echo "  [H5] GLM-4.7-Flash          ($(_alias h5))"
 echo "  [H6] North Mini Code 1.0    ($(_alias h6))"
-echo "  [H7] Nemotron Cascade 2 30B ($(_alias h7))"
+echo "  [H7] Nemotron 3 Nano 30B    ($(_alias h7))"
 echo "  [H8] Ornith-1.0-35B         ($(_alias h8))"
+echo "  [H9] Devstral Small 2 24B   ($(_alias h9))"
 echo
 echo "  --- Big-MoE expert-offload bench (experts->RAM; partial offload, slower) ---"
 echo "  [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB)"
@@ -150,6 +152,7 @@ case "$choice" in
     [Hh]6) export COPILOT_MODEL="$(_alias h6)" ;;
     [Hh]7) export COPILOT_MODEL="$(_alias h7)" ;;
     [Hh]8) export COPILOT_MODEL="$(_alias h8)" ;;
+    [Hh]9) export COPILOT_MODEL="$(_alias h9)" ;;
     s|S)
         squire_switch mistral
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"

@@ -152,8 +152,9 @@ if (-not $Task) {
     Write-Host "  [H4] Qwen3-Coder 30B-A3B"
     Write-Host "  [H5] GLM-4.7-Flash"
     Write-Host "  [H6] North Mini Code 1.0    (Cohere, agentic coding)"
-    Write-Host "  [H7] Nemotron Cascade 2 30B (NVIDIA, reasoning/agentic)"
+    Write-Host "  [H7] Nemotron 3 Nano 30B    (NVIDIA, reasoning/agentic)"
     Write-Host "  [H8] Ornith-1.0-35B         (MIT, agentic-coding reasoning)"
+    Write-Host "  [H9] Devstral Small 2 24B   (Mistral, agentic coding)"
     Write-Host ""
     Write-Host "  --- Big-MoE expert-offload bench (experts->RAM; partial offload, slower) ---"
     Write-Host "  [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB)"
@@ -184,8 +185,9 @@ if (-not $Task) {
         "H4" { $Task = "coding"; $SelectedModel = "qwen3coder-144k" }
         "H5" { $Task = "coding"; $SelectedModel = "glm47-flash-198k" }
         "H6" { $Task = "coding"; $SelectedModel = "northmini-code-256k" }
-        "H7" { $Task = "coding"; $SelectedModel = "nemotron-c2-256k" }
+        "H7" { $Task = "coding"; $SelectedModel = "nemotron3-nano-256k" }
         "H8" { $Task = "coding"; $SelectedModel = "ornith-35b-256k" }
+        "H9" { $Task = "coding"; $SelectedModel = "devstral2-24b-128k" }
         "O2" { $Task = "coding"; $SelectedModel = "qwen3next-80b-offload"; $OffloadMode = $true }
         "S"  { $Provider = "server"; $SwitchMode = "mistral";   $SelectedModel = "mistral-small"; $ServerMcp = @{ "imagegen-mcp" = @{ disabled = $true } } }
         "G"  { $Provider = "server"; $SwitchMode = "glm";       $SelectedModel = "glm-4.7-flash"; $ServerMcp = @{ "imagegen-mcp" = @{ disabled = $true } } }
@@ -208,8 +210,9 @@ $ModelLabel = @{
     "qwen3coder-144k"       = "Qwen3-Coder 30B-A3B"
     "glm47-flash-198k"      = "GLM-4.7-Flash"
     "northmini-code-256k"   = "North Mini Code 1.0"
-    "nemotron-c2-256k"      = "Nemotron Cascade 2 30B-A3B"
+    "nemotron3-nano-256k"   = "Nemotron 3 Nano 30B-A3B"
     "ornith-35b-256k"       = "Ornith-1.0-35B"
+    "devstral2-24b-128k"    = "Devstral Small 2 (24B)"
     "qwen3next-80b-offload" = "Qwen3-Next-80B-A3B (partial offload)"
     "mistral-small"         = "Mistral-Small (CachyOS vLLM)"
     "glm-4.7-flash"         = "GLM-4.7-Flash (CachyOS vLLM)"

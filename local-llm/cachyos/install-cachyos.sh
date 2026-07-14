@@ -251,19 +251,20 @@ populate_ollama_tier() {
     local glm="glm-4.7-flash"
     local img="qwen3:8b"
     local northmini="hf.co/unsloth/North-Mini-Code-1.0-GGUF:UD-Q4_K_M"
-    local nemotron="hf.co/bartowski/nvidia_Nemotron-Cascade-2-30B-A3B-GGUF:Q4_K_M"
+    local nemotron="hf.co/bartowski/nvidia_Nemotron-3-Nano-30B-A3B-GGUF:Q4_K_M"
     local ornith="hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"
+    local devstral="hf.co/unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF:Q4_K_M"
     local qwen3next="hf.co/Qwen/Qwen3-Next-80B-A3B-Instruct-GGUF:Q4_K_M"
 
     # Production roster (always). Experimental/bench models are added only with --test-profiles.
     OLLAMA_PULL_TAGS=("$mtp" "$q36_35b" "$gemma4" "$coder" "$glm" "$img")
     if [[ "$TEST_PROFILES" == true ]]; then
-        OLLAMA_PULL_TAGS+=("$northmini" "$nemotron" "$ornith" "$qwen3next")
+        OLLAMA_PULL_TAGS+=("$northmini" "$nemotron" "$ornith" "$devstral" "$qwen3next")
     fi
 
     # Per-tier alias names + contexts (24GB-safe on 4090; full on 5090).
-    local a_heavy a_q3635 a_gemma a_coder a_glm a_north a_nemo a_ornith
-    local c_heavy c_q3635 c_gemma c_coder c_glm c_north c_nemo c_ornith
+    local a_heavy a_q3635 a_gemma a_coder a_glm a_north a_nemo a_ornith a_devstral
+    local c_heavy c_q3635 c_gemma c_coder c_glm c_north c_nemo c_ornith c_devstral
     if [[ "$tier" == "5090" ]]; then
         a_heavy=qwen36-27b-212k;   c_heavy=217088
         a_q3635=qwen36-35b-256k;   c_q3635=262144
@@ -271,8 +272,9 @@ populate_ollama_tier() {
         a_coder=qwen3coder-144k;   c_coder=147456
         a_glm=glm47-flash-198k;    c_glm=202752
         a_north=northmini-code-256k; c_north=262144
-        a_nemo=nemotron-c2-256k;   c_nemo=262144
+        a_nemo=nemotron3-nano-256k; c_nemo=262144
         a_ornith=ornith-35b-256k;  c_ornith=262144
+        a_devstral=devstral2-24b-128k; c_devstral=131072
     else
         a_heavy=qwen36-27b-96k;    c_heavy=98304
         a_q3635=qwen36-35b-96k;    c_q3635=98304
@@ -280,8 +282,9 @@ populate_ollama_tier() {
         a_coder=qwen3coder-64k;    c_coder=65536
         a_glm=glm47-flash-45k;     c_glm=46080
         a_north=northmini-code-96k; c_north=98304
-        a_nemo=nemotron-c2-96k;    c_nemo=98304
+        a_nemo=nemotron3-nano-96k; c_nemo=98304
         a_ornith=ornith-35b-96k;   c_ornith=98304
+        a_devstral=devstral2-24b-64k; c_devstral=65536
     fi
     local a_offload=qwen3next-80b-offload
     local c_offload=131072
@@ -319,14 +322,17 @@ populate_ollama_tier() {
         OLLAMA_ALIAS_FROM["$a_north"]="$northmini";   OLLAMA_ALIAS_CTX["$a_north"]="$c_north"
         OLLAMA_ALIAS_FROM["$a_nemo"]="$nemotron";     OLLAMA_ALIAS_CTX["$a_nemo"]="$c_nemo"
         OLLAMA_ALIAS_FROM["$a_ornith"]="$ornith";     OLLAMA_ALIAS_CTX["$a_ornith"]="$c_ornith"
+        OLLAMA_ALIAS_FROM["$a_devstral"]="$devstral"; OLLAMA_ALIAS_CTX["$a_devstral"]="$c_devstral"
         OLLAMA_ALIAS_FROM["$a_offload"]="$qwen3next"; OLLAMA_ALIAS_CTX["$a_offload"]="$c_offload"
         OLLAMA_SLOT[h6]="$a_north"
         OLLAMA_SLOT[h7]="$a_nemo"
         OLLAMA_SLOT[h8]="$a_ornith"
+        OLLAMA_SLOT[h9]="$a_devstral"
         OLLAMA_SLOT[o2]="$a_offload"
         OLLAMA_ALIAS_LABEL["$a_north"]="North Mini Code 1.0"
-        OLLAMA_ALIAS_LABEL["$a_nemo"]="Nemotron Cascade 2 30B-A3B"
+        OLLAMA_ALIAS_LABEL["$a_nemo"]="Nemotron 3 Nano 30B-A3B"
         OLLAMA_ALIAS_LABEL["$a_ornith"]="Ornith-1.0-35B"
+        OLLAMA_ALIAS_LABEL["$a_devstral"]="Devstral Small 2 (24B)"
         OLLAMA_ALIAS_LABEL["$a_offload"]="Qwen3-Next-80B-A3B (partial offload)"
         # Qwen3-Next needs an explicit ChatML template baked in (the GGUF's embedded template
         # renders an immediate-EOS empty reply under Ollama).
