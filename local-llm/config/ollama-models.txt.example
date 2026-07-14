@@ -1,7 +1,7 @@
 # Ollama Model Pull List (OPTIONAL OVERRIDE)
 #
 # This is an EXAMPLE/template. By default the installer uses the built-in model
-# profile (-ModelProfile Desktop = the six production models, coherent with
+# roster (-OllamaModels 5090 = the six production models, coherent with
 # config\crush.json + the launcher aliases). You do NOT need this file.
 #
 # To override the profile's pull list, copy this file to `ollama-models.txt`

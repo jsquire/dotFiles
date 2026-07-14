@@ -26,9 +26,9 @@
       5090 — (default) RTX 5090 (32GB). Pulls the six production models
              (Qwen3.6 27B+MTP, Qwen3.6 35B-A3B, Gemma 4 31B, Qwen3-Coder 30B,
              GLM-4.7-Flash, Qwen3 8B) (~100 GB) — coherent with config\crush.json.
-      4090 — RTX 4090 (24GB). Same production roster fallback (~100 GB); contexts
-             are tuned for 32GB and may spill to CPU on 24GB.
-    -TestProfiles installs the same roster PLUS the heavy-coding + expert-offload
+    The Windows host is the 5090 gaming desktop; a real 24GB (4090) box runs the
+    CachyOS installer, which has its own tier. -TestProfiles installs the same roster
+    PLUS the heavy-coding + expert-offload
     bench contenders. Ignored in Client mode.
 
 .PARAMETER SquireServerIP
@@ -75,10 +75,6 @@
     Full install for RTX 5090 gaming desktop (pulls larger/better models).
 
 .EXAMPLE
-    .\install-windows.ps1 -OllamaModels 4090
-    Full install for dedicated 4090 inference server.
-
-.EXAMPLE
     .\install-windows.ps1 -Mode Client
     Client-only install (Profile 2): tools only, Crush defaults to the vLLM server (192.168.1.99).
 
@@ -117,7 +113,7 @@ param(
     [ValidateSet("", "local", "server", "squire-server")]
     [string]$DefaultProvider = "",
 
-    [ValidateSet("4090", "5090")]
+    [ValidateSet("5090")]
     [string]$OllamaModels = "5090",
 
     [string]$OllamaHost,
@@ -172,9 +168,6 @@ if ($Help) {
                               glm47-flash-198k    Agentic / all MCP+tools (GLM-4.7-Flash)
                               qwen3:8b            Image-gen companion
 
-    -OllamaModels 4090      RTX 4090 (24GB) — same production roster fallback (~100 GB);
-                              contexts are tuned for 32GB and may spill to CPU on 24GB.
-
   OPTIONS:
     -OllamaHost <url>    Optional extra remote Ollama provider (not required for Client mode)
                          Example: http://192.168.1.100:11434
@@ -208,7 +201,7 @@ if ($Help) {
 
   EXAMPLES:
     .\install-windows.ps1                                    # 5090 tier, full install
-    .\install-windows.ps1 -OllamaModels 4090 -EnableLAN      # 4090 tier, LAN exposed
+    .\install-windows.ps1 -EnableLAN                         # 5090 tier, LAN exposed
     .\install-windows.ps1 -Mode Client                      # Profile 2: squire-only client
     .\install-windows.ps1 -Install Full                                                  # 5090: Ollama server + client (local+server)
     .\install-windows.ps1 -Install Client -Providers local,server -DefaultProvider local  # client tools, both, default local
@@ -306,14 +299,6 @@ $ProductionModels = [ordered]@{
 $ProfileDefinitions = @{
     "5090" = @{
         Description = "RTX 5090 (32GB) — the six production models (coherent with crush.json + launchers)"
-        RequiredGB = 100
-        Models = $ProductionModels
-    }
-    "4090" = @{
-        # The real model server is the CachyOS/vLLM box (install-cachyos.sh); this Windows
-        # profile is a coherent fallback that mirrors the Desktop production roster. Contexts
-        # are 32GB-calibrated, so on a 24GB card the larger-ctx aliases may spill to CPU.
-        Description = "RTX 4090 (24GB) — production roster fallback (contexts tuned for 32GB; may spill on 24GB)"
         RequiredGB = 100
         Models = $ProductionModels
     }
@@ -665,9 +650,6 @@ if ($IsClientMode) {
     }
     if ($SkipModels) {
         Add-NonFatalWarning "SkipModels is irrelevant in client mode because no local models are pulled."
-    }
-    if ($OllamaModels -ne "5090") {
-        Add-NonFatalWarning "-OllamaModels is ignored in client mode because no local models are pulled (the client targets the vLLM server)."
     }
     if ($EnableLAN) {
         Add-NonFatalWarning "EnableLAN is ignored in client mode because Ollama is not installed locally."

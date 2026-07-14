@@ -2,7 +2,7 @@
 
 Single-user AI assistant on Windows with Ollama, Crush, Copilot CLI, MCP, and local image generation.
 
-**Hardware:** RTX 5090 (32GB, default) or RTX 4090 (24GB)
+**Hardware:** RTX 5090 (32GB)
 **Inference engine:** Ollama (single-user, GGUF models)
 
 ## What Gets Installed
@@ -17,20 +17,12 @@ Single-user AI assistant on Windows with Ollama, Crush, Copilot CLI, MCP, and lo
 | **copilot-local** | Task picker launcher for Copilot CLI | `~/Documents/CLI/` + PATH |
 | **MCP servers** | Office document editing (Word, PowerPoint) | Isolated Python venvs |
 
-### Models — RTX 5090 Profile (default, ~46 GB disk)
+### Models — RTX 5090 (~46 GB disk)
 
 | Model | Tag | Size | Task |
 |-------|-----|------|------|
 | GLM-4.7-Flash 30B MoE | `glm-4.7-flash` | 17 GB | Heavy coding, tech docs, creative, Office (202k ctx) |
 | Qwen3 14B | `qwen3:14b` | 9 GB | Light coding |
-| DeepSeek-R1 32B | `deepseek-r1:32b` | 19 GB | Code review, reasoning |
-
-### Models — RTX 4090 Profile (~45 GB disk)
-
-| Model | Tag | Size | Task |
-|-------|-----|------|------|
-| GLM-4.7-Flash 30B MoE | `glm-4.7-flash` | 17 GB | Heavy coding, tech docs, creative, Office (202k ctx) |
-| Qwen2.5-Coder 14B | `qwen2.5-coder:14b` | 9 GB | Light coding |
 | DeepSeek-R1 32B | `deepseek-r1:32b` | 19 GB | Code review, reasoning |
 
 ## Install
@@ -43,9 +35,6 @@ cd local-llm\windows
 
 # RTX 5090 with secondary storage (recommended)
 .\install-windows.ps1 -ModelPath D:\OllamaModels
-
-# RTX 4090 profile
-.\install-windows.ps1 -ModelProfile Server
 
 # Show all options
 .\install-windows.ps1 -Help
@@ -66,8 +55,7 @@ Provider tokens: `local` = local Ollama · `server` = CachyOS vLLM server.
 | `-Install Client` | Client tools only — no local Ollama; targets the vLLM `server` |
 | `-Providers local,server` | Crush providers to enable (`server` = the CachyOS vLLM provider) |
 | `-DefaultProvider local\|server` | Default Crush provider |
-| `-ModelProfile Desktop` | RTX 5090 roster (default) |
-| `-ModelProfile Server` | RTX 4090 roster |
+| `-OllamaModels 5090` | RTX 5090 roster (default; the only Windows tier) |
 | `-SkipModels` | Install software only; pull models later |
 | `-ModelsOnly` | Skip software; just pull/update models |
 | `-ModelPath D:\models` | Custom model storage location |

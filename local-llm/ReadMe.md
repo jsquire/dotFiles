@@ -36,7 +36,7 @@ cd local-llm/cachyos
 
 | Guide | For |
 |-------|-----|
-| **[windows/ReadMe.md](windows/ReadMe.md)** | Desktop setup — Ollama, 5090/4090 profiles, single-user |
+| **[windows/ReadMe.md](windows/ReadMe.md)** | Desktop setup — Ollama, 5090 profile, single-user |
 | **[cachyos/ReadMe.md](cachyos/ReadMe.md)** | Server setup — vLLM, multi-user, always-on LAN endpoint |
 
 ## Components
