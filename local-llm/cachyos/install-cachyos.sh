@@ -1325,9 +1325,13 @@ WantedBy=multi-user.target
                 || add_failure "Failed to create vllm@.service template."
 
             # Mode env-files. coder/coder-alt get full VRAM; image companion shares with HiDream.
+            # qwen3_coder tool parser is REQUIRED for agentic use: crush drives coding with tool_choice=auto,
+            # which vLLM 400s without --enable-auto-tool-choice + --tool-call-parser. (Instruct, non-thinking
+            # -> no reasoning parser.)
             local coder_env="VLLM_MODEL=btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit
 VLLM_SERVED_NAME=qwen3-coder
 VLLM_QUANTIZATION=gptq
+VLLM_TOOL_PARSER=qwen3_coder
 VLLM_HOST=0.0.0.0
 VLLM_PORT=${VLLM_PORT}
 VLLM_MAX_MODEL_LEN=57344
@@ -1350,9 +1354,12 @@ VLLM_GPU_MEMORY_UTILIZATION=0.92
 VLLM_KV_CACHE_DTYPE=auto
 "
             # coder-alt: Devstral-2 24B (dense, agentic-SWE) — AWQ is compressed-tensors format,
-            # so leave VLLM_QUANTIZATION unset and let vLLM auto-detect it.
+            # so leave VLLM_QUANTIZATION unset and let vLLM auto-detect it. mistral tool parser is REQUIRED
+            # for agentic use (Devstral is Mistral-family; verified it emits parseable tool calls without
+            # --tokenizer-mode mistral). Non-thinking -> no reasoning parser.
             local coder_alt_env="VLLM_MODEL=cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit
 VLLM_SERVED_NAME=devstral
+VLLM_TOOL_PARSER=mistral
 VLLM_HOST=0.0.0.0
 VLLM_PORT=${VLLM_PORT}
 VLLM_MAX_MODEL_LEN=57344
