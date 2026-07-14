@@ -186,10 +186,10 @@ case "$choice" in
         squire_switch image
         export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
         export COPILOT_MODEL="qwen3-4b"
-        # Image companion serves a 16K window (desktop-up 1.7B tier; headless 4B >= this). Shrink the
-        # global caps so prompt+output stay under it (mirrors the crush ctx_win=16384 floor).
-        export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=10240
-        export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=4096
+        # Image companion serves a 32K window (1.7B, KV holds ~43K tokens so 32K is free). Small output
+        # cap (it only emits a tool call); leaves ~28K for crush/copilot agentic prompt + tool schemas.
+        export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=28672
+        export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=2048
         ;;
     *) echo "  Invalid. Using $(_alias heavy)"; export COPILOT_MODEL="$(_alias heavy)" ;;
 esac

@@ -52,8 +52,9 @@ write_crush_config() {
     local models_block=""
 
     # Output cap + assumed window, by provider. The server (vLLM on the 4090) window per mode:
-    # coder/devstral 56K, glm 54K, mistral 64K, image companion 16K. Cap output at 8K to avoid
-    # starving agentic context. Local Ollama runs 128K-256K windows, so a larger 32K cap is cheap.
+    # coder/devstral 56K, glm 54K, mistral 64K, image companion 32K. Cap output at 8K to avoid
+    # starving agentic context (image companion caps output at 2K — it only emits a small tool call).
+    # Local Ollama runs 128K-256K windows, so a larger 32K cap is cheap.
     local max_tok=16384 ctx_win=65536
     if [[ "$provider" == "server" ]]; then
         max_tok=8192
@@ -62,7 +63,7 @@ write_crush_config() {
             glm-4.7-flash)  ctx_win=55296 ;;
             qwen3-coder)    ctx_win=57344 ;;
             devstral)       ctx_win=57344 ;;
-            qwen3-4b)       ctx_win=16384 ;;  # image companion: 1.7B single-tier, 16K served (desktop-up + headless)
+            qwen3-4b)       ctx_win=32768; max_tok=2048 ;;  # image companion: 1.7B, 32K served; small output (tool call only)
             *)              ctx_win=32768 ;;
         esac
     fi

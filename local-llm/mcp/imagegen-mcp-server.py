@@ -58,6 +58,32 @@ def _get_ai_tools_dir() -> Path:
     return Path.home() / ".local" / "share" / "ai-tools"
 
 
+def _default_output_dir() -> Path:
+    """Default directory for generated images: the caller's Downloads folder (both platforms)."""
+    return Path.home() / "Downloads"
+
+
+def _resolve_output_path(output_path: str, prompt: str) -> Path:
+    """Resolve where to save the image.
+
+    - Empty/omitted -> a timestamped auto-name in ~/Downloads (derived from the prompt).
+    - A bare filename (no directory) -> placed in ~/Downloads.
+    - An absolute path or one with a directory -> used as given.
+    A ``.png`` suffix is enforced in all cases.
+    """
+    raw = (output_path or "").strip()
+    if not raw:
+        slug = "".join(c if c.isalnum() else "_" for c in prompt[:40]).strip("_") or "image"
+        name = f"{slug}_{time.strftime('%Y%m%d-%H%M%S')}.png"
+        return _default_output_dir() / name
+    p = Path(raw)
+    if not p.is_absolute() and p.parent == Path("."):
+        p = _default_output_dir() / p.name
+    if p.suffix.lower() != ".png":
+        p = p.with_suffix(".png")
+    return p
+
+
 async def _check_server_health() -> bool:
     """Check if the imagegen server is running and healthy."""
     try:
@@ -155,19 +181,21 @@ async def _idle_shutdown_loop():
 @mcp.tool()
 async def generate_image(
     prompt: str,
-    output_path: str,
+    output_path: str = "",
     width: int = 1024,
     height: int = 1024,
 ) -> str:
     """Generate an image from a text prompt using HiDream-O1-Image-Dev.
 
-    The image is saved as a PNG file at the specified output_path.
+    The image is saved as a PNG file and the saved path is returned.
     The imagegen server is started automatically if not running (~15-20s cold start).
     Subsequent generations take ~15-25 seconds depending on resolution.
 
     Args:
         prompt: Detailed text description of the image to generate.
-        output_path: Full file path where the PNG image will be saved (e.g. C:/Users/Jesse/Desktop/cat.png).
+        output_path: Optional. Where to save the PNG. If omitted, the image is saved to the
+            user's Downloads folder with an auto-generated name. A bare filename (e.g. "cat.png")
+            is also placed in Downloads; an absolute/relative path with a directory is used as-is.
         width: Image width in pixels (default 1024). Rendered at 2048 native and downscaled.
         height: Image height in pixels (default 1024). Rendered at 2048 native and downscaled.
     """
@@ -206,7 +234,7 @@ async def generate_image(
         b64_data = data["data"][0]["b64_json"]
         img_bytes = base64.b64decode(b64_data)
 
-        out = Path(output_path)
+        out = _resolve_output_path(output_path, prompt)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(img_bytes)
 

@@ -82,8 +82,9 @@ function Write-CrushConfig {
     )
     $config = @{ mcp = $McpOverrides }
     # Output cap + assumed window, by provider. Server (vLLM on the 4090) window per mode: coder/devstral
-    # 56K, glm 54K, mistral 64K, image companion 16K -> cap output at 8K so agentic context isn't starved.
-    # Local Ollama runs 128K-256K windows, so a larger 32K cap is cheap.
+    # 56K, glm 54K, mistral 64K, image companion 32K -> cap output at 8K so agentic context isn't starved
+    # (image companion caps output at 2K — it only emits a small tool call). Local Ollama runs 128K-256K
+    # windows, so a larger 32K cap is cheap.
     $maxTok = 16384; $ctxWin = 65536
     if ($Provider -eq "server") {
         $maxTok = 8192
@@ -92,7 +93,7 @@ function Write-CrushConfig {
             "glm-4.7-flash" { $ctxWin = 55296 }
             "qwen3-coder"   { $ctxWin = 57344 }
             "devstral"      { $ctxWin = 57344 }
-            "qwen3-4b"      { $ctxWin = 16384 }  # image companion: 1.7B single-tier, 16K served (desktop-up + headless)
+            "qwen3-4b"      { $ctxWin = 32768; $maxTok = 2048 }  # image companion: 1.7B, 32K served; small output (tool call only)
             default         { $ctxWin = 32768 }
         }
     }
