@@ -1362,9 +1362,14 @@ VLLM_KV_CACHE_DTYPE=fp8_e5m2
             # Image companion: 1.7B AWQ (quant auto-detected), low util to co-reside with HiDream
             # (imagegen.service). Single tier: 16K served desktop-up AND headless (validated 942 MiB free
             # desktop-up, 3x 1024 gens PASS; headless frees only ~530 MiB so no larger tier warrants a swap).
-            # served-name stays qwen3-4b so crush/copilot are unchanged.
+            # served-name stays qwen3-4b so crush/copilot are unchanged. hermes tool parser + qwen3 reasoning
+            # parser are REQUIRED: crush's image flow sends the imagegen MCP tools with tool_choice=auto, which
+            # vLLM rejects with HTTP 400 unless --enable-auto-tool-choice + --tool-call-parser are set; the
+            # reasoning parser keeps the 1.7B's <think> out of the message content.
             local image_env="VLLM_MODEL=Orion-zhen/Qwen3-1.7B-AWQ
 VLLM_SERVED_NAME=qwen3-4b
+VLLM_TOOL_PARSER=hermes
+VLLM_REASONING_PARSER=qwen3
 VLLM_HOST=0.0.0.0
 VLLM_PORT=${VLLM_PORT}
 VLLM_MAX_MODEL_LEN=16384
