@@ -28,8 +28,7 @@
              GLM-4.7-Flash, Qwen3 8B) (~100 GB) — coherent with config\crush.json.
     The Windows host is the 5090 gaming desktop; a real 24GB (4090) box runs the
     CachyOS installer, which has its own tier. -TestProfiles installs the same roster
-    PLUS the heavy-coding + expert-offload
-    bench contenders. Ignored in Client mode.
+    PLUS the heavy-coding + expert-offload bench contenders. Ignored in Client mode.
 
 .PARAMETER SquireServerIP
     IP/host of the CachyOS vLLM "Squire Server" used by the launcher Remote
@@ -306,7 +305,7 @@ $ProfileDefinitions = @{
     # contender is installed at once and exposed through the launcher [H1]-[H5] bench.
     # NOTE: base pull tags below must be validated on the box — exact Ollama tags for
     # qwen3.6:35b / gemma4:31b / glm-4.7-flash may differ at install time.
-    "Desktop5090Test" = @{
+    "Test5090" = @{
         Description = "RTX 5090 (32GB) — side-by-side model bench (~1TB model storage)"
         RequiredGB = 290
         Models = [ordered]@{
@@ -538,7 +537,7 @@ function Get-ModelDriveLetter {
 }
 
 function Get-EffectiveModelConfig {
-    $profileKey = if ($TestProfiles) { "Desktop5090Test" } else { $OllamaModels }
+    $profileKey = if ($TestProfiles) { "Test5090" } else { $OllamaModels }
     $builtIn = $ProfileDefinitions[$profileKey]
     if ((-not $TestProfiles) -and (Test-Path $CustomModelListPath)) {
         $customModels = [ordered]@{}
