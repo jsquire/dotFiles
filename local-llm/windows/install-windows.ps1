@@ -21,13 +21,13 @@
     skips all Ollama installation and model steps and targets the vLLM server
     (use -SquireServerIP if it is not 192.168.1.99).
 
-.PARAMETER ModelProfile
-    GPU/environment profile that determines which models to pull:
-      Desktop — (default) RTX 5090 (32GB). Pulls the six production models
-                (Qwen3.6 27B+MTP, Qwen3.6 35B-A3B, Gemma 4 31B, Qwen3-Coder 30B,
-                GLM-4.7-Flash, Qwen3 8B) (~100 GB) — coherent with config\crush.json.
-      Server  — RTX 4090 (24GB). Same production roster fallback (~100 GB); contexts
-                are tuned for 32GB and may spill to CPU on 24GB.
+.PARAMETER OllamaModels
+    Ollama roster GPU tier that determines which models to pull:
+      5090 — (default) RTX 5090 (32GB). Pulls the six production models
+             (Qwen3.6 27B+MTP, Qwen3.6 35B-A3B, Gemma 4 31B, Qwen3-Coder 30B,
+             GLM-4.7-Flash, Qwen3 8B) (~100 GB) — coherent with config\crush.json.
+      4090 — RTX 4090 (24GB). Same production roster fallback (~100 GB); contexts
+             are tuned for 32GB and may spill to CPU on 24GB.
     -TestProfiles installs the same roster PLUS the heavy-coding + expert-offload
     bench contenders. Ignored in Client mode.
 
@@ -71,11 +71,11 @@
     Full installation with Standard profile model pulls.
 
 .EXAMPLE
-    .\install-windows.ps1 -ModelProfile Desktop
+    .\install-windows.ps1 -OllamaModels 5090
     Full install for RTX 5090 gaming desktop (pulls larger/better models).
 
 .EXAMPLE
-    .\install-windows.ps1 -ModelProfile Server
+    .\install-windows.ps1 -OllamaModels 4090
     Full install for dedicated 4090 inference server.
 
 .EXAMPLE
@@ -117,8 +117,8 @@ param(
     [ValidateSet("", "local", "server", "squire-server")]
     [string]$DefaultProvider = "",
 
-    [ValidateSet("Desktop", "Server")]
-    [string]$ModelProfile = "Desktop",
+    [ValidateSet("4090", "5090")]
+    [string]$OllamaModels = "5090",
 
     [string]$OllamaHost,
     [string]$ModelPath,
@@ -163,8 +163,8 @@ if ($Help) {
     -DefaultProvider <p>     local | server  (default: Full->local, Client->server)
     -SquireServerIP <ip>     vLLM server address (default: 192.168.1.99)
 
-  GPU PROFILES:
-    -ModelProfile Desktop   (default) RTX 5090 (32GB) — the six production models, ~100 GB:
+  GPU TIER:
+    -OllamaModels 5090      (default) RTX 5090 (32GB) — the six production models, ~100 GB:
                               qwen36-27b-212k     Heavy coding default (Qwen3.6 27B+MTP)
                               qwen36-35b-256k     Heavy coding / multimodal (Qwen3.6 35B-A3B)
                               gemma4-31b-128k     Heavy coding / general (Gemma 4 31B)
@@ -172,7 +172,7 @@ if ($Help) {
                               glm47-flash-198k    Agentic / all MCP+tools (GLM-4.7-Flash)
                               qwen3:8b            Image-gen companion
 
-    -ModelProfile Server    RTX 4090 (24GB) — same production roster fallback (~100 GB);
+    -OllamaModels 4090      RTX 4090 (24GB) — same production roster fallback (~100 GB);
                               contexts are tuned for 32GB and may spill to CPU on 24GB.
 
   OPTIONS:
@@ -207,8 +207,8 @@ if ($Help) {
     -Help                Show this help text
 
   EXAMPLES:
-    .\install-windows.ps1                                    # Desktop profile, full install
-    .\install-windows.ps1 -ModelProfile Server -EnableLAN    # Server profile, LAN exposed
+    .\install-windows.ps1                                    # 5090 tier, full install
+    .\install-windows.ps1 -OllamaModels 4090 -EnableLAN      # 4090 tier, LAN exposed
     .\install-windows.ps1 -Mode Client                      # Profile 2: squire-only client
     .\install-windows.ps1 -Install Full                                                  # 5090: Ollama server + client (local+server)
     .\install-windows.ps1 -Install Client -Providers local,server -DefaultProvider local  # client tools, both, default local
@@ -304,12 +304,12 @@ $ProductionModels = [ordered]@{
 }
 
 $ProfileDefinitions = @{
-    "Desktop" = @{
+    "5090" = @{
         Description = "RTX 5090 (32GB) — the six production models (coherent with crush.json + launchers)"
         RequiredGB = 100
         Models = $ProductionModels
     }
-    "Server" = @{
+    "4090" = @{
         # The real model server is the CachyOS/vLLM box (install-cachyos.sh); this Windows
         # profile is a coherent fallback that mirrors the Desktop production roster. Contexts
         # are 32GB-calibrated, so on a 24GB card the larger-ctx aliases may spill to CPU.
@@ -553,7 +553,7 @@ function Get-ModelDriveLetter {
 }
 
 function Get-EffectiveModelConfig {
-    $profileKey = if ($TestProfiles) { "Desktop5090Test" } else { $ModelProfile }
+    $profileKey = if ($TestProfiles) { "Desktop5090Test" } else { $OllamaModels }
     $builtIn = $ProfileDefinitions[$profileKey]
     if ((-not $TestProfiles) -and (Test-Path $CustomModelListPath)) {
         $customModels = [ordered]@{}
@@ -578,7 +578,7 @@ function Get-EffectiveModelConfig {
         }
 
         if ($customModels.Count -eq 0) {
-            Write-Warn "Custom model list at $CustomModelListPath is empty after stripping comments. Falling back to $ModelProfile profile."
+            Write-Warn "Custom model list at $CustomModelListPath is empty after stripping comments. Falling back to $OllamaModels tier."
         } else {
             return @{
                 Models = $customModels
@@ -650,7 +650,7 @@ if (",$Providers," -notlike "*,$DefaultProvider,*") {
 $ShouldInstallSoftware = $IsClientMode -or (-not $ModelsOnly)
 $ShouldPullModels = $IsFullMode -and (-not $SkipModels)
 $EffectiveModelConfig = if ($IsFullMode) { Get-EffectiveModelConfig } else { $null }
-$ModelProfileLabel = if ($IsFullMode) { $EffectiveModelConfig.Label } else { "n/a (client mode)" }
+$ModelTierLabel = if ($IsFullMode) { $EffectiveModelConfig.Label } else { "n/a (client mode)" }
 $ResolvedModelRoot = if ($IsFullMode) { Get-ResolvedModelRoot } else { $null }
 $ModelBlobsPath = if ($IsFullMode) { Join-Path $ResolvedModelRoot "blobs\*" } else { $null }
 
@@ -666,8 +666,8 @@ if ($IsClientMode) {
     if ($SkipModels) {
         Add-NonFatalWarning "SkipModels is irrelevant in client mode because no local models are pulled."
     }
-    if ($ModelProfile -ne "Desktop") {
-        Add-NonFatalWarning "ModelProfile is ignored in client mode because no local models are pulled."
+    if ($OllamaModels -ne "5090") {
+        Add-NonFatalWarning "-OllamaModels is ignored in client mode because no local models are pulled (the client targets the vLLM server)."
     }
     if ($EnableLAN) {
         Add-NonFatalWarning "EnableLAN is ignored in client mode because Ollama is not installed locally."
@@ -688,7 +688,7 @@ if ($ShouldPullModels) {
         $freeGB = [math]::Round($drive.Free / 1GB, 1)
         $requiredGB = $EffectiveModelConfig.RequiredGB
         if ($freeGB -lt $requiredGB) {
-            Write-Warn "Only $freeGB GB free on $driveLetter. Model pulls need ~$requiredGB GB for the $ModelProfileLabel profile."
+            Write-Warn "Only $freeGB GB free on $driveLetter. Model pulls need ~$requiredGB GB for the $ModelTierLabel tier."
             Write-Warn "Consider using -SkipModels and freeing space first."
         } else {
             Write-Info "$freeGB GB free on $driveLetter — sufficient for ~$requiredGB GB of model downloads."
@@ -1542,8 +1542,8 @@ if ($script:Failures.Count -gt 0 -or $script:Warnings.Count -gt 0) {
 
 Write-Host "  Mode:" -ForegroundColor White
 Write-Host "    • $Mode" -ForegroundColor Gray
-Write-Host "  Model profile:" -ForegroundColor White
-Write-Host "    • $ModelProfileLabel" -ForegroundColor Gray
+Write-Host "  Model tier:" -ForegroundColor White
+Write-Host "    • $ModelTierLabel" -ForegroundColor Gray
 Write-Host ""
 
 if ($ShouldInstallSoftware) {
