@@ -42,8 +42,9 @@ echo   [H3] Gemma 4 31B dense      (gemma4-31b-128k^)
 echo   [H4] Qwen3-Coder 30B-A3B    (qwen3coder-144k^)
 echo   [H5] GLM-4.7-Flash          (glm47-flash-198k^)
 echo   [H6] North Mini Code 1.0    (northmini-code-256k^)
-echo   [H7] Nemotron Cascade 2 30B (nemotron-c2-256k^)
+echo   [H7] Nemotron 3 Nano 30B    (nemotron3-nano-256k^)
 echo   [H8] Ornith-1.0-35B         (ornith-35b-256k^)
+echo   [H9] Devstral Small 2 24B   (devstral2-24b-128k^)
 echo.
 echo   --- Big-MoE expert-offload bench (experts-^>RAM; partial offload, slower^) ---
 echo   [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB^)
@@ -77,8 +78,9 @@ if /i "%choice%"=="H3" set COPILOT_MODEL=gemma4-31b-128k
 if /i "%choice%"=="H4" set COPILOT_MODEL=qwen3coder-144k
 if /i "%choice%"=="H5" set COPILOT_MODEL=glm47-flash-198k
 if /i "%choice%"=="H6" set COPILOT_MODEL=northmini-code-256k
-if /i "%choice%"=="H7" set COPILOT_MODEL=nemotron-c2-256k
+if /i "%choice%"=="H7" set COPILOT_MODEL=nemotron3-nano-256k
 if /i "%choice%"=="H8" set COPILOT_MODEL=ornith-35b-256k
+if /i "%choice%"=="H9" set COPILOT_MODEL=devstral2-24b-128k
 if /i "%choice%"=="O2" set COPILOT_MODEL=qwen3next-80b-offload
 if /i "%choice%"=="O2" set OFFLOAD=1
 if /i "%choice%"=="S" (
@@ -152,8 +154,9 @@ if /i "%COPILOT_MODEL%"=="gemma4-31b-128k"       set "MODEL_LABEL=Gemma 4 31B de
 if /i "%COPILOT_MODEL%"=="qwen3coder-144k"       set "MODEL_LABEL=Qwen3-Coder 30B-A3B"
 if /i "%COPILOT_MODEL%"=="glm47-flash-198k"      set "MODEL_LABEL=GLM-4.7-Flash"
 if /i "%COPILOT_MODEL%"=="northmini-code-256k"   set "MODEL_LABEL=North Mini Code 1.0"
-if /i "%COPILOT_MODEL%"=="nemotron-c2-256k"      set "MODEL_LABEL=Nemotron Cascade 2 30B-A3B"
+if /i "%COPILOT_MODEL%"=="nemotron3-nano-256k"   set "MODEL_LABEL=Nemotron 3 Nano 30B-A3B"
 if /i "%COPILOT_MODEL%"=="ornith-35b-256k"       set "MODEL_LABEL=Ornith-1.0-35B"
+if /i "%COPILOT_MODEL%"=="devstral2-24b-128k"    set "MODEL_LABEL=Devstral Small 2 (24B)"
 if /i "%COPILOT_MODEL%"=="qwen3next-80b-offload" set "MODEL_LABEL=Qwen3-Next-80B-A3B (partial offload)"
 if /i "%COPILOT_MODEL%"=="qwen3:8b"              set "MODEL_LABEL=Qwen3 8B"
 
