@@ -17,7 +17,8 @@ NO_CLIENT_TOOLS=false
 # Ollama model roster GPU tier (local/Ollama installs only): 4090 (24GB) | 5090 (32GB).
 # Default 4090 — the CachyOS box is the 4090. Selected via --ollama-models.
 OLLAMA_TIER="4090"
-MODEL_PROFILE=""   # deprecated alias for --ollama-models (desktop->5090, server->4090)
+OLLAMA_TIER_EXPLICIT=false   # true once --ollama-models is passed (for the "no local provider" warning)
+TEST_PROFILES=false          # --test-profiles: also install the experimental/bench models (mirrors Windows)
 OLLAMA_HOST_ARG=""
 MODEL_PATH=""
 SKIP_MODELS=false
@@ -90,9 +91,12 @@ Options:
                                ('squire-server' is accepted as a legacy alias for 'server'.)
   --default-provider <p>       Default crush provider: local | server
                                (default: local->local; server/client->server)
-  --ollama-models 4090|5090    Ollama roster GPU tier (local installs only): 4090 (24GB) or 5090 (32GB).
-                               Default: 4090. Distinct per-tier aliases + tier-safe contexts.
-                               (Deprecated: --model-profile desktop|server, mapped desktop->5090, server->4090.)
+  --ollama-models 4090|5090    Ollama roster GPU tier: 4090 (24GB) or 5090 (32GB). Default: 4090.
+                               Distinct per-tier aliases + tier-safe contexts. Applies to local installs
+                               AND to client installs whose --providers includes 'local' (it selects the
+                               launcher's model-alias menu so it matches the remote Ollama server's tier).
+  --test-profiles              Also install the experimental/bench models (North Mini Code, Nemotron
+                               Cascade 2, Ornith-1.0-35B, Qwen3-Next-80B). Default: production roster only.
   --squire-server-ip <ip>      Remote (server) address for client/local installs (default: 192.168.1.99)
   --squire-ssh-target <target> SSH target for the server model-switch (default: jesse@192.168.1.99)
   --ollama-host <url>          Optional extra remote Ollama provider (NOT required for client mode)
@@ -251,8 +255,11 @@ populate_ollama_tier() {
     local ornith="hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"
     local qwen3next="hf.co/Qwen/Qwen3-Next-80B-A3B-Instruct-GGUF:Q4_K_M"
 
-    OLLAMA_PULL_TAGS=("$mtp" "$q36_35b" "$gemma4" "$coder" "$glm" "$img" \
-                      "$northmini" "$nemotron" "$ornith" "$qwen3next")
+    # Production roster (always). Experimental/bench models are added only with --test-profiles.
+    OLLAMA_PULL_TAGS=("$mtp" "$q36_35b" "$gemma4" "$coder" "$glm" "$img")
+    if [[ "$TEST_PROFILES" == true ]]; then
+        OLLAMA_PULL_TAGS+=("$northmini" "$nemotron" "$ornith" "$qwen3next")
+    fi
 
     # Per-tier alias names + contexts (24GB-safe on 4090; full on 5090).
     local a_heavy a_q3635 a_gemma a_coder a_glm a_north a_nemo a_ornith
@@ -284,21 +291,6 @@ populate_ollama_tier() {
     OLLAMA_ALIAS_FROM["$a_gemma"]="$gemma4";     OLLAMA_ALIAS_CTX["$a_gemma"]="$c_gemma"
     OLLAMA_ALIAS_FROM["$a_coder"]="$coder";      OLLAMA_ALIAS_CTX["$a_coder"]="$c_coder"
     OLLAMA_ALIAS_FROM["$a_glm"]="$glm";          OLLAMA_ALIAS_CTX["$a_glm"]="$c_glm"
-    OLLAMA_ALIAS_FROM["$a_north"]="$northmini";  OLLAMA_ALIAS_CTX["$a_north"]="$c_north"
-    OLLAMA_ALIAS_FROM["$a_nemo"]="$nemotron";    OLLAMA_ALIAS_CTX["$a_nemo"]="$c_nemo"
-    OLLAMA_ALIAS_FROM["$a_ornith"]="$ornith";    OLLAMA_ALIAS_CTX["$a_ornith"]="$c_ornith"
-    OLLAMA_ALIAS_FROM["$a_offload"]="$qwen3next"; OLLAMA_ALIAS_CTX["$a_offload"]="$c_offload"
-
-    # Qwen3-Next needs an explicit ChatML template baked in (the GGUF's embedded
-    # template renders an immediate-EOS empty reply under Ollama).
-    OLLAMA_ALIAS_TEMPLATE["$a_offload"]='{{ if .System }}<|im_start|>system
-{{ .System }}<|im_end|>
-{{ end }}{{ range .Messages }}{{ if eq .Role "user" }}<|im_start|>user
-{{ .Content }}<|im_end|>
-{{ else if eq .Role "assistant" }}<|im_start|>assistant
-{{ .Content }}<|im_end|>
-{{ end }}{{ end }}<|im_start|>assistant
-'
 
     # Task->alias SLOT map (drives the launcher tier config).
     OLLAMA_SLOT[heavy]="$a_heavy"
@@ -311,10 +303,6 @@ populate_ollama_tier() {
     OLLAMA_SLOT[h3]="$a_gemma"
     OLLAMA_SLOT[h4]="$a_coder"
     OLLAMA_SLOT[h5]="$a_glm"
-    OLLAMA_SLOT[h6]="$a_north"
-    OLLAMA_SLOT[h7]="$a_nemo"
-    OLLAMA_SLOT[h8]="$a_ornith"
-    OLLAMA_SLOT[o2]="$a_offload"
 
     # Friendly labels (identity is tier-independent).
     OLLAMA_ALIAS_LABEL["$a_heavy"]="Qwen3.6 27B (+MTP)"
@@ -322,11 +310,35 @@ populate_ollama_tier() {
     OLLAMA_ALIAS_LABEL["$a_gemma"]="Gemma 4 31B"
     OLLAMA_ALIAS_LABEL["$a_coder"]="Qwen3-Coder 30B-A3B"
     OLLAMA_ALIAS_LABEL["$a_glm"]="GLM-4.7-Flash"
-    OLLAMA_ALIAS_LABEL["$a_north"]="North Mini Code 1.0"
-    OLLAMA_ALIAS_LABEL["$a_nemo"]="Nemotron Cascade 2 30B-A3B"
-    OLLAMA_ALIAS_LABEL["$a_ornith"]="Ornith-1.0-35B"
     OLLAMA_ALIAS_LABEL["$img"]="Qwen3 8B"
-    OLLAMA_ALIAS_LABEL["$a_offload"]="Qwen3-Next-80B-A3B (partial offload)"
+
+    # Experimental/bench models — registered only with --test-profiles (aliases, bench task slots
+    # [H6]-[H8]/[O2], friendly labels, and the Qwen3-Next ChatML template). Kept out of the maps
+    # otherwise so the alias-creation loop never tries to build an un-pulled model.
+    if [[ "$TEST_PROFILES" == true ]]; then
+        OLLAMA_ALIAS_FROM["$a_north"]="$northmini";   OLLAMA_ALIAS_CTX["$a_north"]="$c_north"
+        OLLAMA_ALIAS_FROM["$a_nemo"]="$nemotron";     OLLAMA_ALIAS_CTX["$a_nemo"]="$c_nemo"
+        OLLAMA_ALIAS_FROM["$a_ornith"]="$ornith";     OLLAMA_ALIAS_CTX["$a_ornith"]="$c_ornith"
+        OLLAMA_ALIAS_FROM["$a_offload"]="$qwen3next"; OLLAMA_ALIAS_CTX["$a_offload"]="$c_offload"
+        OLLAMA_SLOT[h6]="$a_north"
+        OLLAMA_SLOT[h7]="$a_nemo"
+        OLLAMA_SLOT[h8]="$a_ornith"
+        OLLAMA_SLOT[o2]="$a_offload"
+        OLLAMA_ALIAS_LABEL["$a_north"]="North Mini Code 1.0"
+        OLLAMA_ALIAS_LABEL["$a_nemo"]="Nemotron Cascade 2 30B-A3B"
+        OLLAMA_ALIAS_LABEL["$a_ornith"]="Ornith-1.0-35B"
+        OLLAMA_ALIAS_LABEL["$a_offload"]="Qwen3-Next-80B-A3B (partial offload)"
+        # Qwen3-Next needs an explicit ChatML template baked in (the GGUF's embedded template
+        # renders an immediate-EOS empty reply under Ollama).
+        OLLAMA_ALIAS_TEMPLATE["$a_offload"]='{{ if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}{{ range .Messages }}{{ if eq .Role "user" }}<|im_start|>user
+{{ .Content }}<|im_end|>
+{{ else if eq .Role "assistant" }}<|im_start|>assistant
+{{ .Content }}<|im_end|>
+{{ end }}{{ end }}<|im_start|>assistant
+'
+    fi
 }
 
 # Path the launchers source for their tier-aware alias set.
@@ -653,15 +665,15 @@ parse_args() {
                 DEFAULT_PROVIDER="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
                 shift 2
                 ;;
-            --model-profile)
-                [[ $# -lt 2 ]] && { fail "--model-profile requires a value."; usage; exit 1; }
-                MODEL_PROFILE="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
-                shift 2
-                ;;
             --ollama-models)
                 [[ $# -lt 2 ]] && { fail "--ollama-models requires a value (4090|5090)."; usage; exit 1; }
                 OLLAMA_TIER="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
+                OLLAMA_TIER_EXPLICIT=true
                 shift 2
+                ;;
+            --test-profiles)
+                TEST_PROFILES=true
+                shift
                 ;;
             --no-client-tools)
                 NO_CLIENT_TOOLS=true
@@ -766,26 +778,11 @@ case "$MODE" in
     *) fail "--mode must be client, full, or server."; exit 1 ;;
 esac
 
-# Map the deprecated --model-profile onto --ollama-models (desktop->5090, server->4090).
-if [[ -n "$MODEL_PROFILE" ]]; then
-    case "$MODEL_PROFILE" in
-        desktop) OLLAMA_TIER="5090"; info "--model-profile desktop is deprecated; use --ollama-models 5090." ;;
-        server)  OLLAMA_TIER="4090"; info "--model-profile server is deprecated; use --ollama-models 4090." ;;
-        *) fail "--model-profile must be 'desktop' or 'server' (deprecated; use --ollama-models 4090|5090)."; exit 1 ;;
-    esac
-fi
-
-# --ollama-models is valid only for local (Ollama) installs.
+# Validate the Ollama roster GPU tier.
 case "$OLLAMA_TIER" in
     4090|5090) ;;
     *) fail "--ollama-models must be 4090 or 5090."; exit 1 ;;
 esac
-if [[ "$MODE" != "full" ]]; then
-    # server/client don't run a local Ollama roster; warn if the tier was set explicitly.
-    if [[ -n "$MODEL_PROFILE" || "$OLLAMA_TIER" != "4090" ]]; then
-        add_warning "--ollama-models applies only to --install local; ignored for --install ${INSTALL}."
-    fi
-fi
 
 if [[ "$MODE" == "client" && -n "$OLLAMA_HOST_ARG" ]]; then
     info "Client mode targets the server (vLLM); --ollama-host will be kept only as an optional extra remote-Ollama provider."
@@ -870,6 +867,13 @@ for pv in ${PROVIDERS//,/ }; do
         *) fail "--providers entries must be 'local' or 'server' (got '$pv')."; exit 1 ;;
     esac
 done
+# The Ollama tier only takes effect when the launchers present local Ollama entries — i.e. when the
+# resolved providers include 'local' (true for local installs AND for client installs with a local
+# provider, where it selects the alias menu that matches the remote Ollama server's tier). Warn only if
+# a tier was set explicitly but no local provider is wired, where it has no effect.
+if [[ "$OLLAMA_TIER_EXPLICIT" == true && ",$PROVIDERS," != *",local,"* ]]; then
+    add_warning "--ollama-models ${OLLAMA_TIER} has no effect without a 'local' provider (providers=${PROVIDERS}); ignored."
+fi
 case "$DEFAULT_PROVIDER" in
     local|server) ;;
     *) fail "--default-provider must be 'local' or 'server'."; exit 1 ;;
