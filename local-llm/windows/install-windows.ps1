@@ -1190,22 +1190,29 @@ TIMESTEP_TOKEN_NUM = 1
     # ── Step: Deploy copilot-local launcher ───────────────────────────────
 
     Write-Step "Deploy copilot-local launcher"
-    $launcherSource = Join-Path $PSScriptRoot "..\scripts\copilot-local.cmd"
+    $launcherPs1Source = Join-Path $PSScriptRoot "..\scripts\copilot-local.ps1"
+    $launcherShimSource = Join-Path $PSScriptRoot "..\scripts\copilot-local.cmd"
+    $launcherPs1Dest = Join-Path $UserProfile "Documents\CLI\copilot-local.ps1"
     $launcherDest = Join-Path $UserProfile "Documents\CLI\copilot-local.cmd"
 
-    if (Test-Path $launcherSource) {
+    if (Test-Path $launcherPs1Source) {
         $cliDir = Split-Path $launcherDest
         if (-not (Test-Path $cliDir)) {
             New-Item -ItemType Directory -Path $cliDir -Force | Out-Null
         }
-        # Substitute the Squire Server placeholders so the Remote [S]/[C]/[V]/[I] options work.
-        # BOM-free write — a UTF-8 BOM at the top of a .cmd makes cmd.exe choke on the first line.
-        $launcherContent = Get-Content $launcherSource -Raw
-        $launcherContent = $launcherContent -replace '__SQUIRE_SERVER_IP__', $SquireServerIP
-        $launcherContent = $launcherContent -replace '__SQUIRE_SSH_TARGET__', $SquireSSHTarget
-        $launcherContent = $launcherContent -replace '__LL_PROVIDERS__', $Providers
-        [System.IO.File]::WriteAllText($launcherDest, $launcherContent, (New-Object System.Text.UTF8Encoding($false)))
-        Write-Success "Deployed copilot-local.cmd to $launcherDest (server IP $SquireServerIP, ssh $SquireSSHTarget)"
+        # The launcher is copilot-local.ps1 (PowerShell renders the box-drawing UI + colour reliably;
+        # cmd.exe cannot parse a UTF-8 batch file with box glyphs). Substitute the Squire Server
+        # placeholders and deploy it UTF-8, plus a thin copilot-local.cmd shim so `copilot-local` works on PATH.
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        $ps1Content = [System.IO.File]::ReadAllText($launcherPs1Source, $utf8NoBom)
+        $ps1Content = $ps1Content -replace '__SQUIRE_SERVER_IP__', $SquireServerIP
+        $ps1Content = $ps1Content -replace '__SQUIRE_SSH_TARGET__', $SquireSSHTarget
+        $ps1Content = $ps1Content -replace '__LL_PROVIDERS__', $Providers
+        [System.IO.File]::WriteAllText($launcherPs1Dest, $ps1Content, $utf8NoBom)
+        # Thin shim (static ASCII, no placeholders).
+        $shimContent = [System.IO.File]::ReadAllText($launcherShimSource, $utf8NoBom)
+        [System.IO.File]::WriteAllText($launcherDest, $shimContent, $utf8NoBom)
+        Write-Success "Deployed copilot-local.ps1 + shim to $cliDir (server IP $SquireServerIP, ssh $SquireSSHTarget)"
 
         # Ensure Documents\CLI is on PATH
         $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
@@ -1218,7 +1225,7 @@ TIMESTEP_TOKEN_NUM = 1
         }
         Write-Info "Usage: copilot-local (from any directory)"
     } else {
-        Write-Warn "Launcher script not found at $launcherSource — skipping."
+        Write-Warn "Launcher script not found at $launcherPs1Source — skipping."
     }
 
     # ── Step: Deploy crush-task launcher ──────────────────────────────────

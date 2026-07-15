@@ -74,50 +74,125 @@ if [[ "${1:-}" == *":"* ]]; then
     exec copilot --model "$COPILOT_MODEL" -- "$@"
 fi
 
-# No model specified — show picker
-echo
-if _ll_has local; then
-echo "  --- Coding ---"
-echo "  [1] Heavy coding        ($(_alias heavy))"
-echo "  [2] Light coding        ($(_alias coder))"
-echo "  [3] Code review         ($(_alias review))"
-echo
-echo "  --- Writing & Documents ---"
-echo "  [4] Technical docs      ($(_alias heavy))"
-echo "  [5] Creative writing    ($(_alias heavy))"
-echo "  [6] Office documents    ($(_alias agentic))"
-echo
-echo "  --- Visual ---"
-echo "  [7] Image generation    ($(_alias image_llm) + HiDream via MCP)"
-echo
-echo "  ══ EXPERIMENTAL · models under evaluation ($LL_OLLAMA_TIER tier) ══════════"
-echo "  --- Heavy-coding bench (VRAM-resident; swap model, all MCP off) ---"
-echo "  [H1] Qwen3.6 27B+MTP        ($(_alias h1))"
-echo "  [H2] Qwen3.6 35B-A3B MoE    ($(_alias h2))"
-echo "  [H3] Gemma 4 31B dense      ($(_alias h3))"
-echo "  [H4] Qwen3-Coder 30B-A3B    ($(_alias h4))"
-echo "  [H5] GLM-4.7-Flash          ($(_alias h5))"
-echo "  [H6] North Mini Code 1.0    ($(_alias h6))"
-echo "  [H7] Nemotron 3 Nano 30B    ($(_alias h7))"
-echo "  [H8] Ornith-1.0-35B         ($(_alias h8))"
-echo "  [H9] Devstral Small 2 24B   ($(_alias h9))"
-echo
-echo "  --- Big-MoE expert-offload bench (experts->RAM; partial offload, slower) ---"
-echo "  [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB)"
-fi
-echo
-if _ll_has server; then
-echo "  --- Remote (CachyOS server — one standing model, switch only when needed) ---"
-echo "  [S] CachyOS: Mistral-Small   (default — office/authoring, 64K)"
-echo "  [G] CachyOS: GLM-4.7-Flash   (agentic/reasoning — switches server)"
-echo "  [C] CachyOS: Qwen3-Coder     (coding-first — switches server)"
-echo "  [D] CachyOS: Devstral-2 24B   (coding-alt, agentic — switches server)"
-echo "  [I] CachyOS: Image gen        (HiDream + Qwen3-4B — switches server)"
-fi
-echo
-if _ll_has local; then default_choice=1; else default_choice=S; fi
-read -rp "  Select task [$default_choice]: " choice
-choice="${choice:-$default_choice}"
+# No model specified — show the two-level environment picker (colour box UI).
+W=110
+ESC=$'\033'; FRAME="${ESC}[38;5;25m"; TEXT="${ESC}[97m"; RST="${ESC}[0m"
+bar=$(printf '═%.0s' $(seq 1 $W))
+box_top() { printf '  %s╔%s╗%s\n' "$FRAME" "$bar" "$RST"; }
+box_mid() { printf '  %s╠%s╣%s\n' "$FRAME" "$bar" "$RST"; }
+box_bot() { printf '  %s╚%s╝%s\n' "$FRAME" "$bar" "$RST"; }
+box_line() { printf '  %s║%s%-*.*s%s║%s\n' "$FRAME" "$TEXT" "$W" "$W" "$1" "$FRAME" "$RST"; }
+box_center() { local s="$1" p=$(( (W - ${#s}) / 2 )); (( p < 0 )) && p=0; box_line "$(printf '%*s%s' "$p" '' "$s")"; }
+box_row() { box_line "$(printf '       %-5s %-26.26s %s' "[$1]" "$2" "$3")"; }
+rule() { box_line "     $(printf -- '-%.0s' $(seq 1 "$1"))"; }
+
+has_local=false; has_server=false
+_ll_has local && has_local=true
+_ll_has server && has_server=true
+choice=""; menuerr=""
+if $has_local; then page=env; else page=server; fi
+while true; do
+    clear
+    echo
+    case "$page" in
+        env)
+            box_top; box_center "Copilot Local"; box_line ""; box_center "pick an environment"; box_mid
+            box_line ""
+            box_line "     [1]  Local"; box_line "          Production daily-drivers"; box_line ""
+            box_line "     [2]  Local - Experimental"; box_line "          Models under evaluation"
+            if $has_server; then box_line ""; box_line "     [3]  Squire-Server"; box_line "          Models hosted on the server"; fi
+            box_line ""; box_line ""; box_line "     [Q]  Quit"; box_line ""; box_bot; echo
+            [ -n "$menuerr" ] && { echo "   $menuerr"; menuerr=""; }
+            read -rp "   Your choice [1]: " sel
+            sel="${sel:-1}"
+            case "${sel^^}" in
+                1) page=local ;;
+                2) page=exp ;;
+                3) if $has_server; then page=server; else menuerr="Invalid selection, try again."; fi ;;
+                Q) clear; exit 0 ;;
+                *) menuerr="Invalid selection, try again." ;;
+            esac
+            ;;
+        local)
+            box_top; box_center "Copilot Local"; box_line ""; box_center "local : production models"; box_mid
+            box_line ""
+            box_line "     Coding"; rule 6; box_line ""
+            box_row "1" "Heavy coding" "$(_alias heavy)"
+            box_row "2" "Light coding" "$(_alias coder)"
+            box_row "3" "Code review" "$(_alias review)"
+            box_line ""; box_line ""
+            box_line "     Writing & Documents"; rule 19; box_line ""
+            box_row "4" "Technical docs" "$(_alias heavy)"
+            box_row "5" "Creative writing" "$(_alias heavy)"
+            box_row "6" "Office documents" "$(_alias agentic)"
+            box_line ""; box_line ""
+            box_line "     Visual"; rule 6; box_line ""
+            box_row "7" "Image generation" "$(_alias image_llm) + HiDream (MCP)"
+            box_line ""; box_line ""; box_line ""
+            box_row "B" "Back to environments" ""; box_row "Q" "Quit" ""; box_line ""
+            box_bot; echo
+            [ -n "$menuerr" ] && { echo "   $menuerr"; menuerr=""; }
+            read -rp "   Your choice [1]: " sel
+            sel="${sel:-1}"
+            if [[ "${sel^^}" == "Q" ]]; then clear; exit 0; fi
+            case "${sel^^}" in B) page=env; continue ;; esac
+            if [[ "$sel" =~ ^[1-7]$ ]]; then choice="$sel"; break; fi
+            menuerr="Invalid selection, try again."
+            ;;
+        exp)
+            box_top; box_center "Copilot Local"; box_line ""; box_center "local : models under evaluation ($LL_OLLAMA_TIER tier)"; box_mid
+            box_line ""
+            box_line "     Heavy-coding bench"; box_line "         (VRAM-resident; swap model, MCP off)"; rule 40; box_line ""
+            box_row "1" "Qwen3.6 27B+MTP" "$(_alias h1)"
+            box_row "2" "Qwen3.6 35B-A3B MoE" "$(_alias h2)"
+            box_row "3" "Gemma 4 31B dense" "$(_alias h3)"
+            box_row "4" "Qwen3-Coder 30B-A3B" "$(_alias h4)"
+            box_row "5" "GLM-4.7-Flash" "$(_alias h5)"
+            box_row "6" "North Mini Code 1.0" "$(_alias h6)"
+            box_row "7" "Nemotron 3 Nano 30B" "$(_alias h7)"
+            box_row "8" "Ornith-1.0-35B" "$(_alias h8)"
+            box_row "9" "Devstral Small 2 24B" "$(_alias h9)"
+            box_line ""; box_line ""
+            box_line "     Big-MoE expert-offload bench"; box_line "         (experts to RAM; slower)"; rule 28; box_line ""
+            box_row "10" "Qwen3-Next-80B-A3B" "offload, Q4_K_M ~45 GB"
+            box_line ""; box_line ""; box_line ""
+            box_row "B" "Back to environments" ""; box_row "Q" "Quit" ""; box_line ""
+            box_bot; echo
+            [ -n "$menuerr" ] && { echo "   $menuerr"; menuerr=""; }
+            read -rp "   Your choice [1]: " sel
+            sel="${sel:-1}"
+            if [[ "${sel^^}" == "Q" ]]; then clear; exit 0; fi
+            case "${sel^^}" in B) page=env; continue ;; esac
+            if [[ "$sel" =~ ^[1-9]$ ]]; then choice="H$sel"; break; fi
+            if [[ "$sel" == "10" ]]; then choice="O2"; break; fi
+            menuerr="Invalid selection, try again."
+            ;;
+        server)
+            box_top; box_center "Copilot Local"; box_line ""; box_center "squire-server : remote models"; box_mid
+            box_line ""
+            box_line "     Remote"; box_line "         (server - switches the standing model on pick)"; rule 50; box_line ""
+            box_row "1" "Mistral-Small" "default : office/authoring, 64K"
+            box_row "2" "GLM-4.7-Flash" "agentic / reasoning"
+            box_row "3" "Qwen3-Coder" "coding-first"
+            box_row "4" "Devstral-2 24B" "coding-alt, agentic"
+            box_row "5" "Image gen" "HiDream + Qwen3-4B"
+            box_line ""; box_line ""; box_line ""
+            if $has_local; then box_row "B" "Back to environments" ""; fi
+            box_row "Q" "Quit" ""; box_line ""
+            box_bot; echo
+            [ -n "$menuerr" ] && { echo "   $menuerr"; menuerr=""; }
+            read -rp "   Your choice [1]: " sel
+            sel="${sel:-1}"
+            if [[ "${sel^^}" == "Q" ]]; then clear; exit 0; fi
+            if [[ "${sel^^}" == "B" ]] && $has_local; then page=env; continue; fi
+            case "$sel" in
+                1) choice="S" ;; 2) choice="G" ;; 3) choice="C" ;; 4) choice="D" ;; 5) choice="I" ;;
+                *) menuerr="Invalid selection, try again."; choice="" ;;
+            esac
+            [ -n "$choice" ] && break
+            ;;
+    esac
+done
 OFFLOAD_MODE=0
 
 case "$choice" in
