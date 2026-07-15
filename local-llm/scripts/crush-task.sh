@@ -12,13 +12,13 @@
 #   image   — imagegen-mcp (image generation)
 set -euo pipefail
 
-# ── Provider gating (local Ollama / remote CachyOS server) ────────────────────
+# ── Provider gating (local Ollama / remote squire-server) ─────────────────────
 # Baked in by the installer; falls back to both if the placeholder was not substituted.
 LL_PROVIDERS="__LL_PROVIDERS__"
 [[ "$LL_PROVIDERS" == *"__"* || -z "$LL_PROVIDERS" ]] && LL_PROVIDERS="local,server"
 _ll_has() { [[ ",${LL_PROVIDERS}," == *",$1,"* ]]; }
 
-# Switch the CachyOS server's active model via the accountless web endpoint (:4090). The server
+# Switch the squire-server's active model via the accountless web endpoint (:4090). The server
 # loads one model at a time, so POST the mode then poll /status until it is loaded before launching
 # Crush (so we never hand Crush a not-yet-ready model).
 squire_switch() {
@@ -51,7 +51,7 @@ write_crush_config() {
     local providers_block=""
     local models_block=""
 
-    # Output cap + assumed window, by provider. The server (vLLM on the 4090) window per mode:
+    # Output cap + assumed window, by provider. The server window per mode:
     # coder/devstral 56K, glm 54K, mistral 64K, image companion 32K. Cap output at 8K to avoid
     # starving agentic context (image companion caps output at 2K — it only emits a small tool call).
     # Local Ollama runs 128K-256K windows, so a larger 32K cap is cheap.
@@ -154,13 +154,13 @@ else
         [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (partial offload)" [qwen3:8b]="Qwen3 8B"
     )
 fi
-# Server (CachyOS vLLM) labels — added unconditionally so the banner resolves them regardless of
+# squire-server labels: added unconditionally so the banner resolves them regardless of
 # whether the tier config was sourced (which would otherwise redefine LL_LABEL).
-LL_LABEL[mistral-small]="Mistral-Small (CachyOS vLLM)"
-LL_LABEL[glm-4.7-flash]="GLM-4.7-Flash (CachyOS vLLM)"
-LL_LABEL[qwen3-coder]="Qwen3-Coder (CachyOS vLLM)"
-LL_LABEL[devstral]="Devstral-2 24B (CachyOS vLLM)"
-LL_LABEL[qwen3-4b]="Qwen3-4B image companion (CachyOS vLLM)"
+LL_LABEL[mistral-small]="Mistral-Small (squire-server)"
+LL_LABEL[glm-4.7-flash]="GLM-4.7-Flash (squire-server)"
+LL_LABEL[qwen3-coder]="Qwen3-Coder (squire-server)"
+LL_LABEL[devstral]="Devstral-2 24B (squire-server)"
+LL_LABEL[qwen3-4b]="Qwen3-4B image companion (squire-server)"
 _alias() { echo "${LL_ALIAS[$1]:-$1}"; }
 
 DEFAULT_MODEL="$(_alias heavy)"
@@ -336,7 +336,7 @@ echo "  ▶ $MODEL_FRIENDLY  ·  alias=$DEFAULT_MODEL"
 if [[ "$PROVIDER" == "server" ]]; then
     [[ -n "$SWITCH_MODE" ]] && squire_switch "$SWITCH_MODE"
     write_crush_config "$SRV_IMG" "" "active-model" "server" "$SELECTED_MODEL"
-    echo "  Profile: Remote CachyOS server ($SELECTED_MODEL via vLLM, addressed as active-model)"
+    echo "  Profile: squire-server ($SELECTED_MODEL, addressed as active-model)"
 else
 case "$task" in
     coding)

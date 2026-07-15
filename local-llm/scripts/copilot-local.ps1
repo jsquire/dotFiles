@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Launch GitHub Copilot CLI against local Ollama models or the CachyOS vLLM server,
+    Launch GitHub Copilot CLI against local Ollama models or the squire-server,
     via a two-level environment picker (Local / Local-Experimental / Squire-Server).
 
 .DESCRIPTION
@@ -24,7 +24,7 @@ $SquireIp = "__SQUIRE_SERVER_IP__"
 $env:COPILOT_PROVIDER_MAX_PROMPT_TOKENS = "51200"
 $env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS = "16384"
 
-# ── Switch the CachyOS server's active model via the accountless :4090 endpoint ─
+# ── Switch the squire-server's active model via the accountless :4090 endpoint ──
 function Invoke-SquireSwitch {
     param([string]$Mode)
     $port = "4090"

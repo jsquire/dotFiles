@@ -25,13 +25,13 @@ param(
     [string]$Model
 )
 
-# -- Provider gating (local Ollama / remote CachyOS server) --------------------
+# -- Provider gating (local Ollama / remote squire-server) ---------------------
 # Baked in by the installer; falls back to both if the placeholder was not substituted.
 $LlProviders = "__LL_PROVIDERS__"
 if ($LlProviders -like "*__*" -or [string]::IsNullOrWhiteSpace($LlProviders)) { $LlProviders = "local,server" }
 function Test-LlProvider { param([string]$Name) return ((",$LlProviders,") -like "*,$Name,*") }
 
-# Switch the CachyOS server's active model via the accountless web endpoint (:4090). The server
+# Switch the squire-server's active model via the accountless web endpoint (:4090). The server
 # loads one model at a time, so POST the mode then poll /status until it is ready before launching
 # Crush (so we never hand Crush a not-yet-loaded model).
 function Invoke-SquireSwitch {
@@ -81,7 +81,7 @@ function Write-CrushConfig {
         [string]$ActiveLabel
     )
     $config = @{ mcp = $McpOverrides }
-    # Output cap + assumed window, by provider. Server (vLLM on the 4090) window per mode: coder/devstral
+    # Output cap + assumed window, by provider. Server window per mode: coder/devstral
     # 56K, glm 54K, mistral 64K, image companion 32K -> cap output at 8K so agentic context isn't starved
     # (image companion caps output at 2K — it only emits a small tool call). Local Ollama runs 128K-256K
     # windows, so a larger 32K cap is cheap.
@@ -307,11 +307,11 @@ $ModelLabel = @{
     "ornith-35b-256k"       = "Ornith-1.0-35B"
     "devstral2-24b-128k"    = "Devstral Small 2 (24B)"
     "qwen3next-80b-offload" = "Qwen3-Next-80B-A3B (partial offload)"
-    "mistral-small"         = "Mistral-Small (CachyOS vLLM)"
-    "glm-4.7-flash"         = "GLM-4.7-Flash (CachyOS vLLM)"
-    "qwen3-coder"           = "Qwen3-Coder (CachyOS vLLM)"
-    "devstral"              = "Devstral-2 24B (CachyOS vLLM)"
-    "qwen3-4b"              = "Qwen3-4B image companion (CachyOS vLLM)"
+    "mistral-small"         = "Mistral-Small (squire-server)"
+    "glm-4.7-flash"         = "GLM-4.7-Flash (squire-server)"
+    "qwen3-coder"           = "Qwen3-Coder (squire-server)"
+    "devstral"              = "Devstral-2 24B (squire-server)"
+    "qwen3-4b"              = "Qwen3-4B image companion (squire-server)"
 }
 
 # Resolve the model: explicit -Model wins, then picker selection, then per-task default.
@@ -328,7 +328,7 @@ Write-Host "  ▶ $ModelFriendly  ·  alias=$DefaultModel" -ForegroundColor Cyan
 if ($Provider -eq "server") {
     if ($SwitchMode) { Invoke-SquireSwitch $SwitchMode }
     Write-CrushConfig -McpOverrides $ServerMcp -Model "active-model" -Provider "server" -ActiveLabel $SelectedModel
-    Write-Host "  Profile: Remote CachyOS server ($SelectedModel via vLLM, addressed as active-model)"
+    Write-Host "  Profile: squire-server ($SelectedModel, addressed as active-model)"
 }
 else {
 switch ($Task) {
