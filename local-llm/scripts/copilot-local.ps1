@@ -220,14 +220,18 @@ $gitSafety = @(
     '--deny-tool=shell(git tag)'
 )
 $extraFlags = @()
-if ($officeSkill) { $extraFlags = @('--custom-instructions', "$env:USERPROFILE\.config\crush\skills\office\SKILL.md") }
+if ($officeSkill) {
+    # Copilot loads custom-instructions files from COPILOT_CUSTOM_INSTRUCTIONS_DIRS (no --custom-instructions flag).
+    $officeDir = Join-Path $env:USERPROFILE ".config\crush\skills\office"
+    if (Test-Path $officeDir) { $env:COPILOT_CUSTOM_INSTRUCTIONS_DIRS = $officeDir }
+}
 
 # ── Launch banner ────────────────────────────────────────────────────────────
 $modelLabel = if ($selLabel) { $selLabel } else { LL-Label $env:COPILOT_MODEL }
 Write-Host "  Launching $modelLabel  [alias $($env:COPILOT_MODEL)]  $selTag"
 
 # ── Launch Copilot ───────────────────────────────────────────────────────────
-$copilotArgs = @('--model', $env:COPILOT_MODEL, '--') + $mcpFlags + $gitSafety + $extraFlags + $args
+$copilotArgs = @('--model', $env:COPILOT_MODEL) + $mcpFlags + $gitSafety + $extraFlags + $args
 if ($env:COPILOT_PROVIDER_BASE_URL) {
     Write-Host "  Remote: $($env:COPILOT_PROVIDER_BASE_URL)"; Write-Host ""
     & copilot @copilotArgs

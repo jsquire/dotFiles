@@ -47,9 +47,11 @@ $env:USERPROFILE = '__SB__'
 function Clear-Host {}
 function copilot {
     $ig = if ("$args" -match 'disable-mcp-server imagegen-mcp') { 'off' } else { 'on' }
-    $of = if ("$args" -match 'custom-instructions') { 'yes' } else { 'no' }
+    $of = if ($env:COPILOT_CUSTOM_INSTRUCTIONS_DIRS) { 'yes' } else { 'no' }
+    $sep = if ($args -contains '--') { 'yes' } else { 'no' }
     Write-Host ("CAPTURE model=" + $env:COPILOT_MODEL + " base=" + $env:COPILOT_PROVIDER_BASE_URL + " prompt=" + $env:COPILOT_PROVIDER_MAX_PROMPT_TOKENS + " out=" + $env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS + " imagegen=" + $ig + " office=" + $of)
     Write-Host ("IMAGEGEN_HOST=" + $env:COPILOT_MCP_IMAGEGEN_HOST)
+    Write-Host ("ARGV_HAS_SEP=" + $sep)
 }
 function crush { Write-Host "CAPTURE crush" }
 function Invoke-RestMethod { throw "no network in tests" }

@@ -119,7 +119,7 @@ if [[ "${1:-}" == *":"* ]]; then
     shift
     echo "  ▶ $(model_label "$COPILOT_MODEL")  ·  alias=$COPILOT_MODEL"
     export COPILOT_PROVIDER_BASE_URL="http://localhost:11434/v1"
-    exec copilot --model "$COPILOT_MODEL" -- "$@"
+    exec copilot --model "$COPILOT_MODEL" "$@"
 fi
 
 # No model specified — show the two-level environment picker (colour box UI, data-driven).
@@ -256,12 +256,13 @@ GIT_SAFETY=(
     --deny-tool='shell(git revert)' --deny-tool='shell(git tag)'
 )
 
-# Office authoring guidance: inject the vendored 'office' skill as custom instructions —
-# Copilot CLI has no native skill discovery.
+# Office authoring guidance: point Copilot at the vendored 'office' skill dir via
+# COPILOT_CUSTOM_INSTRUCTIONS_DIRS (Copilot loads custom-instructions files from these dirs; it has
+# no --custom-instructions flag).
 EXTRA_FLAGS=()
 if [[ "$SEL_OFFICE" == "1" ]]; then
-    OFFICE_SKILL="${HOME}/.config/crush/skills/office/SKILL.md"
-    [[ -f "$OFFICE_SKILL" ]] && EXTRA_FLAGS=(--custom-instructions "$OFFICE_SKILL")
+    OFFICE_SKILL_DIR="${HOME}/.config/crush/skills/office"
+    [[ -d "$OFFICE_SKILL_DIR" ]] && export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="$OFFICE_SKILL_DIR"
 fi
 
 echo "  ▶ ${SEL_LABEL}  ·  alias=${SEL_MODEL}${SEL_TAG:+  ·  $SEL_TAG}"
@@ -269,7 +270,7 @@ echo
 if [[ -n "${COPILOT_PROVIDER_BASE_URL:-}" ]]; then
     # Remote mode: launch copilot directly (skip ollama wrapper)
     echo "  Remote: $COPILOT_PROVIDER_BASE_URL"
-    exec copilot --model "$COPILOT_MODEL" -- "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
+    exec copilot --model "$COPILOT_MODEL" "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
 elif [[ "$OFFLOAD_MODE" == "1" ]]; then
     # Big-MoE offload mode: dedicated Ollama serve with expert CPU-offload, restored on exit.
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -279,8 +280,8 @@ elif [[ "$OFFLOAD_MODE" == "1" ]]; then
     offload_start 24
     trap 'offload_stop' EXIT
     export COPILOT_PROVIDER_BASE_URL="http://localhost:11434/v1"
-    copilot --model "$COPILOT_MODEL" -- "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
+    copilot --model "$COPILOT_MODEL" "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
 else
     export COPILOT_PROVIDER_BASE_URL="http://localhost:11434/v1"
-    exec copilot --model "$COPILOT_MODEL" -- "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
+    exec copilot --model "$COPILOT_MODEL" "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
 fi
