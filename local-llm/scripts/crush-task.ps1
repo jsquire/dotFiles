@@ -131,47 +131,140 @@ function Write-CrushConfig {
 
 # If no task specified, show picker
 if (-not $Task) {
-    Write-Host ""
-    if (Test-LlProvider 'local') {
-    Write-Host "  --- Coding ---"
-    Write-Host "  [1] Heavy coding        (Qwen3.6 27B dense, no MCP)"
-    Write-Host "  [2] Light coding        (Qwen3-Coder 30B, no MCP)"
-    Write-Host "  [3] Code review         (Qwen3-Coder 30B, no MCP)"
-    Write-Host ""
-    Write-Host "  --- Writing & Documents ---"
-    Write-Host "  [4] Documents           (GLM-4.7-Flash + office skill: docx/pptx/xlsx via Python)"
-    Write-Host ""
-    Write-Host "  --- Visual ---"
-    Write-Host "  [5] Image generation    (Qwen3 8B + HiDream MCP)"
-    Write-Host ""
-    Write-Host "  ══ EXPERIMENTAL · models under evaluation ════════════════"
-    Write-Host "  --- Heavy-coding bench (coding profile, swap model) ---"
-    Write-Host "  [H1] Qwen3.6 27B dense (default)"
-    Write-Host "  [H2] Qwen3.6 35B-A3B MoE"
-    Write-Host "  [H3] Gemma 4 31B dense"
-    Write-Host "  [H4] Qwen3-Coder 30B-A3B"
-    Write-Host "  [H5] GLM-4.7-Flash"
-    Write-Host "  [H6] North Mini Code 1.0    (Cohere, agentic coding)"
-    Write-Host "  [H7] Nemotron 3 Nano 30B    (NVIDIA, reasoning/agentic)"
-    Write-Host "  [H8] Ornith-1.0-35B         (MIT, agentic-coding reasoning)"
-    Write-Host "  [H9] Devstral Small 2 24B   (Mistral, agentic coding)"
-    Write-Host ""
-    Write-Host "  --- Big-MoE expert-offload bench (experts->RAM; partial offload, slower) ---"
-    Write-Host "  [O2] Qwen3-Next-80B-A3B     (offload, Q4_K_M ~45 GB)"
-    Write-Host ""
+    $e = [char]27
+    $Frame = "$e[38;5;25m"; $Text = "$e[97m"; $Rst = "$e[0m"
+    try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
+    $W = 110
+    $Bar = ([string][char]0x2550) * $W
+    function Show-Top { Write-Host ("  $Frame" + [char]0x2554 + $Bar + [char]0x2557 + $Rst) }
+    function Show-Mid { Write-Host ("  $Frame" + [char]0x2560 + $Bar + [char]0x2563 + $Rst) }
+    function Show-Bot { Write-Host ("  $Frame" + [char]0x255A + $Bar + [char]0x255D + $Rst) }
+    function Show-Line { param([string]$s)
+        if ($s.Length -gt $W) { $s = $s.Substring(0, $W) }
+        Write-Host ("  $Frame" + [char]0x2551 + $Text + $s.PadRight($W) + $Frame + [char]0x2551 + $Rst)
     }
-    if (Test-LlProvider 'server') {
-    Write-Host "  --- Remote (CachyOS server - one standing model, switch only when needed) ---"
-    Write-Host "  [S] CachyOS: Mistral-Small   (default - office/authoring, 64K)"
-    Write-Host "  [G] CachyOS: GLM-4.7-Flash   (agentic/reasoning - switches server)"
-    Write-Host "  [C] CachyOS: Qwen3-Coder     (coding-first - switches server)"
-    Write-Host "  [D] CachyOS: Devstral-2 24B  (coding-alt, agentic - switches server)"
-    Write-Host "  [I] CachyOS: Image gen       (HiDream + Qwen3-4B - switches server)"
-    Write-Host ""
+    function Show-Center { param([string]$s) $p = [math]::Max(0, [math]::Floor(($W - $s.Length) / 2)); Show-Line ((" " * $p) + $s) }
+    function Show-Row { param([string]$k, [string]$l, [string]$d)
+        $kf = ("[$k]").PadRight(5)
+        if ($l.Length -gt 26) { $l = $l.Substring(0, 26) }
+        Show-Line ("       $kf " + $l.PadRight(26) + " $d")
     }
-    $defaultChoice = if (Test-LlProvider 'local') { "1" } else { "S" }
-    $choice = Read-Host "  Select profile [$defaultChoice]"
-    if (-not $choice) { $choice = $defaultChoice }
+    $hasLocal  = Test-LlProvider 'local'
+    $hasServer = Test-LlProvider 'server'
+    $choice = ""
+    $menuErr = ""
+    $page = if ($hasLocal) { "env" } else { "server" }
+    :picker while ($true) {
+        Clear-Host
+        Write-Host ""
+        switch ($page) {
+            "env" {
+                Show-Top; Show-Center "Crush"; Show-Line ""; Show-Center "pick an environment"; Show-Mid
+                Show-Line ""
+                Show-Line "     [1]  Local";                Show-Line "          Production daily-drivers"; Show-Line ""
+                Show-Line "     [2]  Local - Experimental"; Show-Line "          Models under evaluation"
+                if ($hasServer) { Show-Line ""; Show-Line "     [3]  Squire-Server"; Show-Line "          Models hosted on the server" }
+                Show-Line ""; Show-Line ""; Show-Line "     [Q]  Quit"; Show-Line ""; Show-Bot; Write-Host ""
+                if ($menuErr) { Write-Host "   $menuErr"; $menuErr = "" }
+                $sel = Read-Host "   Your choice [1]"; if (-not $sel) { $sel = "1" }
+                switch ($sel) {
+                    "1" { $page = "local" }
+                    "2" { $page = "exp" }
+                    "3" { if ($hasServer) { $page = "server" } else { $menuErr = "Invalid selection, try again." } }
+                    "Q" { Clear-Host; exit }
+                    default { $menuErr = "Invalid selection, try again." }
+                }
+            }
+            "local" {
+                Show-Top; Show-Center "Crush"; Show-Line ""; Show-Center "local : production models"; Show-Mid
+                Show-Line ""
+                Show-Line "     Coding"
+                Show-Line "     ------"
+                Show-Line ""
+                Show-Row "1" "Heavy coding" "Qwen3.6 27B dense"
+                Show-Row "2" "Light coding" "Qwen3-Coder 30B"
+                Show-Row "3" "Code review" "Qwen3-Coder 30B"
+                Show-Line ""
+                Show-Line ""
+                Show-Line "     Writing & Documents"
+                Show-Line "     -------------------"
+                Show-Line ""
+                Show-Row "4" "Documents" "GLM-4.7-Flash + office skill"
+                Show-Line ""
+                Show-Line ""
+                Show-Line "     Visual"
+                Show-Line "     ------"
+                Show-Line ""
+                Show-Row "5" "Image generation" "Qwen3 8B + HiDream (MCP)"
+                Show-Line ""; Show-Line ""; Show-Line ""; Show-Row "B" "Back to environments" ""; Show-Row "Q" "Quit" ""; Show-Line ""
+                Show-Bot; Write-Host ""
+                if ($menuErr) { Write-Host "   $menuErr"; $menuErr = "" }
+                $sel = Read-Host "   Your choice [1]"; if (-not $sel) { $sel = "1" }
+                if ($sel.ToUpper() -eq "Q") { Clear-Host; exit }
+                if ($sel.ToUpper() -eq "B") { $page = "env"; continue picker }
+                if ($sel -match '^[1-5]$') { $choice = $sel; break picker }
+                $menuErr = "Invalid selection, try again."
+            }
+            "exp" {
+                Show-Top; Show-Center "Crush"; Show-Line ""; Show-Center "local : models under evaluation"; Show-Mid
+                Show-Line ""
+                Show-Line "     Heavy-coding bench"
+                Show-Line "         (coding profile, swap model)"
+                Show-Line ("     " + ("-" * 32))
+                Show-Line ""
+                Show-Row "1" "Qwen3.6 27B dense" "qwen36-27b-212k"
+                Show-Row "2" "Qwen3.6 35B-A3B MoE" "qwen36-35b-256k"
+                Show-Row "3" "Gemma 4 31B dense" "gemma4-31b-128k"
+                Show-Row "4" "Qwen3-Coder 30B-A3B" "qwen3coder-144k"
+                Show-Row "5" "GLM-4.7-Flash" "glm47-flash-198k"
+                Show-Row "6" "North Mini Code 1.0" "northmini-code-256k"
+                Show-Row "7" "Nemotron 3 Nano 30B" "nemotron3-nano-256k"
+                Show-Row "8" "Ornith-1.0-35B" "ornith-35b-256k"
+                Show-Row "9" "Devstral Small 2 24B" "devstral2-24b-128k"
+                Show-Line ""
+                Show-Line ""
+                Show-Line "     Big-MoE expert-offload bench"
+                Show-Line "         (experts to RAM; slower)"
+                Show-Line ("     " + ("-" * 28))
+                Show-Line ""
+                Show-Row "10" "Qwen3-Next-80B-A3B" "offload, Q4_K_M ~45 GB"
+                Show-Line ""; Show-Line ""; Show-Line ""; Show-Row "B" "Back to environments" ""; Show-Row "Q" "Quit" ""; Show-Line ""
+                Show-Bot; Write-Host ""
+                if ($menuErr) { Write-Host "   $menuErr"; $menuErr = "" }
+                $sel = Read-Host "   Your choice [1]"; if (-not $sel) { $sel = "1" }
+                if ($sel.ToUpper() -eq "Q") { Clear-Host; exit }
+                if ($sel.ToUpper() -eq "B") { $page = "env"; continue picker }
+                if ($sel -match '^[1-9]$') { $choice = "H$sel"; break picker }
+                if ($sel -eq "10") { $choice = "O2"; break picker }
+                $menuErr = "Invalid selection, try again."
+            }
+            "server" {
+                Show-Top; Show-Center "Crush"; Show-Line ""; Show-Center "squire-server : remote models"; Show-Mid
+                Show-Line ""
+                Show-Line "     Remote"
+                Show-Line "         (server - switches the standing model on pick)"
+                Show-Line ("     " + ("-" * 50))
+                Show-Line ""
+                Show-Row "1" "Mistral-Small" "default : office/authoring, 64K"
+                Show-Row "2" "GLM-4.7-Flash" "agentic / reasoning"
+                Show-Row "3" "Qwen3-Coder" "coding-first"
+                Show-Row "4" "Devstral-2 24B" "coding-alt, agentic"
+                Show-Row "5" "Image gen" "HiDream + Qwen3-4B"
+                Show-Line ""; Show-Line ""; Show-Line ""
+                if ($hasLocal) { Show-Row "B" "Back to environments" "" }
+                Show-Row "Q" "Quit" ""; Show-Line ""
+                Show-Bot; Write-Host ""
+                if ($menuErr) { Write-Host "   $menuErr"; $menuErr = "" }
+                $sel = Read-Host "   Your choice [1]"; if (-not $sel) { $sel = "1" }
+                if ($sel.ToUpper() -eq "Q") { Clear-Host; exit }
+                if ($sel.ToUpper() -eq "B" -and $hasLocal) { $page = "env"; continue picker }
+                $map = @{ "1" = "S"; "2" = "G"; "3" = "C"; "4" = "D"; "5" = "I" }
+                if ($map.ContainsKey($sel)) { $choice = $map[$sel]; break picker }
+                $menuErr = "Invalid selection, try again."
+            }
+        }
+    }
+
 
     switch ($choice.ToUpper()) {
         "1"  { $Task = "coding" }
