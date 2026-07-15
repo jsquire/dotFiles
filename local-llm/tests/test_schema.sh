@@ -4,8 +4,8 @@ set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$DIR/.." && pwd)"
 
-python3 - "$REPO/scripts/local-models.json" "$REPO/cachyos/server-models.json" <<'PY'
-import json, sys
+python3 - "$REPO/scripts/local-models.json" "$REPO/cachyos/server-models.json" "$REPO/cachyos/vllm-switch-web.py" <<'PY'
+import json, sys, os, importlib.util
 lm = json.load(open(sys.argv[1]))
 sm = json.load(open(sys.argv[2]))
 P = F = 0
@@ -48,6 +48,30 @@ ok(len(mids) == len(set(mids)), f"server model_id not unique: {mids}")
 
 for f in (sys.argv[1], sys.argv[2]):
     ok("__" not in open(f).read(), f"{f} contains a residual __placeholder__")
+
+# Guard: the daemon's built-in _FALLBACK_ROSTER (used only if the roster file is missing) must stay
+# identical to server-models.json, so a client hitting the fallback sees the same modes. Import the
+# daemon module with a bogus roster path so its module-level load is deterministic (uses the fallback).
+import importlib.util
+os.environ["VLLM_SERVER_MODELS"] = "/nonexistent-roster-for-schema-test"
+spec = importlib.util.spec_from_file_location("vsw_under_test", sys.argv[3])
+vsw = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(vsw)
+fb = vsw._FALLBACK_ROSTER
+ok(fb.get("default_mode") == sm.get("default_mode"), "fallback default_mode != server-models.json")
+ok(fb.get("api_port") == sm.get("api_port"), "fallback api_port != server-models.json")
+ok(fb.get("schema_version") == sm.get("schema_version"), "fallback schema_version != server-models.json")
+fb_by = {m["mode"]: m for m in fb["modes"]}
+ok(len(fb["modes"]) == len(sm["modes"]), f"fallback mode count {len(fb['modes'])} != {len(sm['modes'])}")
+_fields = ("mode", "key", "label", "task", "model_id", "ctx", "max_output",
+           "max_prompt", "unit", "imagegen_disabled", "default")
+for m in sm["modes"]:
+    fm = fb_by.get(m["mode"])
+    ok(fm is not None, f"_FALLBACK_ROSTER missing mode '{m['mode']}'")
+    if fm:
+        for k in _fields:
+            ok(fm.get(k) == m.get(k),
+               f"_FALLBACK_ROSTER[{m['mode']}].{k}={fm.get(k)!r} != server-models.json {m.get(k)!r}")
 
 print(f"\nschema: {P} passed, {F} failed")
 sys.exit(1 if F else 0)

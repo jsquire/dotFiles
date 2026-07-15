@@ -348,7 +348,7 @@ if [[ "$MODE" == "full" ]]; then
     remove_system_path '/etc/systemd/system/vllm@.service' 'vLLM templated mode service'
     remove_system_path '/etc/systemd/system/imagegen.service' 'image-gen service'
     remove_system_path '/usr/local/bin/vllm-switch-web' 'model-switch web daemon'
-    remove_system_path '/etc/local-llm/server-models.json' 'server model roster (daemon)'
+    remove_system_path '/etc/local-llm' 'server model roster directory (daemon)'
     remove_system_path '/usr/local/bin/cachyos-switch-model' 'model-switch CLI'
     remove_system_path '/usr/local/bin/cachyos-vllm-serve' 'vLLM serve wrapper'
     remove_system_path '/usr/local/bin/server-desktop' 'desktop/headless toggle'

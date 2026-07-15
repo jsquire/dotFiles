@@ -58,4 +58,25 @@ assert_eq "malformed -> fallback 5 modes" "5" "$(jq_count <<<"$mf")"
 kill "$DPID" 2>/dev/null; wait "$DPID" 2>/dev/null || true; DPID=""
 rm -f "$bad"
 
+# ── XSS/escaping: roster label/task with HTML-special chars must be escaped in the page ──
+xss="$(mktemp)"
+cat > "$xss" <<'JSON'
+{
+  "schema_version": 1, "api_port": 8000, "default_mode": "mistral",
+  "modes": [
+    {"mode":"mistral","key":"1","label":"A<b>&\"x","task":"t</script>bad","model_id":"mistral-small","ctx":65536,"max_output":8192,"max_prompt":54272,"unit":"vllm.service","imagegen_disabled":true,"default":true}
+  ]
+}
+JSON
+assert_true "daemon starts (xss roster)" start_daemon "$xss" "45093"
+xpage="$(curl -fsS http://127.0.0.1:45093/)"
+assert_contains "page escapes label '<' -> &lt;" "$xpage" "A&lt;b&gt;"
+assert_contains "page escapes label '&' -> &amp;" "$xpage" "&amp;"
+assert_contains "NAMES escapes '<' -> \\u003c" "$xpage" '\u003c'
+# The raw roster markup must NOT survive into the page (would be stored-XSS if it did).
+if [[ "$xpage" != *"</script>bad"* ]]; then LL_PASS=$((LL_PASS+1)); else LL_FAIL=$((LL_FAIL+1)); echo "  FAIL: raw </script> from roster task leaked into page"; fi
+if [[ "$xpage" != *"A<b>"* ]]; then LL_PASS=$((LL_PASS+1)); else LL_FAIL=$((LL_FAIL+1)); echo "  FAIL: raw <b> from roster label leaked into page"; fi
+kill "$DPID" 2>/dev/null; wait "$DPID" 2>/dev/null || true; DPID=""
+rm -f "$xss"
+
 ll_summary "daemon"

@@ -22,6 +22,7 @@ import sys
 import threading
 import time
 import fcntl
+import html
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -47,19 +48,19 @@ _FALLBACK_ROSTER = {
     "api_port": 8000,
     "default_mode": "mistral",
     "modes": [
-        {"mode": "mistral", "key": "1", "label": "Mistral-Small-3.2", "task": "authoring (default)",
+        {"mode": "mistral", "key": "1", "label": "Mistral-Small", "task": "default : office/authoring, 64K",
          "model_id": "mistral-small", "ctx": 65536, "max_output": 8192, "max_prompt": 54272,
          "unit": "vllm.service", "imagegen_disabled": True, "default": True},
         {"mode": "glm", "key": "2", "label": "GLM-4.7-Flash", "task": "agentic / reasoning",
          "model_id": "glm-4.7-flash", "ctx": 55296, "max_output": 8192, "max_prompt": 44032,
          "unit": "vllm@glm.service", "imagegen_disabled": True, "default": False},
-        {"mode": "coder", "key": "3", "label": "Qwen3-Coder 30B", "task": "coding",
+        {"mode": "coder", "key": "3", "label": "Qwen3-Coder", "task": "coding-first",
          "model_id": "qwen3-coder", "ctx": 57344, "max_output": 8192, "max_prompt": 46080,
          "unit": "vllm@coder.service", "imagegen_disabled": True, "default": False},
-        {"mode": "coder-alt", "key": "4", "label": "Devstral-2 24B", "task": "coding (alt)",
+        {"mode": "coder-alt", "key": "4", "label": "Devstral-2 24B", "task": "coding-alt, agentic",
          "model_id": "devstral", "ctx": 57344, "max_output": 8192, "max_prompt": 46080,
          "unit": "vllm@coder-alt.service", "imagegen_disabled": True, "default": False},
-        {"mode": "image", "key": "5", "label": "Image (HiDream)", "task": "image generation",
+        {"mode": "image", "key": "5", "label": "Image gen", "task": "HiDream + Qwen3-4B",
          "model_id": "qwen3-4b", "ctx": 32768, "max_output": 2048, "max_prompt": 28672,
          "unit": "vllm@image.service", "imagegen_disabled": False, "default": False},
     ],
@@ -255,14 +256,20 @@ refresh();setInterval(()=>{if(!btns.querySelector('button:disabled'))refresh();}
 
 
 def _build_page():
-    """Render the switch page's buttons + NAMES map from the roster."""
+    """Render the switch page's buttons + NAMES map from the roster.
+
+    All roster-derived strings are escaped for their context (HTML attribute/text for the buttons,
+    script-safe JSON for NAMES) so a stray '<', '&', '"' or '</script>' in a label/task can neither
+    break the page nor inject markup, even though the roster is a trusted root-installed file.
+    """
     btns = "\n".join(
         ' <button data-m="%s">%s<br><small>%s</small></button>'
-        % (m["mode"], m.get("label", m["mode"]), m.get("task", ""))
+        % (html.escape(m["mode"], quote=True),
+           html.escape(m.get("label", m["mode"])),
+           html.escape(m.get("task", "")))
         for m in MODES)
-    names = "{%s}" % ",".join(
-        "%s:%s" % (json.dumps(m["mode"]), json.dumps(m.get("label", m["mode"])))
-        for m in MODES)
+    names = (json.dumps({m["mode"]: m.get("label", m["mode"]) for m in MODES})
+             .replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026"))
     return PAGE_TMPL.replace("__BUTTONS__", btns).replace("__NAMES__", names)
 
 
