@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# test stub for `curl`: fail-closed. Serves the fixture server roster for GET /models; fails
+# /switch and /status fast (so Invoke-SquireSwitch / squire_switch warns and returns immediately
+# instead of polling). Any other real URL is a hard error so a test can never hit the network.
+url=""
+for a in "$@"; do
+    case "$a" in http://*|https://*) url="$a" ;; esac
+done
+case "$url" in
+    *"/models"*)
+        if [[ "${LL_STUB_NOMODELS:-0}" == "1" ]]; then exit 7; fi
+        cat "${LL_STUB_SERVER_JSON:?LL_STUB_SERVER_JSON not set}"
+        exit 0
+        ;;
+    *"/switch"*|*"/status"*)
+        exit 7
+        ;;
+    "")
+        # non-URL curl usage (not expected in these launchers)
+        exit 0
+        ;;
+    *)
+        echo "STUB curl: refusing unexpected real URL: $url" >&2
+        exit 99
+        ;;
+esac

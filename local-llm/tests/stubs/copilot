@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# test stub for `copilot`: capture the resolved launch (model from --model, caps from env, flags from argv).
+model=""; prev=""
+for a in "$@"; do
+    [[ "$prev" == "--model" ]] && model="$a"
+    prev="$a"
+done
+imagegen=on
+[[ "$*" == *"--disable-mcp-server imagegen-mcp"* ]] && imagegen=off
+office=no
+[[ "$*" == *"--custom-instructions"* ]] && office=yes
+echo "CAPTURE model=${model} base=${COPILOT_PROVIDER_BASE_URL:-} prompt=${COPILOT_PROVIDER_MAX_PROMPT_TOKENS:-} out=${COPILOT_PROVIDER_MAX_OUTPUT_TOKENS:-} imagegen=${imagegen} office=${office}"
+exit 0

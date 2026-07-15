@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# test stub for `crush`: the resolved launch is captured from the .crush.json written to CWD.
+echo "CAPTURE crush-launched"
+exit 0
