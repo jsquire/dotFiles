@@ -5,7 +5,7 @@
       "command": "__LOCALAPPDATA__/ai-tools/mcp-imagegen/__VENV_BIN__/python__EXE__",
       "args": ["__LOCALAPPDATA__/ai-tools/mcp-imagegen/imagegen-mcp-server.py"],
       "env": {
-        "IMAGEGEN_URL": "http://__IMAGEGEN_HOST__:8001"
+        "IMAGEGEN_URL": "http://${COPILOT_MCP_IMAGEGEN_HOST:-127.0.0.1}:8001"
       },
       "tools": ["*"]
     }

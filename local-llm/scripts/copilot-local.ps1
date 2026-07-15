@@ -118,7 +118,7 @@ function Get-ServerRoster {
 }
 
 # ── Resolve the selection: explicit model arg wins; otherwise the picker ──────
-$selLabel = ""; $selTag = ""; $mcpKeep = $false; $officeSkill = $false; $offload = $false
+$selLabel = ""; $selTag = ""; $mcpKeep = $false; $officeSkill = $false; $offload = $false; $selRemote = $false
 $env:COPILOT_PROVIDER_BASE_URL = $null
 if ($Model -and $Model -match ':') {
     # Direct model alias/tag (e.g. copilot-local qwen3:8b) — skip the picker.
@@ -197,6 +197,7 @@ if ($Model -and $Model -match ':') {
                     $env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS = "$($m.max_output)"
                     $selLabel = $m.label; $selTag = "[$sel] squire-server"
                     $mcpKeep = (-not $m.imagegen_disabled)
+                    $selRemote = $true
                     break picker
                 }
                 $menuErr = "Invalid selection, try again."
@@ -209,6 +210,9 @@ if (-not $env:COPILOT_MODEL) { Write-Host "  Invalid selection."; $env:COPILOT_M
 
 # ── Flags: MCP (imagegen only on image profiles), git-safety, office skill ────
 $mcpFlags = if ($mcpKeep) { @() } else { @('--disable-mcp-server', 'imagegen-mcp') }
+# Point the imagegen MCP tool at the selected environment's image server (the mcp-config expands
+# ${COPILOT_MCP_IMAGEGEN_HOST}): local -> localhost, server -> the squire-server.
+$env:COPILOT_MCP_IMAGEGEN_HOST = if ($selRemote) { $SquireIp } else { "127.0.0.1" }
 $gitSafety = @(
     '--deny-tool=shell(git add)', '--deny-tool=shell(git commit)', '--deny-tool=shell(git push)',
     '--deny-tool=shell(git merge)', '--deny-tool=shell(git rebase)', '--deny-tool=shell(git reset)',

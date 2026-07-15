@@ -56,6 +56,18 @@ norm_json() {
     python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1])), sort_keys=True, separators=(",",":")))' "$1"
 }
 
+# Like norm_json but drops the imagegen-mcp env (the context-aware IMAGEGEN_URL is covered by the
+# dedicated imagegen-context suite, not the no-regression parity check).
+norm_crush_json() {
+    python3 -c 'import json,sys
+d=json.load(open(sys.argv[1]))
+try:
+    del d["mcp"]["imagegen-mcp"]["env"]
+except Exception:
+    pass
+print(json.dumps(d, sort_keys=True, separators=(",",":")))' "$1"
+}
+
 # Headless-run a .sh launcher. Call DIRECTLY (not in $(...)) so the globals below survive.
 # Sets LL_LAST_OUT (launcher stdout) and LL_CRUSH_JSON (path to captured .crush.json, or empty).
 #   ll_run_sh <launcher_src> <providers> <stdin_input> [server_json] [extra_env] [launcher_args]
@@ -71,7 +83,7 @@ ll_run_sh() {
     cp "$FIX_DIR/local-models.5090.json" "$sb/.config/local-llm/local-models.json"
     cp "$server_json" "$sb/.config/local-llm/server-models.json"
     printf 'office skill (test fixture)\n' > "$sb/.config/crush/skills/office/SKILL.md"
-    sed -e "s|__SQUIRE_SERVER_IP__|127.0.0.1|g" \
+    sed -e "s|__SQUIRE_SERVER_IP__|${LL_TEST_SQUIRE_IP:-127.0.0.1}|g" \
         -e "s|__SQUIRE_SSH_TARGET__|test@127.0.0.1|g" \
         -e "s|__LL_PROVIDERS__|${providers}|g" \
         "$src" > "$sb/launcher.sh"

@@ -188,7 +188,7 @@
         "__LOCALAPPDATA__/ai-tools/mcp-imagegen/imagegen-mcp-server.py"
       ],
       "env": {
-        "IMAGEGEN_URL": "http://__IMAGEGEN_HOST__:8001"
+        "IMAGEGEN_URL": "http://127.0.0.1:8001"
       },
       "disabled": true
     }

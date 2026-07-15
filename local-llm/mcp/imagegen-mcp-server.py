@@ -7,6 +7,11 @@ Works cross-platform (Windows + Linux) and supports local or remote backends.
 Configuration via environment variables:
   IMAGEGEN_URL  — Base URL of the imagegen API (default: http://127.0.0.1:8001)
 
+  IMAGEGEN_URL is set per launch by the launchers so image generation follows the selected task
+  context: the LOCAL environment points at localhost, the SERVER environment at the squire-server.
+  copilot-local exports COPILOT_MCP_IMAGEGEN_HOST (expanded in ~/.copilot/mcp-config.json); crush-task
+  writes IMAGEGEN_URL into the per-launch .crush.json.
+
 When targeting localhost, automatically manages the server lifecycle:
   - Starts server on demand if not running (~15-20s cold start)
   - Shuts down server after 5 min idle to free ~16GB VRAM

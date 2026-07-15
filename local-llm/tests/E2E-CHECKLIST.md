@@ -22,6 +22,10 @@ hardware (a running vLLM/Ollama server and the `copilot`/`crush` binaries). Run 
 - [ ] `crush-task` -> Local pick -> `.crush.json` written in the CWD, crush launches
 - [ ] `crush-task` -> Squire-Server pick -> switch happens and `.crush.json` `context_window` matches the roster
 - [ ] `crush-task` review / docs / image profiles each write the right MCP + system-prompt config
+- [ ] **Image gen follows the environment:** image profile under Local hits the local image server
+      (`localhost:8001`); under Squire-Server it hits the server's `:8001` (the server GPU does the work).
+      Check `.crush.json` `imagegen-mcp.env.IMAGEGEN_URL` for crush, and that copilot exported
+      `COPILOT_MCP_IMAGEGEN_HOST` (so `~/.copilot/mcp-config.json` expands to the right host).
 
 ## 3. The point of the refactor: change models with data only
 - [ ] Edit `~/.config/local-llm/local-models.json` (rename a label, or add a row + its `task_alias`/`registry`

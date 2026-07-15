@@ -30,6 +30,7 @@ param(
 $LlProviders = "__LL_PROVIDERS__"
 if ($LlProviders -like "*__*" -or [string]::IsNullOrWhiteSpace($LlProviders)) { $LlProviders = "local,server" }
 function Test-LlProvider { param([string]$Name) return ((",$LlProviders,") -like "*,$Name,*") }
+$SquireIp = "__SQUIRE_SERVER_IP__"
 
 # Switch the squire-server's active model via the accountless web endpoint (:4090). The server
 # loads one model at a time, so POST the mode then poll /status until it is ready before launching
@@ -147,6 +148,12 @@ function Write-CrushConfig {
         [int]$ServerCtx = 0,
         [int]$ServerMax = 0
     )
+    # Point the imagegen MCP tool at the selected environment's image server: local -> localhost,
+    # server -> the squire-server (so image generation follows the task context, not a baked host).
+    $imagegenHost = if ($Provider -eq "server") { $SquireIp } else { "127.0.0.1" }
+    if ($McpOverrides -and $McpOverrides.ContainsKey("imagegen-mcp")) {
+        $McpOverrides["imagegen-mcp"]["env"] = @{ IMAGEGEN_URL = "http://${imagegenHost}:8001" }
+    }
     $config = @{ mcp = $McpOverrides }
     # Output cap + context window. For the server provider these come from the advertised roster
     # (passed as -ServerCtx / -ServerMax); local Ollama runs roomy windows so a fixed cap is cheap.

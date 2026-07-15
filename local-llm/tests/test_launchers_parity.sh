@@ -30,7 +30,7 @@ copilot_tuple() {   # <src> <providers> <input> <args>
 crush_tuple() {     # <src> <providers> <input> <args>
     ll_run_sh "$1" "$2" "$3" "" "" "$4"
     local off=no; [[ "$LL_LAST_OUT" == *"Offload mode:"* ]] && off=yes
-    local js="NONE"; [[ -n "$LL_CRUSH_JSON" ]] && js="$(norm_json "$LL_CRUSH_JSON")"
+    local js="NONE"; [[ -n "$LL_CRUSH_JSON" ]] && js="$(norm_crush_json "$LL_CRUSH_JSON")"
     printf 'json=%s offload=%s' "$js" "$off"
 }
 

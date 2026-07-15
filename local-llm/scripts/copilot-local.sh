@@ -243,6 +243,10 @@ done
 # MCP: imagegen-mcp stays enabled only for image profiles; off elsewhere.
 if [[ "$SEL_IMAGEGEN" == "1" ]]; then MCP_FLAGS=(); else MCP_FLAGS=(--disable-mcp-server imagegen-mcp); fi
 
+# Point the imagegen MCP tool at the selected environment's image server (the mcp-config expands
+# ${COPILOT_MCP_IMAGEGEN_HOST}): local -> localhost, server -> the squire-server.
+if [[ "$SEL_REMOTE" == "1" ]]; then export COPILOT_MCP_IMAGEGEN_HOST="$SQUIRE_IP"; else export COPILOT_MCP_IMAGEGEN_HOST="127.0.0.1"; fi
+
 # Git safety: block git write operations
 GIT_SAFETY=(
     --deny-tool='shell(git add)' --deny-tool='shell(git commit)'

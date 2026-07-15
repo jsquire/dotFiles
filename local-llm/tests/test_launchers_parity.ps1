@@ -23,7 +23,7 @@ function Copilot-Tuple($src, $providers, $inputs, $modelArg) {
 function Crush-Tuple($src, $providers, $inputs, $taskArg) {
     Invoke-LauncherPs1 -Src $src -Providers $providers -Inputs $inputs -TaskArg $taskArg
     $off = if ($script:PS_LAST_OUT -match 'Offload mode:') { 'yes' } else { 'no' }
-    $js = if ($script:PS_CRUSH) { Norm-Json $script:PS_CRUSH } else { "NONE" }
+    $js = if ($script:PS_CRUSH) { Norm-CrushJson $script:PS_CRUSH } else { "NONE" }
     "json=$js offload=$off"
 }
 function Golden-Lookup($file, $name) {

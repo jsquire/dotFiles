@@ -1759,16 +1759,12 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
             fi
             # Explicit --squire-server-ip overrides the derived value.
             [[ -n "$SQUIRE_SERVER_IP" ]] && vllm_ip="$SQUIRE_SERVER_IP"
-            # Determine imagegen host — same as vLLM for server/client modes, localhost for standalone
-            local imagegen_host="127.0.0.1"
-            [[ "$vllm_ip" != "127.0.0.1" ]] && imagegen_host="$vllm_ip"
             sed -e "s|__LOCALAPPDATA__|${linux_app_data}|g" \
                 -e "s|__VENV_BIN__|bin|g" \
                 -e "s|__EXE__||g" \
                 -e "s|__EXE_SUFFIX__||g" \
                 -e "s|__CONFIG_DIR__|${CRUSH_CONFIG_DIR}|g" \
                 -e "s|__SQUIRE_SERVER_IP__|${vllm_ip}|g" \
-                -e "s|__IMAGEGEN_HOST__|${imagegen_host}|g" \
                 "$crush_config_source" > "$crush_config_dest"
 
             # Prune crush providers + set the default per --providers / --default-provider.
@@ -1942,14 +1938,11 @@ with open(p, 'w') as f:
                 cp "$copilot_mcp_dest" "$copilot_mcp_backup" && info "Backed up existing mcp-config.json to $copilot_mcp_backup"
             fi
             local linux_app_data="${HOME}/.local/share"
-            local imagegen_host="127.0.0.1"
-            [[ "${vllm_ip:-}" != "127.0.0.1" && -n "${vllm_ip:-}" ]] && imagegen_host="$vllm_ip"
             sed -e "s|__LOCALAPPDATA__|${linux_app_data}|g" \
                 -e "s|__VENV_BIN__|bin|g" \
                 -e "s|__EXE__||g" \
                 -e "s|__EXE_SUFFIX__||g" \
                 -e "s|__CONFIG_DIR__|${CRUSH_CONFIG_DIR}|g" \
-                -e "s|__IMAGEGEN_HOST__|${imagegen_host}|g" \
                 "$copilot_mcp_source" > "$copilot_mcp_dest"
             success "Deployed mcp-config.json to $copilot_mcp_dest"
         fi

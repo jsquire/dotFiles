@@ -976,7 +976,6 @@ if ($ShouldInstallSoftware) {
             $crushContent = $crushContent -replace '__EXE_SUFFIX__', '.exe'
             $crushContent = $crushContent -replace '__EXE__', '.exe'
             $crushContent = $crushContent -replace '__CONFIG_DIR__', $expandedConfigDir
-            $crushContent = $crushContent -replace '__IMAGEGEN_HOST__', '127.0.0.1'
             $crushContent = $crushContent -replace '__SQUIRE_SERVER_IP__', $SquireServerIP
 
             # Prune crush providers + set the default per -Providers / -DefaultProvider.
@@ -1065,7 +1064,6 @@ if ($ShouldInstallSoftware) {
             $mcpContent = $mcpContent -replace '__EXE_SUFFIX__', '.exe'
             $mcpContent = $mcpContent -replace '__EXE__', '.exe'
             $mcpContent = $mcpContent -replace '__CONFIG_DIR__', $expandedConfigDir
-            $mcpContent = $mcpContent -replace '__IMAGEGEN_HOST__', '127.0.0.1'
             Set-Content -Path $copilotMcpDest -Value $mcpContent -Encoding UTF8
             Write-Success "Deployed mcp-config.json to $copilotMcpDest"
         }

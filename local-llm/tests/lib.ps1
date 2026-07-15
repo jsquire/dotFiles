@@ -36,6 +36,12 @@ function Norm-Json($path) {
     (Get-Content $path -Raw) | wsl python3 -c "import json,sys;print(json.dumps(json.load(sys.stdin),sort_keys=True,separators=(',',':')))"
 }
 
+# Like Norm-Json but drops the imagegen-mcp env (covered by the imagegen-context suite, not parity).
+function Norm-CrushJson($path) {
+    if (-not $path -or -not (Test-Path $path)) { return "NONE" }
+    (Get-Content $path -Raw) | wsl python3 -c "import json,sys;d=json.load(sys.stdin);d.get('mcp',{}).get('imagegen-mcp',{}).pop('env',None);print(json.dumps(d,sort_keys=True,separators=(',',':')))"
+}
+
 $script:PS_WRAPPER_TMPL = @'
 $env:USERPROFILE = '__SB__'
 function Clear-Host {}
@@ -43,6 +49,7 @@ function copilot {
     $ig = if ("$args" -match 'disable-mcp-server imagegen-mcp') { 'off' } else { 'on' }
     $of = if ("$args" -match 'custom-instructions') { 'yes' } else { 'no' }
     Write-Host ("CAPTURE model=" + $env:COPILOT_MODEL + " base=" + $env:COPILOT_PROVIDER_BASE_URL + " prompt=" + $env:COPILOT_PROVIDER_MAX_PROMPT_TOKENS + " out=" + $env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS + " imagegen=" + $ig + " office=" + $of)
+    Write-Host ("IMAGEGEN_HOST=" + $env:COPILOT_MCP_IMAGEGEN_HOST)
 }
 function crush { Write-Host "CAPTURE crush" }
 function Invoke-RestMethod { throw "no network in tests" }
@@ -66,7 +73,8 @@ function Invoke-LauncherPs1 {
     # baseline, which still contains em-dashes that would otherwise inject a stray quote).
     $withBom = New-Object System.Text.UTF8Encoding($true)
     $c = [System.IO.File]::ReadAllText($Src, [System.Text.Encoding]::UTF8)
-    $c = $c -replace '__SQUIRE_SERVER_IP__', '127.0.0.1' -replace '__SQUIRE_SSH_TARGET__', 'test@127.0.0.1' -replace '__LL_PROVIDERS__', $Providers
+    $squireIp = if ($env:LL_TEST_SQUIRE_IP) { $env:LL_TEST_SQUIRE_IP } else { '127.0.0.1' }
+    $c = $c -replace '__SQUIRE_SERVER_IP__', $squireIp -replace '__SQUIRE_SSH_TARGET__', 'test@127.0.0.1' -replace '__LL_PROVIDERS__', $Providers
     [System.IO.File]::WriteAllText((Join-Path $sb "launcher.ps1"), $c, $withBom)
     Set-Content (Join-Path $sb "offload-serve.ps1") 'param($Action,$NCpuMoe)' -Encoding UTF8
 

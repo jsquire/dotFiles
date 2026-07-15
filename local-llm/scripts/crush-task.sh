@@ -59,6 +59,11 @@ write_crush_config() {
         ctx_win="${SRV_CTX:-32768}"; max_tok="${SRV_MAX:-8192}"
     fi
 
+    # Point the imagegen MCP tool at the selected environment's image server: local -> localhost,
+    # server -> the squire-server (so image generation follows the task context, not a baked host).
+    local imagegen_host="127.0.0.1"
+    [[ "$provider" == "server" ]] && imagegen_host="$SQUIRE_IP"
+
     # Per-provider override. For the server provider we expose ONE 'active-model' entry (so crush's
     # /model can never pick a not-yet-loaded model), and relabel it "Active: <model>" for visibility.
     local prov_inner=""
@@ -104,7 +109,7 @@ write_crush_config() {
     cat > .crush.json <<EOF
 {
   "mcp": {
-    "imagegen-mcp": { "disabled": ${imagegen_disabled} }
+    "imagegen-mcp": { "disabled": ${imagegen_disabled}, "env": { "IMAGEGEN_URL": "http://${imagegen_host}:8001" } }
   }${providers_block}${models_block}
 }
 EOF

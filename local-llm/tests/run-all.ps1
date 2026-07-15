@@ -19,5 +19,10 @@ Write-Host "########## test_launchers_parity.ps1 ##########"
 if ($LASTEXITCODE -ne 0) { $fail = 1 }
 
 Write-Host ""
+Write-Host "########## test_imagegen_context.ps1 ##########"
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dir "test_imagegen_context.ps1")
+if ($LASTEXITCODE -ne 0) { $fail = 1 }
+
+Write-Host ""
 if ($fail -eq 0) { Write-Host "==== ALL POWERSHELL SUITES PASSED ===="; exit 0 }
 else { Write-Host "==== POWERSHELL SUITE FAILURES ===="; exit 1 }

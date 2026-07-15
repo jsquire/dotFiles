@@ -10,4 +10,5 @@ imagegen=on
 office=no
 [[ "$*" == *"--custom-instructions"* ]] && office=yes
 echo "CAPTURE model=${model} base=${COPILOT_PROVIDER_BASE_URL:-} prompt=${COPILOT_PROVIDER_MAX_PROMPT_TOKENS:-} out=${COPILOT_PROVIDER_MAX_OUTPUT_TOKENS:-} imagegen=${imagegen} office=${office}"
+echo "IMAGEGEN_HOST=${COPILOT_MCP_IMAGEGEN_HOST:-}"
 exit 0
