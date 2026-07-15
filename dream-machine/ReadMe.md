@@ -55,6 +55,57 @@ approaches, and the mechanics of DNAT/conntrack, see
   [Appendix A: Warranty considerations](#appendix-a-warranty-considerations).**
 * A workstation with `bash`, `ssh`, `scp`, and `dig` installed.
 
+### Required companion configuration: UDM system DNS
+
+**Do not point the UDM's own upstream DNS at AdGuard.** This failover system
+only protects clients on the LAN. The UDM itself is not protected, and
+pointing its own DNS at the AdGuard host will cause a full-network outage
+whenever AdGuard is down (see reasoning below).
+
+**Set the UDM's WAN DNS to a public resolver:**
+
+1. UniFi Network → Settings → Internet → click your **Primary (WAN)** connection.
+2. In **IPv4 Configuration**, change **Advanced** from **Auto** to **Manual**.
+   This unlocks per-field overrides without changing the WAN IP assignment
+   from DHCP.
+3. **Uncheck** the **DNS Server Auto** checkbox.
+4. Set:
+   * **Primary DNS:** `9.9.9.9`
+   * **Secondary DNS:** `149.112.112.112`
+5. Apply Changes.
+
+Clients continue to receive the AdGuard address via DHCP (Settings → Networks
+→ (LAN) → DHCP → DNS Server). Only the router itself uses the public resolver.
+
+#### Why this matters
+
+The failover daemon installs an iptables rule in `nat/PREROUTING`, which only
+matches traffic **entering** the UDM from an interface (client traffic). The
+UDM's own outbound queries traverse `nat/OUTPUT`, which the rule does not
+cover. If the UDM's system DNS is set to the AdGuard IP:
+
+* When AdGuard is up: fine.
+* When AdGuard dies: the UDM cannot resolve anything for its own use. Cloud
+  connectivity, speed tests, firmware checks, and remote management all fail
+  even though the DNAT rule is protecting clients correctly.
+
+Pointing the UDM at a public resolver eliminates this dependency without
+affecting client filtering.
+
+#### Verifying the change
+
+From any host that can reach the UDM over SSH, trigger a lookup on the UDM
+against an uncached name and watch AdGuard's Query Log filtered by client
+`192.168.1.1`:
+
+```bash
+ssh root@192.168.1.1 "nslookup probe-$(date +%s).example.org"
+```
+
+If the query does **not** appear in AdGuard's log for client
+`192.168.1.1`, the UDM is correctly using its public upstream and no longer
+depends on AdGuard.
+
 ### Step-by-step: install
 
 1. **Enable SSH on the UDM.**
@@ -135,6 +186,9 @@ directly.
   removed and traffic flows to AdGuard directly again.
 * Conntrack un-NATs reply packets, so clients see all responses as coming
   from the AdGuard IP — the switch is invisible to them.
+* **Scope:** only client (LAN-originated) DNS traffic is protected. The UDM's
+  own outbound DNS goes through `nat/OUTPUT`, which the rule does not cover
+  by design. See [Required companion configuration: UDM system DNS](#required-companion-configuration-udm-system-dns).
 * A supervisor loop in `/data/on_boot.d/15-adguard-failover.sh` keeps the
   daemon alive across crashes, and `unifi-common`'s `udm-boot.service`
   ensures the boot hook runs after every reboot (including after firmware
