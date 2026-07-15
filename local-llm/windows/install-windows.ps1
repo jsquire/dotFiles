@@ -1250,6 +1250,27 @@ TIMESTEP_TOKEN_NUM = 1
         Write-Warn "Crush task script not found at $crushSource — skipping."
     }
 
+    # ── Step: Deploy model roster data files ──────────────────────────────
+    # The launchers read the local roster (local-models.json; Windows uses the 5090-tier default) and
+    # the server roster fallback (server-models.json) from ~/.config/local-llm/. Copied verbatim.
+    Write-Step "Deploy model roster data files"
+    $rosterDir = Join-Path $UserProfile ".config\local-llm"
+    if (-not (Test-Path $rosterDir)) { New-Item -ItemType Directory -Path $rosterDir -Force | Out-Null }
+    $localRosterSrc = Join-Path $PSScriptRoot "..\scripts\local-models.json"
+    if (Test-Path $localRosterSrc) {
+        Copy-Item $localRosterSrc (Join-Path $rosterDir "local-models.json") -Force
+        Write-Success "Deployed local-models.json to $rosterDir"
+    } else {
+        Write-Warn "local-models.json not found at $localRosterSrc; the launchers will not start."
+    }
+    $serverRosterSrc = Join-Path $PSScriptRoot "..\cachyos\server-models.json"
+    if (Test-Path $serverRosterSrc) {
+        Copy-Item $serverRosterSrc (Join-Path $rosterDir "server-models.json") -Force
+        Write-Success "Deployed server-models.json fallback to $rosterDir"
+    } else {
+        Write-Warn "server-models.json not found at $serverRosterSrc; server page will rely on the live :4090/models endpoint."
+    }
+
     # ── Step: Deploy offload-serve helper ─────────────────────────────────
     # Both copilot-local.cmd (O1/O2 offload profiles) and crush-task.ps1 invoke this helper from
     # their own directory (%~dp0 / $PSScriptRoot = Documents\CLI), so it must be deployed alongside

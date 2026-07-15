@@ -10,37 +10,85 @@ _ll_has() { [[ ",${LL_PROVIDERS}," == *",$1,"* ]]; }
 export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=51200
 export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=16384
 
-# ── Tier-aware Ollama alias/label registry ────────────────────────────────────
-# The installer generates ~/.config/local-llm/ollama-tier.sh with the tier's task->alias
-# SLOT map (LL_ALIAS) + alias->label registry (LL_LABEL). Sourcing it makes this launcher
-# present the correct aliases for whichever GPU tier (4090|5090) was installed. If the file
-# is absent (e.g. a copy not deployed by the installer), fall back to the 5090 roster.
-declare -A LL_ALIAS
-declare -A LL_LABEL
-LL_OLLAMA_TIER="5090"
-_LL_TIER_CONFIG="${HOME}/.config/local-llm/ollama-tier.sh"
-if [[ -f "$_LL_TIER_CONFIG" ]]; then
-    # shellcheck source=/dev/null
-    source "$_LL_TIER_CONFIG"
-else
-    LL_ALIAS=(
-        [heavy]=qwen36-27b-212k [coder]=qwen3coder-144k [review]=qwen3coder-144k
-        [agentic]=glm47-flash-198k [image_llm]=qwen3:8b
-        [h1]=qwen36-27b-212k [h2]=qwen36-35b-256k [h3]=gemma4-31b-128k [h4]=qwen3coder-144k
-        [h5]=glm47-flash-198k [h6]=northmini-code-256k [h7]=nemotron3-nano-256k [h8]=ornith-35b-256k
-        [h9]=devstral2-24b-128k [o2]=qwen3next-80b-offload
-    )
-    LL_LABEL=(
-        [qwen36-27b-212k]="Qwen3.6 27B (+MTP)" [qwen36-35b-256k]="Qwen3.6 35B-A3B MoE"
-        [gemma4-31b-128k]="Gemma 4 31B dense" [qwen3coder-144k]="Qwen3-Coder 30B-A3B"
-        [glm47-flash-198k]="GLM-4.7-Flash" [northmini-code-256k]="North Mini Code 1.0"
-        [nemotron3-nano-256k]="Nemotron 3 Nano 30B-A3B" [ornith-35b-256k]="Ornith-1.0-35B"
-        [devstral2-24b-128k]="Devstral Small 2 (24B)"
-        [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (partial offload)" [qwen3:8b]="Qwen3 8B"
-    )
+# ── Data-driven model roster ─────────────────────────────────────────────────
+# Local models come from local-models.json (installer-generated per GPU tier; replaces the old
+# ollama-tier.sh). Server models are advertised live by the switch daemon at :4090/models, with a
+# bundled server-models.json as the offline fallback. Both are read via python3 (no jq dependency).
+LL_CONFIG_DIR="${HOME}/.config/local-llm"
+_ll_self_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+LL_MODELS_FILE=""
+for _c in "${LL_MODELS_FILE:-}" "${LL_CONFIG_DIR}/local-models.json" "${_ll_self_dir}/local-models.json"; do
+    [[ -n "$_c" && -f "$_c" ]] && { LL_MODELS_FILE="$_c"; break; }
+done
+if [[ -z "$LL_MODELS_FILE" ]]; then
+    echo "  ERROR: local-models.json not found (looked in ${LL_CONFIG_DIR}/ and beside the launcher)." >&2
+    exit 1
 fi
-model_label() { echo "${LL_LABEL[$1]:-$1}"; }
-_alias() { echo "${LL_ALIAS[$1]:-$1}"; }
+LL_SERVER_FALLBACK="${LL_CONFIG_DIR}/server-models.json"
+SQUIRE_IP="__SQUIRE_SERVER_IP__"
+
+# python worker over the local roster ($LL_MODELS_FILE). Subcommands: page/keys/resolve/label.
+_ll() {
+    LL_FILE="$LL_MODELS_FILE" python3 - "$@" <<'PY'
+import json, os, sys
+d = json.load(open(os.environ["LL_FILE"]))
+reg = d.get("registry", {}); ta = d.get("task_alias", {})
+cmd = sys.argv[1]
+def alias_of(r): return ta.get(r.get("slot", ""), r.get("slot", ""))
+def detail(r):
+    if "detail" in r: return r["detail"]
+    return alias_of(r) + ((" " + r["note"]) if r.get("note") else "")
+def cats(launcher, which):
+    return d.get("launchers", {}).get(launcher, {}).get(which, {}).get("categories", [])
+if cmd == "page":
+    for c in cats(sys.argv[2], sys.argv[3]):
+        print("CAT\x1f%s\x1f%s" % (c.get("heading", ""), c.get("subtitle", "")))
+        for r in c["rows"]:
+            print("ROW\x1f%s\x1f%s\x1f%s" % (r["key"], r["label"], detail(r)))
+elif cmd == "resolve":
+    key = sys.argv[4]
+    for c in cats(sys.argv[2], sys.argv[3]):
+        for r in c["rows"]:
+            if r["key"] == key:
+                flags = ",".join(f for f in ("office", "imagegen", "offload") if r.get(f))
+                print("%s\x1f%s\x1f%s" % (alias_of(r), flags, r.get("profile", "")))
+                sys.exit(0)
+    sys.exit(1)
+elif cmd == "label":
+    print(reg.get(sys.argv[2], {}).get("label", sys.argv[2]))
+elif cmd == "tier":
+    print(d.get("tier", ""))
+PY
+}
+model_label() { _ll label "$1"; }
+
+# Fetch the server roster: live from the switch daemon, else the bundled fallback file.
+_srv_json() {
+    local out
+    out="$(curl -fsS -m 2 "http://${SQUIRE_IP}:4090/models" 2>/dev/null || true)"
+    if [[ -n "$out" ]]; then printf '%s' "$out"; return 0; fi
+    [[ -f "$LL_SERVER_FALLBACK" ]] && { cat "$LL_SERVER_FALLBACK"; return 0; }
+    return 1
+}
+# python worker over a server roster JSON string ($1). Subcommands: page/resolve.
+_srv() {
+    SRV_JSON="$1" python3 - "${@:2}" <<'PY'
+import json, os, sys
+d = json.loads(os.environ["SRV_JSON"]); modes = d.get("modes", [])
+cmd = sys.argv[1]
+if cmd == "page":
+    for m in modes:
+        print("ROW\x1f%s\x1f%s\x1f%s" % (m["key"], m["label"], m.get("task", "")))
+elif cmd == "resolve":
+    for m in modes:
+        if m["key"] == sys.argv[2]:
+            print("\x1f".join(str(x) for x in (
+                m["mode"], m["label"], m["model_id"], m["ctx"],
+                m["max_output"], m["max_prompt"], int(bool(m.get("imagegen_disabled", True))))))
+            sys.exit(0)
+    sys.exit(1)
+PY
+}
 
 # Switch the Squire server's active model via the accountless web endpoint (:4090) — no SSH account
 # needed. The server loads one model at a time, so we POST the desired mode then poll /status until it
@@ -74,7 +122,7 @@ if [[ "${1:-}" == *":"* ]]; then
     exec copilot --model "$COPILOT_MODEL" -- "$@"
 fi
 
-# No model specified — show the two-level environment picker (colour box UI).
+# No model specified — show the two-level environment picker (colour box UI, data-driven).
 W=110
 ESC=$'\033'; FRAME="${ESC}[38;5;25m"; TEXT="${ESC}[97m"; RST="${ESC}[0m"
 bar=$(printf '═%.0s' $(seq 1 $W))
@@ -82,18 +130,39 @@ box_top() { printf '  %s╔%s╗%s\n' "$FRAME" "$bar" "$RST"; }
 box_mid() { printf '  %s╠%s╣%s\n' "$FRAME" "$bar" "$RST"; }
 box_bot() { printf '  %s╚%s╝%s\n' "$FRAME" "$bar" "$RST"; }
 box_line() { printf '  %s║%s%-*.*s%s║%s\n' "$FRAME" "$TEXT" "$W" "$W" "$1" "$FRAME" "$RST"; }
-box_center() { local s="$1" p=$(( (W - ${#s}) / 2 )); (( p < 0 )) && p=0; box_line "$(printf '%*s%s' "$p" '' "$s")"; }
+box_center() { local s="$1"; local p=$(( (W - ${#s}) / 2 )); (( p < 0 )) && p=0; box_line "$(printf '%*s%s' "$p" '' "$s")"; }
 box_row() { box_line "$(printf '       %-5s %-26.26s %s' "[$1]" "$2" "$3")"; }
 rule() { box_line "     $(printf -- '-%.0s' $(seq 1 "$1"))"; }
 
+# Render a data-driven local page (production|experimental) with computed underlines + spacing.
+render_local() {
+    local which="$1" typ a b c first=1 ulen
+    box_line ""
+    while IFS=$'\x1f' read -r typ a b c; do
+        case "$typ" in
+            CAT)
+                if [[ $first -eq 0 ]]; then box_line ""; box_line ""; fi
+                first=0
+                box_line "     $a"
+                if [[ -n "$b" ]]; then box_line "         $b"; ulen=$(( ${#b} + 4 )); else ulen=${#a}; fi
+                rule "$ulen"; box_line ""
+                ;;
+            ROW) box_row "$a" "$b" "$c" ;;
+        esac
+    done < <(_ll page copilot "$which")
+    box_line ""; box_line ""; box_line ""
+    box_row "B" "Back to environments" ""; box_row "Q" "Quit" ""; box_line ""
+}
+
+LL_TIER="$(_ll tier)"
 has_local=false; has_server=false
 _ll_has local && has_local=true
 _ll_has server && has_server=true
-choice=""; menuerr=""
+SEL_MODEL=""; SEL_LABEL=""; SEL_TAG=""; SEL_IMAGEGEN=0; SEL_OFFICE=0; OFFLOAD_MODE=0; SEL_REMOTE=0
+menuerr=""; SRVJSON=""; pg_which=""; res=""; sres=""; s_sub=""
 if $has_local; then page=env; else page=server; fi
 while true; do
-    clear
-    echo
+    clear; echo
     case "$page" in
         env)
             box_top; box_center "Copilot Local"; box_line ""; box_center "pick an environment"; box_mid
@@ -103,8 +172,7 @@ while true; do
             if $has_server; then box_line ""; box_line "     [3]  Squire-Server"; box_line "          Models hosted on the server"; fi
             box_line ""; box_line ""; box_line "     [Q]  Quit"; box_line ""; box_bot; echo
             [ -n "$menuerr" ] && { echo "   $menuerr"; menuerr=""; }
-            read -rp "   Your choice [1]: " sel
-            sel="${sel:-1}"
+            read -rp "   Your choice [1]: " sel; sel="${sel:-1}"
             case "${sel^^}" in
                 1) page=local ;;
                 2) page=exp ;;
@@ -113,164 +181,67 @@ while true; do
                 *) menuerr="Invalid selection, try again." ;;
             esac
             ;;
-        local)
-            box_top; box_center "Copilot Local"; box_line ""; box_center "local : production models"; box_mid
-            box_line ""
-            box_line "     Coding"; rule 6; box_line ""
-            box_row "1" "Heavy coding" "$(_alias heavy)"
-            box_row "2" "Light coding" "$(_alias coder)"
-            box_row "3" "Code review" "$(_alias review)"
-            box_line ""; box_line ""
-            box_line "     Writing & Documents"; rule 19; box_line ""
-            box_row "4" "Technical docs" "$(_alias heavy)"
-            box_row "5" "Creative writing" "$(_alias heavy)"
-            box_row "6" "Office documents" "$(_alias agentic)"
-            box_line ""; box_line ""
-            box_line "     Visual"; rule 6; box_line ""
-            box_row "7" "Image generation" "$(_alias image_llm) + HiDream (MCP)"
-            box_line ""; box_line ""; box_line ""
-            box_row "B" "Back to environments" ""; box_row "Q" "Quit" ""; box_line ""
+        local|exp)
+            [[ "$page" == "local" ]] && pg_which=production || pg_which=experimental
+            box_top; box_center "Copilot Local"; box_line ""
+            if [[ "$page" == "local" ]]; then box_center "local : production models"
+            else box_center "local : models under evaluation (${LL_TIER} tier)"; fi
+            box_mid
+            render_local "$pg_which"
             box_bot; echo
             [ -n "$menuerr" ] && { echo "   $menuerr"; menuerr=""; }
-            read -rp "   Your choice [1]: " sel
-            sel="${sel:-1}"
+            read -rp "   Your choice [1]: " sel; sel="${sel:-1}"
             if [[ "${sel^^}" == "Q" ]]; then clear; exit 0; fi
-            case "${sel^^}" in B) page=env; continue ;; esac
-            if [[ "$sel" =~ ^[1-7]$ ]]; then choice="$sel"; break; fi
-            menuerr="Invalid selection, try again."
-            ;;
-        exp)
-            box_top; box_center "Copilot Local"; box_line ""; box_center "local : models under evaluation ($LL_OLLAMA_TIER tier)"; box_mid
-            box_line ""
-            box_line "     Heavy-coding bench"; box_line "         (VRAM-resident; swap model, MCP off)"; rule 40; box_line ""
-            box_row "1" "Qwen3.6 27B+MTP" "$(_alias h1)"
-            box_row "2" "Qwen3.6 35B-A3B MoE" "$(_alias h2)"
-            box_row "3" "Gemma 4 31B dense" "$(_alias h3)"
-            box_row "4" "Qwen3-Coder 30B-A3B" "$(_alias h4)"
-            box_row "5" "GLM-4.7-Flash" "$(_alias h5)"
-            box_row "6" "North Mini Code 1.0" "$(_alias h6)"
-            box_row "7" "Nemotron 3 Nano 30B" "$(_alias h7)"
-            box_row "8" "Ornith-1.0-35B" "$(_alias h8)"
-            box_row "9" "Devstral Small 2 24B" "$(_alias h9)"
-            box_line ""; box_line ""
-            box_line "     Big-MoE expert-offload bench"; box_line "         (experts to RAM; slower)"; rule 28; box_line ""
-            box_row "10" "Qwen3-Next-80B-A3B" "offload, Q4_K_M ~45 GB"
-            box_line ""; box_line ""; box_line ""
-            box_row "B" "Back to environments" ""; box_row "Q" "Quit" ""; box_line ""
-            box_bot; echo
-            [ -n "$menuerr" ] && { echo "   $menuerr"; menuerr=""; }
-            read -rp "   Your choice [1]: " sel
-            sel="${sel:-1}"
-            if [[ "${sel^^}" == "Q" ]]; then clear; exit 0; fi
-            case "${sel^^}" in B) page=env; continue ;; esac
-            if [[ "$sel" =~ ^[1-9]$ ]]; then choice="H$sel"; break; fi
-            if [[ "$sel" == "10" ]]; then choice="O2"; break; fi
+            if [[ "${sel^^}" == "B" ]]; then page=env; continue; fi
+            if res="$(_ll resolve copilot "$pg_which" "$sel")"; then
+                IFS=$'\x1f' read -r a_alias a_flags a_profile <<<"$res"
+                export COPILOT_MODEL="$a_alias"
+                SEL_MODEL="$a_alias"; SEL_LABEL="$(_ll label "$a_alias")"; SEL_REMOTE=0
+                [[ ",$a_flags," == *",imagegen,"* ]] && SEL_IMAGEGEN=1 || SEL_IMAGEGEN=0
+                [[ ",$a_flags," == *",office,"* ]] && SEL_OFFICE=1 || SEL_OFFICE=0
+                [[ ",$a_flags," == *",offload,"* ]] && OFFLOAD_MODE=1 || OFFLOAD_MODE=0
+                [[ "$page" == "exp" ]] && SEL_TAG="[$sel] experimental" || SEL_TAG="[$sel] task profile"
+                break
+            fi
             menuerr="Invalid selection, try again."
             ;;
         server)
+            [[ -z "$SRVJSON" ]] && SRVJSON="$(_srv_json || true)"
+            if [[ -z "$SRVJSON" ]]; then
+                clear; echo "  ERROR: could not reach the server model list at :4090/models and no fallback file found." >&2
+                exit 1
+            fi
             box_top; box_center "Copilot Local"; box_line ""; box_center "squire-server : remote models"; box_mid
             box_line ""
-            box_line "     Remote"; box_line "         (server - switches the standing model on pick)"; rule 50; box_line ""
-            box_row "1" "Mistral-Small" "default : office/authoring, 64K"
-            box_row "2" "GLM-4.7-Flash" "agentic / reasoning"
-            box_row "3" "Qwen3-Coder" "coding-first"
-            box_row "4" "Devstral-2 24B" "coding-alt, agentic"
-            box_row "5" "Image gen" "HiDream + Qwen3-4B"
+            s_sub="(server - switches the standing model on pick)"
+            box_line "     Remote"; box_line "         $s_sub"; rule $(( ${#s_sub} + 4 )); box_line ""
+            while IFS=$'\x1f' read -r typ k l t; do [[ "$typ" == "ROW" ]] && box_row "$k" "$l" "$t"; done < <(_srv "$SRVJSON" page)
             box_line ""; box_line ""; box_line ""
             if $has_local; then box_row "B" "Back to environments" ""; fi
             box_row "Q" "Quit" ""; box_line ""
             box_bot; echo
             [ -n "$menuerr" ] && { echo "   $menuerr"; menuerr=""; }
-            read -rp "   Your choice [1]: " sel
-            sel="${sel:-1}"
+            read -rp "   Your choice [1]: " sel; sel="${sel:-1}"
             if [[ "${sel^^}" == "Q" ]]; then clear; exit 0; fi
             if [[ "${sel^^}" == "B" ]] && $has_local; then page=env; continue; fi
-            case "$sel" in
-                1) choice="S" ;; 2) choice="G" ;; 3) choice="C" ;; 4) choice="D" ;; 5) choice="I" ;;
-                *) menuerr="Invalid selection, try again."; choice="" ;;
-            esac
-            [ -n "$choice" ] && break
+            if sres="$(_srv "$SRVJSON" resolve "$sel")"; then
+                IFS=$'\x1f' read -r s_mode s_label s_id s_ctx s_out s_prompt s_imgoff <<<"$sres"
+                squire_switch "$s_mode"
+                export COPILOT_PROVIDER_BASE_URL="http://${SQUIRE_IP}:8000/v1"
+                export COPILOT_MODEL="$s_id"
+                export COPILOT_PROVIDER_MAX_PROMPT_TOKENS="$s_prompt"
+                export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS="$s_out"
+                SEL_MODEL="$s_id"; SEL_LABEL="$s_label"; SEL_REMOTE=1; SEL_TAG="[$sel] squire-server"
+                SEL_IMAGEGEN=$(( s_imgoff == 0 ? 1 : 0 )); SEL_OFFICE=0
+                break
+            fi
+            menuerr="Invalid selection, try again."
             ;;
     esac
 done
-OFFLOAD_MODE=0
-
-case "$choice" in
-    7)
-        # Image generation — keep imagegen-mcp enabled
-        MCP_FLAGS=()
-        ;;
-    i|I)
-        # Remote image mode — keep imagegen-mcp enabled
-        MCP_FLAGS=()
-        ;;
-    *)
-        # Everything else: no document MCP servers (office authoring uses the code-gen skill);
-        # imagegen-mcp is the only MCP server and is off outside the image profiles.
-        MCP_FLAGS=(--disable-mcp-server imagegen-mcp)
-        ;;
-esac
-
-case "$choice" in
-    1) export COPILOT_MODEL="$(_alias heavy)" ;;
-    2) export COPILOT_MODEL="$(_alias coder)" ;;
-    3) export COPILOT_MODEL="$(_alias review)" ;;
-    4|5) export COPILOT_MODEL="$(_alias heavy)" ;;
-    6) export COPILOT_MODEL="$(_alias agentic)" ;;
-    7) export COPILOT_MODEL="$(_alias image_llm)" ;;
-    [oO]2) export COPILOT_MODEL="$(_alias o2)"; OFFLOAD_MODE=1 ;;
-    [Hh]1) export COPILOT_MODEL="$(_alias h1)" ;;
-    [Hh]2) export COPILOT_MODEL="$(_alias h2)" ;;
-    [Hh]3) export COPILOT_MODEL="$(_alias h3)" ;;
-    [Hh]4) export COPILOT_MODEL="$(_alias h4)" ;;
-    [Hh]5) export COPILOT_MODEL="$(_alias h5)" ;;
-    [Hh]6) export COPILOT_MODEL="$(_alias h6)" ;;
-    [Hh]7) export COPILOT_MODEL="$(_alias h7)" ;;
-    [Hh]8) export COPILOT_MODEL="$(_alias h8)" ;;
-    [Hh]9) export COPILOT_MODEL="$(_alias h9)" ;;
-    s|S)
-        squire_switch mistral
-        export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
-        export COPILOT_MODEL="mistral-small"
-        # Server window 64K. Cap prompt+output under it (output 8192 leaves ~54K prompt); mirrors crush.
-        export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=54272
-        export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8192
-        ;;
-    g|G)
-        squire_switch glm
-        export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
-        export COPILOT_MODEL="glm-4.7-flash"
-        # Server window 54K. Cap prompt+output under it (output 8192 leaves ~44K prompt); mirrors crush.
-        export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=44032
-        export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8192
-        ;;
-    c|C)
-        squire_switch coder
-        export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
-        export COPILOT_MODEL="qwen3-coder"
-        # Server window 56K. Cap prompt+output under it (output 8192 leaves ~46K prompt); mirrors crush.
-        export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=46080
-        export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8192
-        ;;
-    d|D)
-        squire_switch coder-alt
-        export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
-        export COPILOT_MODEL="devstral"
-        # Server window 56K. Cap prompt+output under it (output 8192 leaves ~46K prompt); mirrors crush.
-        export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=46080
-        export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=8192
-        ;;
-    i|I)
-        squire_switch image
-        export COPILOT_PROVIDER_BASE_URL="http://__SQUIRE_SERVER_IP__:8000/v1"
-        export COPILOT_MODEL="qwen3-4b"
-        # Image companion serves a 32K window (1.7B, KV holds ~43K tokens so 32K is free). Small output
-        # cap (it only emits a tool call); leaves ~28K for crush/copilot agentic prompt + tool schemas.
-        export COPILOT_PROVIDER_MAX_PROMPT_TOKENS=28672
-        export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=2048
-        ;;
-    *) echo "  Invalid. Using $(_alias heavy)"; export COPILOT_MODEL="$(_alias heavy)" ;;
-esac
+# ── Finalise flags from the selection ────────────────────────────────────────
+# MCP: imagegen-mcp stays enabled only for image profiles; off elsewhere.
+if [[ "$SEL_IMAGEGEN" == "1" ]]; then MCP_FLAGS=(); else MCP_FLAGS=(--disable-mcp-server imagegen-mcp); fi
 
 # Git safety: block git write operations
 GIT_SAFETY=(
@@ -281,21 +252,15 @@ GIT_SAFETY=(
     --deny-tool='shell(git revert)' --deny-tool='shell(git tag)'
 )
 
-# Office authoring guidance for the Office documents profile: inject the vendored 'office' skill
-# (deployed by the installer) as custom instructions — Copilot CLI has no native skill discovery.
+# Office authoring guidance: inject the vendored 'office' skill as custom instructions —
+# Copilot CLI has no native skill discovery.
 EXTRA_FLAGS=()
-if [[ "$choice" == "6" ]]; then
+if [[ "$SEL_OFFICE" == "1" ]]; then
     OFFICE_SKILL="${HOME}/.config/crush/skills/office/SKILL.md"
     [[ -f "$OFFICE_SKILL" ]] && EXTRA_FLAGS=(--custom-instructions "$OFFICE_SKILL")
 fi
 
-case "$choice" in
-    [Hh]*) SLOT="[${choice^^}] experimental · heavy bench" ;;
-    [Oo]*) SLOT="[${choice^^}] experimental · offload bench" ;;
-    [1-9]) SLOT="[$choice] task profile" ;;
-    *)     SLOT="" ;;
-esac
-echo "  ▶ $(model_label "$COPILOT_MODEL")  ·  alias=$COPILOT_MODEL${SLOT:+  ·  $SLOT}"
+echo "  ▶ ${SEL_LABEL}  ·  alias=${SEL_MODEL}${SEL_TAG:+  ·  $SEL_TAG}"
 echo
 if [[ -n "${COPILOT_PROVIDER_BASE_URL:-}" ]]; then
     # Remote mode: launch copilot directly (skip ollama wrapper)

@@ -24,7 +24,8 @@ COPILOT_LOCAL_LAUNCHER="${HOME}/.local/bin/copilot-local"
 COPILOT_SERVER_LAUNCHER="${HOME}/.local/bin/copilot-server"
 CRUSH_TASK_LAUNCHER="${HOME}/.local/bin/crush-task"
 COPILOT_MCP_CONFIG="${HOME}/.copilot/mcp-config.json"
-OLLAMA_TIER_CONFIG="${HOME}/.config/local-llm/ollama-tier.sh"
+LOCAL_MODELS_JSON="${HOME}/.config/local-llm/local-models.json"
+SERVER_MODELS_JSON="${HOME}/.config/local-llm/server-models.json"
 
 STEP_NUMBER=0
 FAILURES=()
@@ -347,6 +348,7 @@ if [[ "$MODE" == "full" ]]; then
     remove_system_path '/etc/systemd/system/vllm@.service' 'vLLM templated mode service'
     remove_system_path '/etc/systemd/system/imagegen.service' 'image-gen service'
     remove_system_path '/usr/local/bin/vllm-switch-web' 'model-switch web daemon'
+    remove_system_path '/etc/local-llm/server-models.json' 'server model roster (daemon)'
     remove_system_path '/usr/local/bin/cachyos-switch-model' 'model-switch CLI'
     remove_system_path '/usr/local/bin/cachyos-vllm-serve' 'vLLM serve wrapper'
     remove_system_path '/usr/local/bin/server-desktop' 'desktop/headless toggle'
@@ -434,7 +436,8 @@ step "Remove launcher scripts and tier config"
 remove_user_path "$COPILOT_LOCAL_LAUNCHER" 'copilot-local launcher'
 remove_user_path "$COPILOT_SERVER_LAUNCHER" 'copilot-server launcher'
 remove_user_path "$CRUSH_TASK_LAUNCHER" 'crush-task launcher'
-remove_user_path "$OLLAMA_TIER_CONFIG" 'Ollama launcher tier config'
+remove_user_path "$LOCAL_MODELS_JSON" 'local model roster'
+remove_user_path "$SERVER_MODELS_JSON" 'server model roster fallback'
 if [[ "$KEEP_CONFIG" == false ]]; then
     remove_user_path "$COPILOT_MCP_CONFIG" 'Copilot MCP config'
 else
