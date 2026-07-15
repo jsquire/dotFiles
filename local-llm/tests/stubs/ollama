@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# test stub for `ollama`: never touch a real model server. Fail-closed but quiet.
+echo "STUB ollama: $* (no-op)" >&2
+exit 0

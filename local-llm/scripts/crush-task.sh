@@ -51,22 +51,18 @@ write_crush_config() {
     local providers_block=""
     local models_block=""
 
-    # Output cap + assumed window, by provider. The server window per mode:
-    # coder/devstral 56K, glm 54K, mistral 64K, image companion 32K. Cap output at 8K to avoid
-    # starving agentic context (image companion caps output at 2K — it only emits a small tool call).
-    # Local Ollama runs 128K-256K windows, so a larger 32K cap is cheap.
+    # Output cap + context window. For the server provider these come from the advertised roster
+    # (SRV_CTX / SRV_MAX, set by the picker from :4090/models); local Ollama runs roomy windows so a
+    # fixed cap is cheap.
     local max_tok=16384 ctx_win=65536
     if [[ "$provider" == "server" ]]; then
-        max_tok=8192
-        case "$active_label" in
-            mistral-small)  ctx_win=65536 ;;
-            glm-4.7-flash)  ctx_win=55296 ;;
-            qwen3-coder)    ctx_win=57344 ;;
-            devstral)       ctx_win=57344 ;;
-            qwen3-4b)       ctx_win=32768; max_tok=2048 ;;  # image companion: 1.7B, 32K served; small output (tool call only)
-            *)              ctx_win=32768 ;;
-        esac
+        ctx_win="${SRV_CTX:-32768}"; max_tok="${SRV_MAX:-8192}"
     fi
+
+    # Point the imagegen MCP tool at the selected environment's image server: local -> localhost,
+    # server -> the squire-server (so image generation follows the task context, not a baked host).
+    local imagegen_host="127.0.0.1"
+    [[ "$provider" == "server" ]] && imagegen_host="$SQUIRE_IP"
 
     # Per-provider override. For the server provider we expose ONE 'active-model' entry (so crush's
     # /model can never pick a not-yet-loaded model), and relabel it "Active: <model>" for visibility.
@@ -113,7 +109,7 @@ write_crush_config() {
     cat > .crush.json <<EOF
 {
   "mcp": {
-    "imagegen-mcp": { "disabled": ${imagegen_disabled} }
+    "imagegen-mcp": { "disabled": ${imagegen_disabled}, "env": { "IMAGEGEN_URL": "http://${imagegen_host}:8001" } }
   }${providers_block}${models_block}
 }
 EOF
@@ -125,56 +121,102 @@ OFFLOAD_MODE=0
 PROVIDER="ollama"
 SWITCH_MODE=""
 SRV_IMG=""
+SEL_LABEL=""
+SRV_CTX=""
+SRV_MAX=""
 
-# ── Tier-aware Ollama alias/label registry ────────────────────────────────────
-# Source the installer-generated tier config (~/.config/local-llm/ollama-tier.sh) so this
-# picker presents the aliases that actually exist for the installed GPU tier (4090|5090).
-# Fall back to the 5090 roster if the file is absent.
-declare -A LL_ALIAS
-declare -A LL_LABEL
-LL_OLLAMA_TIER="5090"
-_LL_TIER_CONFIG="${HOME}/.config/local-llm/ollama-tier.sh"
-if [[ -f "$_LL_TIER_CONFIG" ]]; then
-    # shellcheck source=/dev/null
-    source "$_LL_TIER_CONFIG"
-else
-    LL_ALIAS=(
-        [heavy]=qwen36-27b-212k [coder]=qwen3coder-144k [review]=qwen3coder-144k
-        [agentic]=glm47-flash-198k [image_llm]=qwen3:8b
-        [h1]=qwen36-27b-212k [h2]=qwen36-35b-256k [h3]=gemma4-31b-128k [h4]=qwen3coder-144k
-        [h5]=glm47-flash-198k [h6]=northmini-code-256k [h7]=nemotron3-nano-256k [h8]=ornith-35b-256k
-        [h9]=devstral2-24b-128k [o2]=qwen3next-80b-offload
-    )
-    LL_LABEL=(
-        [qwen36-27b-212k]="Qwen3.6 27B (+MTP)" [qwen36-35b-256k]="Qwen3.6 35B-A3B MoE"
-        [gemma4-31b-128k]="Gemma 4 31B dense" [qwen3coder-144k]="Qwen3-Coder 30B-A3B"
-        [glm47-flash-198k]="GLM-4.7-Flash" [northmini-code-256k]="North Mini Code 1.0"
-        [nemotron3-nano-256k]="Nemotron 3 Nano 30B-A3B" [ornith-35b-256k]="Ornith-1.0-35B"
-        [devstral2-24b-128k]="Devstral Small 2 (24B)"
-        [qwen3next-80b-offload]="Qwen3-Next-80B-A3B (partial offload)" [qwen3:8b]="Qwen3 8B"
-    )
+# ── Data-driven model roster ─────────────────────────────────────────────────
+# Local models come from local-models.json (installer-generated per GPU tier; replaces the old
+# ollama-tier.sh). Server models are advertised live by the switch daemon at :4090/models, with a
+# bundled server-models.json as the offline fallback. Both are read via python3 (no jq dependency).
+LL_CONFIG_DIR="${HOME}/.config/local-llm"
+_ll_self_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+LL_MODELS_FILE=""
+for _c in "${LL_MODELS_FILE:-}" "${LL_CONFIG_DIR}/local-models.json" "${_ll_self_dir}/local-models.json"; do
+    [[ -n "$_c" && -f "$_c" ]] && { LL_MODELS_FILE="$_c"; break; }
+done
+if [[ -z "$LL_MODELS_FILE" ]]; then
+    echo "  ERROR: local-models.json not found (looked in ${LL_CONFIG_DIR}/ and beside the launcher)." >&2
+    exit 1
 fi
-# squire-server labels: added unconditionally so the banner resolves them regardless of
-# whether the tier config was sourced (which would otherwise redefine LL_LABEL).
-LL_LABEL[mistral-small]="Mistral-Small (squire-server)"
-LL_LABEL[glm-4.7-flash]="GLM-4.7-Flash (squire-server)"
-LL_LABEL[qwen3-coder]="Qwen3-Coder (squire-server)"
-LL_LABEL[devstral]="Devstral-2 24B (squire-server)"
-LL_LABEL[qwen3-4b]="Qwen3-4B image companion (squire-server)"
-_alias() { echo "${LL_ALIAS[$1]:-$1}"; }
+LL_SERVER_FALLBACK="${LL_CONFIG_DIR}/server-models.json"
+SQUIRE_IP="__SQUIRE_SERVER_IP__"
 
-DEFAULT_MODEL="$(_alias heavy)"
-REVIEW_MODEL="$(_alias review)"
+# python worker over the local roster ($LL_MODELS_FILE). Subcommands: page/resolve/alias/label/tier.
+_ll() {
+    LL_FILE="$LL_MODELS_FILE" python3 - "$@" <<'PY'
+import json, os, sys
+d = json.load(open(os.environ["LL_FILE"]))
+reg = d.get("registry", {}); ta = d.get("task_alias", {})
+cmd = sys.argv[1]
+def alias_of(r): return ta.get(r.get("slot", ""), r.get("slot", ""))
+def detail(r):
+    if "detail" in r: return r["detail"]
+    return alias_of(r) + ((" " + r["note"]) if r.get("note") else "")
+def cats(launcher, which):
+    return d.get("launchers", {}).get(launcher, {}).get(which, {}).get("categories", [])
+if cmd == "page":
+    for c in cats(sys.argv[2], sys.argv[3]):
+        print("CAT\x1f%s\x1f%s" % (c.get("heading", ""), c.get("subtitle", "")))
+        for r in c["rows"]:
+            print("ROW\x1f%s\x1f%s\x1f%s" % (r["key"], r["label"], detail(r)))
+elif cmd == "resolve":
+    key = sys.argv[4]
+    for c in cats(sys.argv[2], sys.argv[3]):
+        for r in c["rows"]:
+            if r["key"] == key:
+                flags = ",".join(f for f in ("office", "imagegen", "offload") if r.get(f))
+                print("%s\x1f%s\x1f%s" % (alias_of(r), flags, r.get("profile", "")))
+                sys.exit(0)
+    sys.exit(1)
+elif cmd == "alias":
+    print(ta.get(sys.argv[2], sys.argv[2]))
+elif cmd == "label":
+    print(reg.get(sys.argv[2], {}).get("label", sys.argv[2]))
+elif cmd == "tier":
+    print(d.get("tier", ""))
+PY
+}
+_alias() { _ll alias "$1"; }
+_ll_label() { _ll label "$1"; }
 
-# Model assignments per task profile (tier-resolved).
+# Model assignments per task profile (tier-resolved) — used by the direct `crush-task <task>` path.
 model_for_task() {
     case "$1" in
-        coding)   _alias heavy ;;   # heavy coding default
-        review)   _alias review ;;  # Qwen3-Coder 30B-A3B
-        docs)     _alias agentic ;; # GLM-4.7-Flash for office authoring (roomy, capable)
-        image)    _alias image_llm ;;    # image-gen companion
+        coding)   _alias heavy ;;
+        review)   _alias review ;;
+        docs)     _alias agentic ;;
+        image)    _alias image_llm ;;
         *)        _alias heavy ;;
     esac
+}
+
+# Fetch the server roster: live from the switch daemon, else the bundled fallback file.
+_srv_json() {
+    local out
+    out="$(curl -fsS -m 2 "http://${SQUIRE_IP}:4090/models" 2>/dev/null || true)"
+    if [[ -n "$out" ]]; then printf '%s' "$out"; return 0; fi
+    [[ -f "$LL_SERVER_FALLBACK" ]] && { cat "$LL_SERVER_FALLBACK"; return 0; }
+    return 1
+}
+# python worker over a server roster JSON string ($1). Subcommands: page/resolve.
+_srv() {
+    SRV_JSON="$1" python3 - "${@:2}" <<'PY'
+import json, os, sys
+d = json.loads(os.environ["SRV_JSON"]); modes = d.get("modes", [])
+cmd = sys.argv[1]
+if cmd == "page":
+    for m in modes:
+        print("ROW\x1f%s\x1f%s\x1f%s" % (m["key"], m["label"], m.get("task", "")))
+elif cmd == "resolve":
+    for m in modes:
+        if m["key"] == sys.argv[2]:
+            print("\x1f".join(str(x) for x in (
+                m["mode"], m["label"], m["model_id"], m["ctx"],
+                m["max_output"], m["max_prompt"], int(bool(m.get("imagegen_disabled", True))))))
+            sys.exit(0)
+    sys.exit(1)
+PY
 }
 
 if [[ -z "$task" ]]; then
@@ -185,17 +227,35 @@ if [[ -z "$task" ]]; then
     box_mid() { printf '  %s╠%s╣%s\n' "$FRAME" "$bar" "$RST"; }
     box_bot() { printf '  %s╚%s╝%s\n' "$FRAME" "$bar" "$RST"; }
     box_line() { printf '  %s║%s%-*.*s%s║%s\n' "$FRAME" "$TEXT" "$W" "$W" "$1" "$FRAME" "$RST"; }
-    box_center() { local s="$1" p=$(( (W - ${#s}) / 2 )); (( p < 0 )) && p=0; box_line "$(printf '%*s%s' "$p" '' "$s")"; }
+    box_center() { local s="$1"; local p=$(( (W - ${#s}) / 2 )); (( p < 0 )) && p=0; box_line "$(printf '%*s%s' "$p" '' "$s")"; }
     box_row() { box_line "$(printf '       %-5s %-26.26s %s' "[$1]" "$2" "$3")"; }
     rule() { box_line "     $(printf -- '-%.0s' $(seq 1 "$1"))"; }
+    render_local() {
+        local which="$1" typ a b c first=1 ulen
+        box_line ""
+        while IFS=$'\x1f' read -r typ a b c; do
+            case "$typ" in
+                CAT)
+                    if [[ $first -eq 0 ]]; then box_line ""; box_line ""; fi
+                    first=0
+                    box_line "     $a"
+                    if [[ -n "$b" ]]; then box_line "         $b"; ulen=$(( ${#b} + 4 )); else ulen=${#a}; fi
+                    rule "$ulen"; box_line ""
+                    ;;
+                ROW) box_row "$a" "$b" "$c" ;;
+            esac
+        done < <(_ll page crush "$which")
+        box_line ""; box_line ""; box_line ""
+        box_row "B" "Back to environments" ""; box_row "Q" "Quit" ""; box_line ""
+    }
+    LL_TIER="$(_ll tier)"
     has_local=false; has_server=false
     _ll_has local && has_local=true
     _ll_has server && has_server=true
-    choice=""; menuerr=""
+    menuerr=""; SRVJSON=""; pg_which=""; res=""; sres=""; s_sub=""
     if $has_local; then page=env; else page=server; fi
     while true; do
-        clear
-        echo
+        clear; echo
         case "$page" in
             env)
                 box_top; box_center "Crush"; box_line ""; box_center "pick an environment"; box_mid
@@ -205,8 +265,7 @@ if [[ -z "$task" ]]; then
                 if $has_server; then box_line ""; box_line "     [3]  Squire-Server"; box_line "          Models hosted on the server"; fi
                 box_line ""; box_line ""; box_line "     [Q]  Quit"; box_line ""; box_bot; echo
                 [ -n "$menuerr" ] && { echo "   $menuerr"; menuerr=""; }
-                read -rp "   Your choice [1]: " sel
-                sel="${sel:-1}"
+                read -rp "   Your choice [1]: " sel; sel="${sel:-1}"
                 case "${sel^^}" in
                     1) page=local ;;
                     2) page=exp ;;
@@ -215,111 +274,57 @@ if [[ -z "$task" ]]; then
                     *) menuerr="Invalid selection, try again." ;;
                 esac
                 ;;
-            local)
-                box_top; box_center "Crush"; box_line ""; box_center "local : production models"; box_mid
-                box_line ""
-                box_line "     Coding"; rule 6; box_line ""
-                box_row "1" "Heavy coding" "$(_alias heavy)"
-                box_row "2" "Light coding" "$(_alias coder)"
-                box_row "3" "Code review" "$(_alias review)"
-                box_line ""; box_line ""
-                box_line "     Writing & Documents"; rule 19; box_line ""
-                box_row "4" "Documents" "$(_alias agentic) + office skill"
-                box_line ""; box_line ""
-                box_line "     Visual"; rule 6; box_line ""
-                box_row "5" "Image generation" "$(_alias image_llm) + HiDream (MCP)"
-                box_line ""; box_line ""; box_line ""
-                box_row "B" "Back to environments" ""; box_row "Q" "Quit" ""; box_line ""
+            local|exp)
+                [[ "$page" == "local" ]] && pg_which=production || pg_which=experimental
+                box_top; box_center "Crush"; box_line ""
+                if [[ "$page" == "local" ]]; then box_center "local : production models"
+                else box_center "local : models under evaluation (${LL_TIER} tier)"; fi
+                box_mid
+                render_local "$pg_which"
                 box_bot; echo
                 [ -n "$menuerr" ] && { echo "   $menuerr"; menuerr=""; }
-                read -rp "   Your choice [1]: " sel
-                sel="${sel:-1}"
+                read -rp "   Your choice [1]: " sel; sel="${sel:-1}"
                 if [[ "${sel^^}" == "Q" ]]; then clear; exit 0; fi
-                case "${sel^^}" in B) page=env; continue ;; esac
-                if [[ "$sel" =~ ^[1-5]$ ]]; then choice="$sel"; break; fi
-                menuerr="Invalid selection, try again."
-                ;;
-            exp)
-                box_top; box_center "Crush"; box_line ""; box_center "local : models under evaluation ($LL_OLLAMA_TIER tier)"; box_mid
-                box_line ""
-                box_line "     Heavy-coding bench"; box_line "         (coding profile, swap model)"; rule 32; box_line ""
-                box_row "1" "Qwen3.6 27B dense" "$(_alias h1)"
-                box_row "2" "Qwen3.6 35B-A3B MoE" "$(_alias h2)"
-                box_row "3" "Gemma 4 31B dense" "$(_alias h3)"
-                box_row "4" "Qwen3-Coder 30B-A3B" "$(_alias h4)"
-                box_row "5" "GLM-4.7-Flash" "$(_alias h5)"
-                box_row "6" "North Mini Code 1.0" "$(_alias h6)"
-                box_row "7" "Nemotron 3 Nano 30B" "$(_alias h7)"
-                box_row "8" "Ornith-1.0-35B" "$(_alias h8)"
-                box_row "9" "Devstral Small 2 24B" "$(_alias h9)"
-                box_line ""; box_line ""
-                box_line "     Big-MoE expert-offload bench"; box_line "         (experts to RAM; slower)"; rule 28; box_line ""
-                box_row "10" "Qwen3-Next-80B-A3B" "offload, Q4_K_M ~45 GB"
-                box_line ""; box_line ""; box_line ""
-                box_row "B" "Back to environments" ""; box_row "Q" "Quit" ""; box_line ""
-                box_bot; echo
-                [ -n "$menuerr" ] && { echo "   $menuerr"; menuerr=""; }
-                read -rp "   Your choice [1]: " sel
-                sel="${sel:-1}"
-                if [[ "${sel^^}" == "Q" ]]; then clear; exit 0; fi
-                case "${sel^^}" in B) page=env; continue ;; esac
-                if [[ "$sel" =~ ^[1-9]$ ]]; then choice="H$sel"; break; fi
-                if [[ "$sel" == "10" ]]; then choice="O2"; break; fi
+                if [[ "${sel^^}" == "B" ]]; then page=env; continue; fi
+                if res="$(_ll resolve crush "$pg_which" "$sel")"; then
+                    IFS=$'\x1f' read -r a_alias a_flags a_profile <<<"$res"
+                    task="$a_profile"; SELECTED_MODEL="$a_alias"; PROVIDER="ollama"
+                    SEL_LABEL="$(_ll_label "$a_alias")"
+                    [[ ",$a_flags," == *",offload,"* ]] && OFFLOAD_MODE=1 || OFFLOAD_MODE=0
+                    break
+                fi
                 menuerr="Invalid selection, try again."
                 ;;
             server)
+                [[ -z "$SRVJSON" ]] && SRVJSON="$(_srv_json || true)"
+                if [[ -z "$SRVJSON" ]]; then
+                    clear; echo "  ERROR: could not reach the server model list at :4090/models and no fallback file found." >&2
+                    exit 1
+                fi
                 box_top; box_center "Crush"; box_line ""; box_center "squire-server : remote models"; box_mid
                 box_line ""
-                box_line "     Remote"; box_line "         (server - switches the standing model on pick)"; rule 50; box_line ""
-                box_row "1" "Mistral-Small" "default : office/authoring, 64K"
-                box_row "2" "GLM-4.7-Flash" "agentic / reasoning"
-                box_row "3" "Qwen3-Coder" "coding-first"
-                box_row "4" "Devstral-2 24B" "coding-alt, agentic"
-                box_row "5" "Image gen" "HiDream + Qwen3-4B"
+                s_sub="(server - switches the standing model on pick)"
+                box_line "     Remote"; box_line "         $s_sub"; rule $(( ${#s_sub} + 4 )); box_line ""
+                while IFS=$'\x1f' read -r typ k l t; do [[ "$typ" == "ROW" ]] && box_row "$k" "$l" "$t"; done < <(_srv "$SRVJSON" page)
                 box_line ""; box_line ""; box_line ""
                 if $has_local; then box_row "B" "Back to environments" ""; fi
                 box_row "Q" "Quit" ""; box_line ""
                 box_bot; echo
                 [ -n "$menuerr" ] && { echo "   $menuerr"; menuerr=""; }
-                read -rp "   Your choice [1]: " sel
-                sel="${sel:-1}"
+                read -rp "   Your choice [1]: " sel; sel="${sel:-1}"
                 if [[ "${sel^^}" == "Q" ]]; then clear; exit 0; fi
                 if [[ "${sel^^}" == "B" ]] && $has_local; then page=env; continue; fi
-                case "$sel" in
-                    1) choice="S" ;; 2) choice="G" ;; 3) choice="C" ;; 4) choice="D" ;; 5) choice="I" ;;
-                    *) menuerr="Invalid selection, try again."; choice="" ;;
-                esac
-                [ -n "$choice" ] && break
+                if sres="$(_srv "$SRVJSON" resolve "$sel")"; then
+                    IFS=$'\x1f' read -r s_mode s_label s_id s_ctx s_out s_prompt s_imgoff <<<"$sres"
+                    PROVIDER="server"; SWITCH_MODE="$s_mode"; SELECTED_MODEL="$s_id"; SEL_LABEL="$s_label"
+                    [[ "$s_imgoff" == "1" ]] && SRV_IMG=true || SRV_IMG=false
+                    SRV_CTX="$s_ctx"; SRV_MAX="$s_out"
+                    break
+                fi
+                menuerr="Invalid selection, try again."
                 ;;
         esac
     done
-
-    case "$choice" in
-        1) task="coding" ;;
-        2) task="coding"; SELECTED_MODEL="$(_alias coder)" ;;
-        3) task="review" ;;
-        4) task="docs" ;;
-        5) task="image" ;;
-        [Hh]1) task="coding"; SELECTED_MODEL="$(_alias h1)" ;;
-        [Hh]2) task="coding"; SELECTED_MODEL="$(_alias h2)" ;;
-        [Hh]3) task="coding"; SELECTED_MODEL="$(_alias h3)" ;;
-        [Hh]4) task="coding"; SELECTED_MODEL="$(_alias h4)" ;;
-        [Hh]5) task="coding"; SELECTED_MODEL="$(_alias h5)" ;;
-        [Hh]6) task="coding"; SELECTED_MODEL="$(_alias h6)" ;;
-        [Hh]7) task="coding"; SELECTED_MODEL="$(_alias h7)" ;;
-        [Hh]8) task="coding"; SELECTED_MODEL="$(_alias h8)" ;;
-        [Hh]9) task="coding"; SELECTED_MODEL="$(_alias h9)" ;;
-        [Oo]2) task="coding"; SELECTED_MODEL="$(_alias o2)"; OFFLOAD_MODE=1 ;;
-        [Ss]) PROVIDER="server"; SWITCH_MODE="mistral";   SELECTED_MODEL="mistral-small"; SRV_IMG=true ;;
-        [Gg]) PROVIDER="server"; SWITCH_MODE="glm";       SELECTED_MODEL="glm-4.7-flash"; SRV_IMG=true ;;
-        [Cc]) PROVIDER="server"; SWITCH_MODE="coder";     SELECTED_MODEL="qwen3-coder";   SRV_IMG=true ;;
-        [Dd]) PROVIDER="server"; SWITCH_MODE="coder-alt"; SELECTED_MODEL="devstral";      SRV_IMG=true ;;
-        [Ii]) PROVIDER="server"; SWITCH_MODE="image";     SELECTED_MODEL="qwen3-4b";      SRV_IMG=false ;;
-        *)
-            echo "  Invalid selection, defaulting to heavy coding."
-            task="coding"
-            ;;
-    esac
 fi
 
 # Resolve model: explicit picker selection wins, else per-task default.
@@ -327,9 +332,9 @@ if [[ -z "$SELECTED_MODEL" ]]; then SELECTED_MODEL="$(model_for_task "$task")"; 
 DEFAULT_MODEL="$SELECTED_MODEL"
 REVIEW_MODEL="$SELECTED_MODEL"
 
-# Friendly label for the launch-identity banner (keyed on the resolved alias; LL_LABEL comes
-# from the sourced tier config or the fallback above).
-MODEL_FRIENDLY="${LL_LABEL[$DEFAULT_MODEL]:-$DEFAULT_MODEL}"
+# Friendly label for the launch-identity banner: the picker's selection wins; otherwise resolve
+# the alias against the roster (the direct `crush-task <task>` path).
+MODEL_FRIENDLY="${SEL_LABEL:-$(_ll_label "$DEFAULT_MODEL")}"
 echo
 echo "  ▶ $MODEL_FRIENDLY  ·  alias=$DEFAULT_MODEL"
 

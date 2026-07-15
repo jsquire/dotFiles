@@ -1,0 +1,73 @@
+{
+  "_comment": "Authoritative squire-server model roster. Single source of truth. Read by vllm-switch-web.py to build MODE_UNIT / VALID_MODE / the switch HTML, and served (minus 'unit') at GET :4090/models. Also shipped to clients as the offline fallback at ~/.config/local-llm/server-models.json. Edit here (repo) then redeploy via the installer. Fields per mode: mode (switch id + /switch payload), key (picker number), label (short name), task (one-line role shown in the picker), model_id (the id clients address it by, == vLLM served id / 'active-model' alias), ctx (served context window), max_output (output token cap), max_prompt (copilot prompt-token cap = ctx - max_output - margin), unit (systemd unit, server-only), imagegen_disabled (crush: disable imagegen-mcp for this mode), default (the standing/default mode).",
+  "schema_version": 1,
+  "api_port": 8000,
+  "default_mode": "mistral",
+  "modes": [
+    {
+      "mode": "mistral",
+      "key": "1",
+      "label": "Mistral-Small",
+      "task": "default : office/authoring, 64K",
+      "model_id": "mistral-small",
+      "ctx": 65536,
+      "max_output": 8192,
+      "max_prompt": 54272,
+      "unit": "vllm.service",
+      "imagegen_disabled": true,
+      "default": true
+    },
+    {
+      "mode": "glm",
+      "key": "2",
+      "label": "GLM-4.7-Flash",
+      "task": "agentic / reasoning",
+      "model_id": "glm-4.7-flash",
+      "ctx": 55296,
+      "max_output": 8192,
+      "max_prompt": 44032,
+      "unit": "vllm@glm.service",
+      "imagegen_disabled": true,
+      "default": false
+    },
+    {
+      "mode": "coder",
+      "key": "3",
+      "label": "Qwen3-Coder",
+      "task": "coding-first",
+      "model_id": "qwen3-coder",
+      "ctx": 57344,
+      "max_output": 8192,
+      "max_prompt": 46080,
+      "unit": "vllm@coder.service",
+      "imagegen_disabled": true,
+      "default": false
+    },
+    {
+      "mode": "coder-alt",
+      "key": "4",
+      "label": "Devstral-2 24B",
+      "task": "coding-alt, agentic",
+      "model_id": "devstral",
+      "ctx": 57344,
+      "max_output": 8192,
+      "max_prompt": 46080,
+      "unit": "vllm@coder-alt.service",
+      "imagegen_disabled": true,
+      "default": false
+    },
+    {
+      "mode": "image",
+      "key": "5",
+      "label": "Image gen",
+      "task": "HiDream + Qwen3-4B",
+      "model_id": "qwen3-4b",
+      "ctx": 32768,
+      "max_output": 2048,
+      "max_prompt": 28672,
+      "unit": "vllm@image.service",
+      "imagegen_disabled": false,
+      "default": false
+    }
+  ]
+}

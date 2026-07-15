@@ -7,6 +7,11 @@ Works cross-platform (Windows + Linux) and supports local or remote backends.
 Configuration via environment variables:
   IMAGEGEN_URL  — Base URL of the imagegen API (default: http://127.0.0.1:8001)
 
+  IMAGEGEN_URL is set per launch by the launchers so image generation follows the selected task
+  context: the LOCAL environment points at localhost, the SERVER environment at the squire-server.
+  copilot-local exports COPILOT_MCP_IMAGEGEN_HOST (expanded in ~/.copilot/mcp-config.json); crush-task
+  writes IMAGEGEN_URL into the per-launch .crush.json.
+
 When targeting localhost, automatically manages the server lifecycle:
   - Starts server on demand if not running (~15-20s cold start)
   - Shuts down server after 5 min idle to free ~16GB VRAM
@@ -68,7 +73,9 @@ def _resolve_output_path(output_path: str, prompt: str) -> Path:
 
     - Empty/omitted -> a timestamped auto-name in ~/Downloads (derived from the prompt).
     - A bare filename (no directory) -> placed in ~/Downloads.
-    - An absolute path or one with a directory -> used as given.
+    - A relative path WITH a directory -> resolved under the home directory, NOT the caller's cwd
+      (so "Downloads/cat.png" -> ~/Downloads/cat.png). "~" is expanded.
+    - An absolute path -> used as given.
     A ``.png`` suffix is enforced in all cases.
     """
     raw = (output_path or "").strip()
@@ -76,9 +83,12 @@ def _resolve_output_path(output_path: str, prompt: str) -> Path:
         slug = "".join(c if c.isalnum() else "_" for c in prompt[:40]).strip("_") or "image"
         name = f"{slug}_{time.strftime('%Y%m%d-%H%M%S')}.png"
         return _default_output_dir() / name
-    p = Path(raw)
-    if not p.is_absolute() and p.parent == Path("."):
-        p = _default_output_dir() / p.name
+    p = Path(os.path.expanduser(raw))
+    if not p.is_absolute():
+        if p.parent == Path("."):
+            p = _default_output_dir() / p.name          # bare filename -> ~/Downloads
+        else:
+            p = Path.home() / p                          # relative-with-dir -> under $HOME (never cwd)
     if p.suffix.lower() != ".png":
         p = p.with_suffix(".png")
     return p
@@ -195,7 +205,9 @@ async def generate_image(
         prompt: Detailed text description of the image to generate.
         output_path: Optional. Where to save the PNG. If omitted, the image is saved to the
             user's Downloads folder with an auto-generated name. A bare filename (e.g. "cat.png")
-            is also placed in Downloads; an absolute/relative path with a directory is used as-is.
+            is placed in ~/Downloads. A relative path is resolved under the user's HOME directory
+            (e.g. "Downloads/cat.png" -> ~/Downloads/cat.png), never the current working directory;
+            use an absolute path to save elsewhere. "~" is expanded.
         width: Image width in pixels (default 1024). Rendered at 2048 native and downscaled.
         height: Image height in pixels (default 1024). Rendered at 2048 native and downscaled.
     """

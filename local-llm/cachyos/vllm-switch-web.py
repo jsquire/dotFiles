@@ -22,6 +22,7 @@ import sys
 import threading
 import time
 import fcntl
+import html
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -35,15 +36,39 @@ MAX_BODY = 4096          # bytes
 SOCK_TIMEOUT = 15        # seconds per connection
 SWITCH_TIMEOUT = 180     # seconds for a switch to complete
 
-# mode -> systemd unit that is active in that mode (authoritative for status)
-MODE_UNIT = {
-    "mistral":   "vllm.service",
-    "glm":       "vllm@glm.service",
-    "coder":     "vllm@coder.service",
-    "coder-alt": "vllm@coder-alt.service",
-    "image":     "vllm@image.service",
+# Roster: authoritative model list. Loaded from a root-installed JSON file (single source of
+# truth, kept in the repo as cachyos/server-models.json). MODE_UNIT / VALID_MODE / the switch
+# HTML / GET /models are all derived from it, so adding or renaming a model is a data-only edit.
+ROSTER_PATH = os.environ.get("VLLM_SERVER_MODELS", "/etc/local-llm/server-models.json")
+
+# Built-in fallback, used ONLY if the roster file is missing/unreadable so the service still
+# works out of the box. Keep in sync with cachyos/server-models.json.
+_FALLBACK_ROSTER = {
+    "schema_version": 1,
+    "api_port": 8000,
+    "default_mode": "mistral",
+    "modes": [
+        {"mode": "mistral", "key": "1", "label": "Mistral-Small", "task": "default : office/authoring, 64K",
+         "model_id": "mistral-small", "ctx": 65536, "max_output": 8192, "max_prompt": 54272,
+         "unit": "vllm.service", "imagegen_disabled": True, "default": True},
+        {"mode": "glm", "key": "2", "label": "GLM-4.7-Flash", "task": "agentic / reasoning",
+         "model_id": "glm-4.7-flash", "ctx": 55296, "max_output": 8192, "max_prompt": 44032,
+         "unit": "vllm@glm.service", "imagegen_disabled": True, "default": False},
+        {"mode": "coder", "key": "3", "label": "Qwen3-Coder", "task": "coding-first",
+         "model_id": "qwen3-coder", "ctx": 57344, "max_output": 8192, "max_prompt": 46080,
+         "unit": "vllm@coder.service", "imagegen_disabled": True, "default": False},
+        {"mode": "coder-alt", "key": "4", "label": "Devstral-2 24B", "task": "coding-alt, agentic",
+         "model_id": "devstral", "ctx": 57344, "max_output": 8192, "max_prompt": 46080,
+         "unit": "vllm@coder-alt.service", "imagegen_disabled": True, "default": False},
+        {"mode": "image", "key": "5", "label": "Image gen", "task": "HiDream + Qwen3-4B",
+         "model_id": "qwen3-4b", "ctx": 32768, "max_output": 2048, "max_prompt": 28672,
+         "unit": "vllm@image.service", "imagegen_disabled": False, "default": False},
+    ],
 }
-VALID_MODE = re.compile(r"^(mistral|glm|coder|coder-alt|image)$")
+
+# Fields exposed to LAN clients at GET /models (the systemd 'unit' is deliberately withheld).
+_CLIENT_FIELDS = ("mode", "key", "label", "task", "model_id", "ctx", "max_output",
+                  "max_prompt", "imagegen_disabled", "default")
 
 _switch_lock = threading.Lock()
 _last_switch = {"mode": None, "at": None, "by": None, "result": None}
@@ -53,6 +78,43 @@ def _log(source_ip, msg):
     ts = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     sys.stderr.write("[%s] src=%s %s\n" % (ts, source_ip, msg))
     sys.stderr.flush()
+
+
+def _load_roster():
+    """Load + validate the roster file; fall back to the built-in default on any error."""
+    try:
+        with open(ROSTER_PATH) as fh:
+            r = json.load(fh)
+        modes = r.get("modes")
+        if not isinstance(modes, list) or not modes:
+            raise ValueError("roster has no 'modes'")
+        for m in modes:
+            if not m.get("mode") or not m.get("unit"):
+                raise ValueError("a mode entry is missing 'mode' or 'unit'")
+        _log("-", "loaded roster from %s (%d modes)" % (ROSTER_PATH, len(modes)))
+        return r
+    except Exception as exc:
+        _log("-", "roster load FAILED (%s); using built-in fallback" % exc)
+        return _FALLBACK_ROSTER
+
+
+ROSTER = _load_roster()
+MODES = ROSTER["modes"]
+DEFAULT_MODE = ROSTER.get("default_mode") or MODES[0]["mode"]
+API_PORT = ROSTER.get("api_port", 8000)
+# mode -> systemd unit that is active in that mode (authoritative for status).
+MODE_UNIT = {m["mode"]: m["unit"] for m in MODES}
+VALID_MODE = re.compile(r"^(%s)$" % "|".join(re.escape(m["mode"]) for m in MODES))
+
+
+def _models_payload():
+    """The client-facing roster served at GET /models (systemd units withheld)."""
+    return {
+        "schema_version": ROSTER.get("schema_version", 1),
+        "default_mode": DEFAULT_MODE,
+        "api_port": API_PORT,
+        "modes": [{k: m.get(k) for k in _CLIENT_FIELDS} for m in MODES],
+    }
 
 
 def _unit_active(unit):
@@ -147,7 +209,7 @@ def _do_switch(mode, source_ip):
         _switch_lock.release()
 
 
-PAGE = """<!doctype html>
+PAGE_TMPL = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Squire Server \u2014 Model Switch</title>
@@ -161,15 +223,11 @@ PAGE = """<!doctype html>
 <h1>Squire Server \u2014 Model Switch</h1>
 <div class="cur" id="cur">Loading current model\u2026</div>
 <div id="btns">
- <button data-m="mistral">Mistral-Small-3.2<br><small>authoring (default)</small></button>
- <button data-m="glm">GLM-4.7-Flash<br><small>agentic / reasoning</small></button>
- <button data-m="coder">Qwen3-Coder 30B<br><small>coding</small></button>
- <button data-m="coder-alt">Devstral-2 24B<br><small>coding (alt)</small></button>
- <button data-m="image">Image (HiDream)<br><small>image generation</small></button>
+__BUTTONS__
 </div>
 <p id="msg"><small>One model loads at a time; a switch takes ~20\u201360s and affects everyone on the server.</small></p>
 <script>
-const NAMES={mistral:"Mistral-Small-3.2",glm:"GLM-4.7-Flash",coder:"Qwen3-Coder 30B","coder-alt":"Devstral-2 24B",image:"Image (HiDream)"};
+const NAMES=__NAMES__;
 const cur=document.getElementById('cur'),msg=document.getElementById('msg'),btns=document.getElementById('btns');
 async function refresh(){
  try{const r=await fetch('/status');const s=await r.json();
@@ -195,6 +253,27 @@ btns.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b
 });
 refresh();setInterval(()=>{if(!btns.querySelector('button:disabled'))refresh();},10000);
 </script></body></html>"""
+
+
+def _build_page():
+    """Render the switch page's buttons + NAMES map from the roster.
+
+    All roster-derived strings are escaped for their context (HTML attribute/text for the buttons,
+    script-safe JSON for NAMES) so a stray '<', '&', '"' or '</script>' in a label/task can neither
+    break the page nor inject markup, even though the roster is a trusted root-installed file.
+    """
+    btns = "\n".join(
+        ' <button data-m="%s">%s<br><small>%s</small></button>'
+        % (html.escape(m["mode"], quote=True),
+           html.escape(m.get("label", m["mode"])),
+           html.escape(m.get("task", "")))
+        for m in MODES)
+    names = (json.dumps({m["mode"]: m.get("label", m["mode"]) for m in MODES})
+             .replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026"))
+    return PAGE_TMPL.replace("__BUTTONS__", btns).replace("__NAMES__", names)
+
+
+PAGE = _build_page()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -223,6 +302,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, PAGE, "text/html; charset=utf-8")
         elif path == "/status":
             self._json(200, _status())
+        elif path == "/models":
+            self._json(200, _models_payload())
         else:
             self._json(404, {"error": "not found"})
 

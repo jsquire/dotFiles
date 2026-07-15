@@ -976,7 +976,6 @@ if ($ShouldInstallSoftware) {
             $crushContent = $crushContent -replace '__EXE_SUFFIX__', '.exe'
             $crushContent = $crushContent -replace '__EXE__', '.exe'
             $crushContent = $crushContent -replace '__CONFIG_DIR__', $expandedConfigDir
-            $crushContent = $crushContent -replace '__IMAGEGEN_HOST__', '127.0.0.1'
             $crushContent = $crushContent -replace '__SQUIRE_SERVER_IP__', $SquireServerIP
 
             # Prune crush providers + set the default per -Providers / -DefaultProvider.
@@ -1065,7 +1064,6 @@ if ($ShouldInstallSoftware) {
             $mcpContent = $mcpContent -replace '__EXE_SUFFIX__', '.exe'
             $mcpContent = $mcpContent -replace '__EXE__', '.exe'
             $mcpContent = $mcpContent -replace '__CONFIG_DIR__', $expandedConfigDir
-            $mcpContent = $mcpContent -replace '__IMAGEGEN_HOST__', '127.0.0.1'
             Set-Content -Path $copilotMcpDest -Value $mcpContent -Encoding UTF8
             Write-Success "Deployed mcp-config.json to $copilotMcpDest"
         }
@@ -1248,6 +1246,27 @@ TIMESTEP_TOKEN_NUM = 1
         Write-Success "Deployed crush-task.ps1 to $crushDest (providers $Providers, server IP $SquireServerIP)"
     } else {
         Write-Warn "Crush task script not found at $crushSource — skipping."
+    }
+
+    # ── Step: Deploy model roster data files ──────────────────────────────
+    # The launchers read the local roster (local-models.json; Windows uses the 5090-tier default) and
+    # the server roster fallback (server-models.json) from ~/.config/local-llm/. Copied verbatim.
+    Write-Step "Deploy model roster data files"
+    $rosterDir = Join-Path $UserProfile ".config\local-llm"
+    if (-not (Test-Path $rosterDir)) { New-Item -ItemType Directory -Path $rosterDir -Force | Out-Null }
+    $localRosterSrc = Join-Path $PSScriptRoot "..\scripts\local-models.json"
+    if (Test-Path $localRosterSrc) {
+        Copy-Item $localRosterSrc (Join-Path $rosterDir "local-models.json") -Force
+        Write-Success "Deployed local-models.json to $rosterDir"
+    } else {
+        Write-Warn "local-models.json not found at $localRosterSrc; the launchers will not start."
+    }
+    $serverRosterSrc = Join-Path $PSScriptRoot "..\cachyos\server-models.json"
+    if (Test-Path $serverRosterSrc) {
+        Copy-Item $serverRosterSrc (Join-Path $rosterDir "server-models.json") -Force
+        Write-Success "Deployed server-models.json fallback to $rosterDir"
+    } else {
+        Write-Warn "server-models.json not found at $serverRosterSrc; server page will rely on the live :4090/models endpoint."
     }
 
     # ── Step: Deploy offload-serve helper ─────────────────────────────────

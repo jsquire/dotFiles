@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# test stub: no-op (never clear a real terminal during tests)
+exit 0

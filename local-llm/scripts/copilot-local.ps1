@@ -68,12 +68,61 @@ function Show-Row { param([string]$k, [string]$l, [string]$d)
     Show-Line ("       $kf " + $l.PadRight(26) + " $d")
 }
 
+# ── Data-driven model roster ─────────────────────────────────────────────────
+# Local models come from local-models.json (installer-generated per GPU tier). Server models are
+# advertised live by the switch daemon at :4090/models, with a bundled server-models.json fallback.
+$ConfigDir = Join-Path $env:USERPROFILE ".config\local-llm"
+$LocalModelsFile = $null
+foreach ($cand in @((Join-Path $ConfigDir "local-models.json"), (Join-Path $PSScriptRoot "local-models.json"))) {
+    if ($cand -and (Test-Path $cand)) { $LocalModelsFile = $cand; break }
+}
+if (-not $LocalModelsFile) { Write-Host "  ERROR: local-models.json not found (looked in $ConfigDir and beside the launcher)."; exit 1 }
+$LM = Get-Content $LocalModelsFile -Raw | ConvertFrom-Json
+
+function LL-Alias([string]$slot) { $p = $LM.task_alias.PSObject.Properties[$slot]; if ($p) { $p.Value } else { $slot } }
+function LL-Label([string]$alias) { $p = $LM.registry.PSObject.Properties[$alias]; if ($p -and $p.Value.label) { $p.Value.label } else { $alias } }
+function Row-Detail($row) {
+    if ($row.PSObject.Properties['detail']) { return $row.detail }
+    $a = LL-Alias $row.slot
+    if ($row.PSObject.Properties['note'] -and $row.note) { "$a $($row.note)" } else { $a }
+}
+function Resolve-LocalRow([string]$which, [string]$key) {
+    foreach ($c in $LM.launchers.copilot.$which.categories) {
+        foreach ($r in $c.rows) { if ($r.key -eq $key) { return $r } }
+    }
+    return $null
+}
+function Render-Local([string]$which) {
+    Show-Line ""
+    $first = $true
+    foreach ($c in $LM.launchers.copilot.$which.categories) {
+        if (-not $first) { Show-Line ""; Show-Line "" }
+        $first = $false
+        Show-Line "     $($c.heading)"
+        if ($c.PSObject.Properties['subtitle'] -and $c.subtitle) { Show-Line "         $($c.subtitle)"; $ul = $c.subtitle.Length + 4 } else { $ul = $c.heading.Length }
+        Show-Line ("     " + ("-" * $ul)); Show-Line ""
+        foreach ($r in $c.rows) { Show-Row $r.key $r.label (Row-Detail $r) }
+    }
+    Show-Line ""; Show-Line ""; Show-Line ""
+    Show-Row "B" "Back to environments" ""; Show-Row "Q" "Quit" ""; Show-Line ""
+}
+$script:SM = $null
+function Get-ServerRoster {
+    if ($script:SM) { return $script:SM }
+    try { $script:SM = Invoke-RestMethod -Uri "http://${SquireIp}:4090/models" -TimeoutSec 2 -ErrorAction Stop } catch { $script:SM = $null }
+    if (-not $script:SM) {
+        $fb = Join-Path $ConfigDir "server-models.json"
+        if (Test-Path $fb) { try { $script:SM = Get-Content $fb -Raw | ConvertFrom-Json } catch { $script:SM = $null } }
+    }
+    return $script:SM
+}
+
 # ── Resolve the selection: explicit model arg wins; otherwise the picker ──────
-$choice = ""
+$selLabel = ""; $selTag = ""; $mcpKeep = $false; $officeSkill = $false; $offload = $false; $selRemote = $false
+$env:COPILOT_PROVIDER_BASE_URL = $null
 if ($Model -and $Model -match ':') {
     # Direct model alias/tag (e.g. copilot-local qwen3:8b) — skip the picker.
     $env:COPILOT_MODEL = $Model
-    $choice = "-"
 } else {
     $hasLocal = Test-LlProvider 'local'
     $hasServer = Test-LlProvider 'server'
@@ -92,7 +141,7 @@ if ($Model -and $Model -match ':') {
                 Show-Line ""; Show-Line ""; Show-Line "     [Q]  Quit"; Show-Line ""; Show-Bot; Write-Host ""
                 if ($menuErr) { Write-Host "   $menuErr"; $menuErr = "" }
                 $sel = Read-Host "   Your choice [1]"; if (-not $sel) { $sel = "1" }
-                switch ($sel) {
+                switch ($sel.ToUpper()) {
                     "1" { $page = "local" }
                     "2" { $page = "exp" }
                     "3" { if ($hasServer) { $page = "server" } else { $menuErr = "Invalid selection, try again." } }
@@ -100,83 +149,37 @@ if ($Model -and $Model -match ':') {
                     default { $menuErr = "Invalid selection, try again." }
                 }
             }
-            "local" {
-                Show-Top; Show-Center "Copilot Local"; Show-Line ""; Show-Center "local : production models"; Show-Mid
-                Show-Line ""
-                Show-Line "     Coding"
-                Show-Line "     ------"
-                Show-Line ""
-                Show-Row "1" "Heavy coding" "qwen36-27b-212k"
-                Show-Row "2" "Light coding" "qwen3coder-144k"
-                Show-Row "3" "Code review" "qwen3coder-144k"
-                Show-Line ""
-                Show-Line ""
-                Show-Line "     Writing & Documents"
-                Show-Line "     -------------------"
-                Show-Line ""
-                Show-Row "4" "Technical docs" "qwen36-27b-212k"
-                Show-Row "5" "Creative writing" "qwen36-27b-212k"
-                Show-Row "6" "Office documents" "glm47-flash-198k"
-                Show-Line ""
-                Show-Line ""
-                Show-Line "     Visual"
-                Show-Line "     ------"
-                Show-Line ""
-                Show-Row "7" "Image generation" "qwen3:8b + HiDream (MCP)"
-                Show-Line ""; Show-Line ""; Show-Line ""; Show-Row "B" "Back to environments" ""; Show-Row "Q" "Quit" ""; Show-Line ""
+            { $_ -eq "local" -or $_ -eq "exp" } {
+                $which = if ($page -eq "local") { "production" } else { "experimental" }
+                Show-Top; Show-Center "Copilot Local"; Show-Line ""
+                if ($page -eq "local") { Show-Center "local : production models" } else { Show-Center "local : models under evaluation ($($LM.tier) tier)" }
+                Show-Mid
+                Render-Local $which
                 Show-Bot; Write-Host ""
                 if ($menuErr) { Write-Host "   $menuErr"; $menuErr = "" }
                 $sel = Read-Host "   Your choice [1]"; if (-not $sel) { $sel = "1" }
                 if ($sel.ToUpper() -eq "Q") { Clear-Host; exit }
                 if ($sel.ToUpper() -eq "B") { $page = "env"; continue picker }
-                if ($sel -match '^[1-7]$') { $choice = $sel; break picker }
-                $menuErr = "Invalid selection, try again."
-            }
-            "exp" {
-                Show-Top; Show-Center "Copilot Local"; Show-Line ""; Show-Center "local : models under evaluation"; Show-Mid
-                Show-Line ""
-                Show-Line "     Heavy-coding bench"
-                Show-Line "         (VRAM-resident; swap model, MCP off)"
-                Show-Line ("     " + ("-" * 40))
-                Show-Line ""
-                Show-Row "1" "Qwen3.6 27B+MTP" "qwen36-27b-212k"
-                Show-Row "2" "Qwen3.6 35B-A3B MoE" "qwen36-35b-256k"
-                Show-Row "3" "Gemma 4 31B dense" "gemma4-31b-128k"
-                Show-Row "4" "Qwen3-Coder 30B-A3B" "qwen3coder-144k"
-                Show-Row "5" "GLM-4.7-Flash" "glm47-flash-198k"
-                Show-Row "6" "North Mini Code 1.0" "northmini-code-256k"
-                Show-Row "7" "Nemotron 3 Nano 30B" "nemotron3-nano-256k"
-                Show-Row "8" "Ornith-1.0-35B" "ornith-35b-256k"
-                Show-Row "9" "Devstral Small 2 24B" "devstral2-24b-128k"
-                Show-Line ""
-                Show-Line ""
-                Show-Line "     Big-MoE expert-offload bench"
-                Show-Line "         (experts to RAM; slower)"
-                Show-Line ("     " + ("-" * 28))
-                Show-Line ""
-                Show-Row "10" "Qwen3-Next-80B-A3B" "offload, Q4_K_M ~45 GB"
-                Show-Line ""; Show-Line ""; Show-Line ""; Show-Row "B" "Back to environments" ""; Show-Row "Q" "Quit" ""; Show-Line ""
-                Show-Bot; Write-Host ""
-                if ($menuErr) { Write-Host "   $menuErr"; $menuErr = "" }
-                $sel = Read-Host "   Your choice [1]"; if (-not $sel) { $sel = "1" }
-                if ($sel.ToUpper() -eq "Q") { Clear-Host; exit }
-                if ($sel.ToUpper() -eq "B") { $page = "env"; continue picker }
-                if ($sel -match '^[1-9]$') { $choice = "H$sel"; break picker }
-                if ($sel -eq "10") { $choice = "O2"; break picker }
+                $r = Resolve-LocalRow $which $sel
+                if ($r) {
+                    $env:COPILOT_MODEL = LL-Alias $r.slot
+                    $selLabel = LL-Label $env:COPILOT_MODEL
+                    $mcpKeep = [bool]($r.PSObject.Properties['imagegen'] -and $r.imagegen)
+                    $officeSkill = [bool]($r.PSObject.Properties['office'] -and $r.office)
+                    $offload = [bool]($r.PSObject.Properties['offload'] -and $r.offload)
+                    $selTag = if ($which -eq "experimental") { "[$sel] experimental" } else { "[$sel] task profile" }
+                    break picker
+                }
                 $menuErr = "Invalid selection, try again."
             }
             "server" {
+                $sm = Get-ServerRoster
+                if (-not $sm) { Clear-Host; Write-Host "  ERROR: could not reach the server model list at :4090/models and no fallback file found."; exit 1 }
                 Show-Top; Show-Center "Copilot Local"; Show-Line ""; Show-Center "squire-server : remote models"; Show-Mid
                 Show-Line ""
-                Show-Line "     Remote"
-                Show-Line "         (server - switches the standing model on pick)"
-                Show-Line ("     " + ("-" * 50))
-                Show-Line ""
-                Show-Row "1" "Mistral-Small" "default : office/authoring, 64K"
-                Show-Row "2" "GLM-4.7-Flash" "agentic / reasoning"
-                Show-Row "3" "Qwen3-Coder" "coding-first"
-                Show-Row "4" "Devstral-2 24B" "coding-alt, agentic"
-                Show-Row "5" "Image gen" "HiDream + Qwen3-4B"
+                $sub = "(server - switches the standing model on pick)"
+                Show-Line "     Remote"; Show-Line "         $sub"; Show-Line ("     " + ("-" * ($sub.Length + 4))); Show-Line ""
+                foreach ($m in $sm.modes) { Show-Row $m.key $m.label $m.task }
                 Show-Line ""; Show-Line ""; Show-Line ""
                 if ($hasLocal) { Show-Row "B" "Back to environments" "" }
                 Show-Row "Q" "Quit" ""; Show-Line ""
@@ -185,49 +188,31 @@ if ($Model -and $Model -match ':') {
                 $sel = Read-Host "   Your choice [1]"; if (-not $sel) { $sel = "1" }
                 if ($sel.ToUpper() -eq "Q") { Clear-Host; exit }
                 if ($sel.ToUpper() -eq "B" -and $hasLocal) { $page = "env"; continue picker }
-                $map = @{ "1" = "S"; "2" = "G"; "3" = "C"; "4" = "D"; "5" = "I" }
-                if ($map.ContainsKey($sel)) { $choice = $map[$sel]; break picker }
+                $m = $sm.modes | Where-Object { $_.key -eq $sel } | Select-Object -First 1
+                if ($m) {
+                    Invoke-SquireSwitch $m.mode
+                    $env:COPILOT_MODEL = $m.model_id
+                    $env:COPILOT_PROVIDER_BASE_URL = "http://${SquireIp}:8000/v1"
+                    $env:COPILOT_PROVIDER_MAX_PROMPT_TOKENS = "$($m.max_prompt)"
+                    $env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS = "$($m.max_output)"
+                    $selLabel = $m.label; $selTag = "[$sel] squire-server"
+                    $mcpKeep = (-not $m.imagegen_disabled)
+                    $selRemote = $true
+                    break picker
+                }
                 $menuErr = "Invalid selection, try again."
             }
         }
     }
 }
 
-# ── Dispatch: resolve model, provider base URL, per-mode caps, MCP flags ──────
-$env:COPILOT_PROVIDER_BASE_URL = $null
-$offload = $false
-$mcpKeep = $false   # keep imagegen-mcp enabled (image profiles only)
-$officeSkill = $false
-
-switch -Regex ($choice) {
-    '^1$' { $env:COPILOT_MODEL = "qwen36-27b-212k" }
-    '^2$' { $env:COPILOT_MODEL = "qwen3coder-144k" }
-    '^3$' { $env:COPILOT_MODEL = "qwen3coder-144k" }
-    '^4$' { $env:COPILOT_MODEL = "qwen36-27b-212k" }
-    '^5$' { $env:COPILOT_MODEL = "qwen36-27b-212k" }
-    '^6$' { $env:COPILOT_MODEL = "glm47-flash-198k"; $officeSkill = $true }
-    '^7$' { $env:COPILOT_MODEL = "qwen3:8b"; $mcpKeep = $true }
-    '^H1$' { $env:COPILOT_MODEL = "qwen36-27b-212k" }
-    '^H2$' { $env:COPILOT_MODEL = "qwen36-35b-256k" }
-    '^H3$' { $env:COPILOT_MODEL = "gemma4-31b-128k" }
-    '^H4$' { $env:COPILOT_MODEL = "qwen3coder-144k" }
-    '^H5$' { $env:COPILOT_MODEL = "glm47-flash-198k" }
-    '^H6$' { $env:COPILOT_MODEL = "northmini-code-256k" }
-    '^H7$' { $env:COPILOT_MODEL = "nemotron3-nano-256k" }
-    '^H8$' { $env:COPILOT_MODEL = "ornith-35b-256k" }
-    '^H9$' { $env:COPILOT_MODEL = "devstral2-24b-128k" }
-    '^O2$' { $env:COPILOT_MODEL = "qwen3next-80b-offload"; $offload = $true }
-    '^S$' { $env:COPILOT_MODEL = "mistral-small"; $env:COPILOT_PROVIDER_BASE_URL = "http://${SquireIp}:8000/v1"; $env:COPILOT_PROVIDER_MAX_PROMPT_TOKENS = "54272"; $env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS = "8192"; Invoke-SquireSwitch "mistral" }
-    '^G$' { $env:COPILOT_MODEL = "glm-4.7-flash"; $env:COPILOT_PROVIDER_BASE_URL = "http://${SquireIp}:8000/v1"; $env:COPILOT_PROVIDER_MAX_PROMPT_TOKENS = "44032"; $env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS = "8192"; Invoke-SquireSwitch "glm" }
-    '^C$' { $env:COPILOT_MODEL = "qwen3-coder"; $env:COPILOT_PROVIDER_BASE_URL = "http://${SquireIp}:8000/v1"; $env:COPILOT_PROVIDER_MAX_PROMPT_TOKENS = "46080"; $env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS = "8192"; Invoke-SquireSwitch "coder" }
-    '^D$' { $env:COPILOT_MODEL = "devstral"; $env:COPILOT_PROVIDER_BASE_URL = "http://${SquireIp}:8000/v1"; $env:COPILOT_PROVIDER_MAX_PROMPT_TOKENS = "46080"; $env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS = "8192"; Invoke-SquireSwitch "coder-alt" }
-    '^I$' { $env:COPILOT_MODEL = "qwen3-4b"; $env:COPILOT_PROVIDER_BASE_URL = "http://${SquireIp}:8000/v1"; $env:COPILOT_PROVIDER_MAX_PROMPT_TOKENS = "28672"; $env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS = "2048"; $mcpKeep = $true; Invoke-SquireSwitch "image" }
-}
-
-if (-not $env:COPILOT_MODEL) { Write-Host "  Invalid selection."; $env:COPILOT_MODEL = "qwen36-27b-212k" }
+if (-not $env:COPILOT_MODEL) { Write-Host "  Invalid selection."; $env:COPILOT_MODEL = (LL-Alias 'heavy') }
 
 # ── Flags: MCP (imagegen only on image profiles), git-safety, office skill ────
 $mcpFlags = if ($mcpKeep) { @() } else { @('--disable-mcp-server', 'imagegen-mcp') }
+# Point the imagegen MCP tool at the selected environment's image server (the mcp-config expands
+# ${COPILOT_MCP_IMAGEGEN_HOST}): local -> localhost, server -> the squire-server.
+$env:COPILOT_MCP_IMAGEGEN_HOST = if ($selRemote) { $SquireIp } else { "127.0.0.1" }
 $gitSafety = @(
     '--deny-tool=shell(git add)', '--deny-tool=shell(git commit)', '--deny-tool=shell(git push)',
     '--deny-tool=shell(git merge)', '--deny-tool=shell(git rebase)', '--deny-tool=shell(git reset)',
@@ -235,24 +220,18 @@ $gitSafety = @(
     '--deny-tool=shell(git tag)'
 )
 $extraFlags = @()
-if ($officeSkill) { $extraFlags = @('--custom-instructions', "$env:USERPROFILE\.config\crush\skills\office\SKILL.md") }
+if ($officeSkill) {
+    # Copilot loads custom-instructions files from COPILOT_CUSTOM_INSTRUCTIONS_DIRS (no --custom-instructions flag).
+    $officeDir = Join-Path $env:USERPROFILE ".config\crush\skills\office"
+    if (Test-Path $officeDir) { $env:COPILOT_CUSTOM_INSTRUCTIONS_DIRS = $officeDir }
+}
 
 # ── Launch banner ────────────────────────────────────────────────────────────
-$labels = @{
-    "qwen36-27b-212k" = "Qwen3.6 27B (+MTP)"; "qwen36-35b-256k" = "Qwen3.6 35B-A3B MoE"
-    "gemma4-31b-128k" = "Gemma 4 31B dense"; "qwen3coder-144k" = "Qwen3-Coder 30B-A3B"
-    "glm47-flash-198k" = "GLM-4.7-Flash"; "northmini-code-256k" = "North Mini Code 1.0"
-    "nemotron3-nano-256k" = "Nemotron 3 Nano 30B-A3B"; "ornith-35b-256k" = "Ornith-1.0-35B"
-    "devstral2-24b-128k" = "Devstral Small 2 (24B)"; "qwen3next-80b-offload" = "Qwen3-Next-80B-A3B (partial offload)"
-    "qwen3:8b" = "Qwen3 8B"; "mistral-small" = "Mistral-Small (server)"; "glm-4.7-flash" = "GLM-4.7-Flash (server)"
-    "qwen3-coder" = "Qwen3-Coder (server)"; "devstral" = "Devstral-2 24B (server)"; "qwen3-4b" = "Qwen3-4B image companion (server)"
-}
-$modelLabel = if ($labels.ContainsKey($env:COPILOT_MODEL)) { $labels[$env:COPILOT_MODEL] } else { $env:COPILOT_MODEL }
-$slot = switch -Regex ($choice) { '^H' { "[$choice] experimental - heavy bench" } '^O' { "[$choice] experimental - offload bench" } '^[1-9]$' { "[$choice] task profile" } default { "" } }
-Write-Host "  Launching $modelLabel  [alias $($env:COPILOT_MODEL)]  $slot"
+$modelLabel = if ($selLabel) { $selLabel } else { LL-Label $env:COPILOT_MODEL }
+Write-Host "  Launching $modelLabel  [alias $($env:COPILOT_MODEL)]  $selTag"
 
 # ── Launch Copilot ───────────────────────────────────────────────────────────
-$copilotArgs = @('--model', $env:COPILOT_MODEL, '--') + $mcpFlags + $gitSafety + $extraFlags + $args
+$copilotArgs = @('--model', $env:COPILOT_MODEL) + $mcpFlags + $gitSafety + $extraFlags + $args
 if ($env:COPILOT_PROVIDER_BASE_URL) {
     Write-Host "  Remote: $($env:COPILOT_PROVIDER_BASE_URL)"; Write-Host ""
     & copilot @copilotArgs
