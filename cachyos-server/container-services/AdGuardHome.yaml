@@ -1,73 +1,138 @@
-# AdGuardHome.yaml — reference / optional pre-seed configuration
+# AdGuardHome.yaml: pre-seed configuration (synced from the live server)
 # ---------------------------------------------------------------------------
-# TWO WAYS TO SET UP AdGuard Home:
+# This mirrors the running AdGuard Home config on the server so a from-scratch
+# rebuild reproduces the same DNS setup (upstreams, blocklists, rewrites, etc.).
 #
-#   (A) First-run wizard (simplest, version-safe — DEFAULT):
-#       Leave the conf volume empty and start the container. Browse to
-#       http://<server-ip>:3000, complete the wizard (choose "All interfaces"
-#       for DNS, set an admin username/password), then apply the DNS/upstream
-#       and blocklist values below via the web UI:
-#         Settings -> DNS settings -> Upstream DNS servers:
-#             https://dns.quad9.net/dns-query
-#             https://security.cloudflare-dns.com/dns-query
-#           Bootstrap DNS servers: 9.9.9.9 and 1.1.1.2
-#           Upstream mode: Load balancing
-#         Filters -> DNS blocklists -> add the two lists listed under `filters:`.
+# PRE-SEED USAGE (repeatable, no first-run wizard):
+#   Copy this file to ${ADGUARD_BASE}/conf/AdGuardHome.yaml BEFORE the first
+#   container start, and replace the two placeholders:
+#     __ADMIN_USER__            -> admin username (e.g. admin)
+#     __ADMIN_PASSWORD_BCRYPT__ -> bcrypt hash of the admin password.
+#   Generate the bcrypt hash without installing anything (docker is present):
+#     docker run --rm httpd:alpine htpasswd -nbB admin 'YOUR_PASSWORD' | cut -d: -f2
+#   start-services.sh performs this substitution automatically on first deploy.
 #
-#   (B) Pre-seed (repeatable, no wizard):
-#       Copy this file to ${ADGUARD_BASE}/conf/AdGuardHome.yaml BEFORE the first
-#       container start, and replace the two placeholders:
-#         __ADMIN_USER__            -> your admin username (e.g. admin)
-#         __ADMIN_PASSWORD_BCRYPT__ -> a bcrypt hash of your admin password.
-#       Generate the bcrypt hash without installing anything (docker is present):
-#         docker run --rm httpd:alpine htpasswd -nbB admin 'YOUR_PASSWORD' | cut -d: -f2
-#       AdGuard Home auto-migrates `schema_version` forward on first start, so a
-#       slightly older value here is fine.
+# NOTES:
+#   - DNS design: Quad9 DoH is the sole upstream; Cloudflare-malware DoH + the LAN
+#     router are FALLBACK only (used if the upstream is unreachable). Ad/tracker
+#     blocking is done locally by the `filters:` lists. DNSSEC is enabled.
+#   - `rewrites:` provides local .lan hostnames (update IPs if the LAN changes).
+#   - TLS is disabled; certificate_chain/private_key are intentionally empty.
+#   - AdGuard Home auto-migrates `schema_version` forward on first start.
 # ---------------------------------------------------------------------------
 
 http:
-  # Web admin UI (mapped to host :80 in docker-compose.yml)
+  pprof:
+    port: 6060
+    enabled: false
+  doh:
+    routes:
+      - GET /dns-query
+      - POST /dns-query
+      - GET /dns-query/{ClientID}
+      - POST /dns-query/{ClientID}
+    insecure_enabled: false
   address: 0.0.0.0:80
+  session_ttl: 30d
 users:
   - name: __ADMIN_USER__
     password: __ADMIN_PASSWORD_BCRYPT__
 auth_attempts: 5
 block_auth_min: 15
-
+http_proxy: ""
+language: ""
+theme: auto
 dns:
-  # Answer on all interfaces so the whole LAN can use this box as its resolver.
   bind_hosts:
     - 0.0.0.0
   port: 53
-
-  # Encrypted DoH upstreams. BOTH filter malware so protection is consistent
-  # regardless of which upstream answers (AdGuard Home has no strict primary/
-  # failover — upstreams are used per `upstream_mode`). Ad/tracker blocking is
-  # done locally by the filter lists below, so the upstreams stay security-only.
+  anonymize_client_ip: false
+  ratelimit: 100
+  ratelimit_subnet_len_ipv4: 24
+  ratelimit_subnet_len_ipv6: 56
+  ratelimit_whitelist: []
+  refuse_any: true
   upstream_dns:
     - https://dns.quad9.net/dns-query
-    - https://security.cloudflare-dns.com/dns-query
-  # Plain-DNS servers used only to resolve the DoH hostnames on startup.
+  upstream_dns_file: ""
   bootstrap_dns:
     - 9.9.9.9
+    - 149.112.112.112
     - 1.1.1.2
-  upstream_mode: load_balance
-
-  # Plain-DNS fallback (the LAN router) used only if the DoH upstreams are
-  # unreachable, so name resolution degrades gracefully instead of failing.
   fallback_dns:
+    - https://security.cloudflare-dns.com/dns-query
     - 192.168.1.1
-
-  cache_size: 4194304
+  upstream_mode: load_balance
+  fastest_timeout: 1s
+  allowed_clients: []
+  disallowed_clients: []
+  blocked_hosts:
+    - version.bind
+    - id.server
+    - hostname.bind
+  trusted_proxies:
+    - 127.0.0.0/8
+    - ::1/128
+  cache_enabled: true
+  cache_size: 6815744
   cache_ttl_min: 0
   cache_ttl_max: 0
-
-filtering:
-  protection_enabled: true
-  filtering_enabled: true
-  filters_update_interval: 24
-
-# Blocklists (ad/tracker blocking — this is the Pi-hole "gravity" equivalent).
+  cache_optimistic: true
+  cache_optimistic_answer_ttl: 30s
+  cache_optimistic_max_age: 12h
+  bogus_nxdomain: []
+  aaaa_disabled: false
+  enable_dnssec: true
+  edns_client_subnet:
+    custom_ip: ""
+    enabled: false
+    use_custom: false
+  max_goroutines: 300
+  handle_ddr: true
+  ipset: []
+  ipset_file: ""
+  bootstrap_prefer_ipv6: false
+  upstream_timeout: 10s
+  private_networks: []
+  use_private_ptr_resolvers: true
+  local_ptr_upstreams:
+    - 192.168.1.1
+  use_dns64: false
+  dns64_prefixes: []
+  serve_http3: false
+  use_http3_upstreams: false
+  serve_plain_dns: true
+  hostsfile_enabled: true
+  pending_requests:
+    enabled: true
+tls:
+  enabled: false
+  server_name: ""
+  force_https: false
+  port_https: 443
+  port_dns_over_tls: 853
+  port_dns_over_quic: 853
+  port_dnscrypt: 0
+  dnscrypt_config_file: ""
+  certificate_chain: ""
+  private_key: ""
+  certificate_path: ""
+  private_key_path: ""
+  strict_sni_check: false
+querylog:
+  dir_path: ""
+  ignored: []
+  interval: 90d
+  size_memory: 1000
+  enabled: true
+  ignored_enabled: false
+  file_enabled: true
+statistics:
+  dir_path: ""
+  ignored: []
+  interval: 1d
+  enabled: true
+  ignored_enabled: false
 filters:
   - enabled: true
     url: https://adguardteam.github.io/AdguardSDNSFilter/Filters/filter.txt
@@ -77,6 +142,103 @@ filters:
     url: https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
     name: StevenBlack hosts
     id: 2
-
-# AdGuard Home migrates this forward automatically if the running version is newer.
-schema_version: 27
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_27.txt
+    name: OISD Blocklist Big
+    id: 1783152021
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_44.txt
+    name: HaGeZi's Threat Intelligence Feeds
+    id: 1783152022
+whitelist_filters: []
+user_rules:
+  - '||use-application-dns.net^'
+dhcp:
+  enabled: false
+  interface_name: ""
+  local_domain_name: lan
+  dhcpv4:
+    gateway_ip: ""
+    subnet_mask: ""
+    range_start: ""
+    range_end: ""
+    lease_duration: 86400
+    icmp_timeout_msec: 1000
+    options: []
+  dhcpv6:
+    range_start: ""
+    lease_duration: 86400
+    ra_slaac_only: false
+    ra_allow_slaac: false
+filtering:
+  blocking_ipv4: ""
+  blocking_ipv6: ""
+  blocked_services:
+    schedule:
+      time_zone: America/New_York
+    ids: []
+  protection_disabled_until: null
+  safe_search:
+    enabled: false
+    bing: true
+    duckduckgo: true
+    ecosia: true
+    google: true
+    pixabay: true
+    yandex: true
+    youtube: true
+  blocking_mode: default
+  parental_block_host: family-block.dns.adguard.com
+  safebrowsing_block_host: standard-block.dns.adguard.com
+  rewrites:
+    - domain: jesse-desktop.lan
+      answer: 192.168.1.65
+      enabled: true
+    - domain: squire-server.lan
+      answer: 192.168.1.99
+      enabled: true
+    - domain: plex.lan
+      answer: 192.168.1.99
+      enabled: true
+    - domain: adguard.lan
+      answer: 192.168.1.99
+      enabled: true
+    - domain: nas.lan
+      answer: 192.168.1.100
+      enabled: true
+  safe_fs_patterns:
+    - /opt/adguardhome/work/data/userfilters/*
+  max_http_size: 256MB
+  safebrowsing_cache_size: 1048576
+  safesearch_cache_size: 1048576
+  parental_cache_size: 1048576
+  cache_time: 30
+  filters_update_interval: 24
+  blocked_response_ttl: 10
+  filtering_enabled: true
+  rewrites_enabled: true
+  parental_enabled: false
+  safebrowsing_enabled: false
+  protection_enabled: true
+clients:
+  runtime_sources:
+    whois: true
+    arp: true
+    rdns: true
+    dhcp: true
+    hosts: true
+  persistent: []
+log:
+  enabled: true
+  file: ""
+  max_backups: 0
+  max_size: 100
+  max_age: 3
+  compress: false
+  local_time: false
+  verbose: false
+os:
+  group: ""
+  user: ""
+  rlimit_nofile: 0
+schema_version: 34

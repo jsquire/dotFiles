@@ -92,16 +92,47 @@ if [[ "${CONFIRM,,}" =~ ^n ]]; then
 fi
 
 ############################################
-# Derive mount point from repository path
+# Ensure the NAS backups export is mounted
+############################################
+
+# The Kopia repo lives on the NAS backups share (NFS). Mount it via fstab with a
+# systemd automount so it is available on demand and persists across reboots.
+# Kopia runs as root; writes are accepted under the NAS all-squash (Collaborative)
+# policy (no no_root_squash is required on the NAS).
+
+NAS_HOST=$(prompt_default "NAS host (IP recommended for boot-time mounts)" "192.168.1.100")
+NAS_BACKUP_EXPORT=$(prompt_default "NAS backups NFS export path" "/var/nfs/shared/backups")
+NAS_BACKUP_MOUNT=$(prompt_default "Local mount point for the NAS backups export" "/mnt/nas-backups")
+NAS_BACKUP_MOUNT="${NAS_BACKUP_MOUNT%/}"
+
+mkdir -p "${NAS_BACKUP_MOUNT}"
+
+backup_fstab_line="${NAS_HOST}:${NAS_BACKUP_EXPORT}  ${NAS_BACKUP_MOUNT}  nfs  _netdev,x-systemd.automount,noatime,nofail  0  0"
+
+if ! grep -Eq "[[:space:]]${NAS_BACKUP_MOUNT}[[:space:]]+nfs([[:space:]]|$)" /etc/fstab; then
+    echo "Adding NFS mount ${NAS_HOST}:${NAS_BACKUP_EXPORT} -> ${NAS_BACKUP_MOUNT} to /etc/fstab"
+    printf '%s\n' "${backup_fstab_line}" >> /etc/fstab
+    systemctl daemon-reload
+fi
+
+# Trigger the automount so the export is available immediately.
+systemctl start "$(systemd-escape -p --suffix=automount "${NAS_BACKUP_MOUNT}")" 2>/dev/null || true
+
+# Ensure the repo subdirectory exists on the share.
+mkdir -p "${REPO_PATH}" 2>/dev/null || true
+
+############################################
+# Verify repository path + derive mount point
 ############################################
 
 if [[ ! -d "${REPO_PATH}" ]]; then
     echo "ERROR: Repository path does not exist: ${REPO_PATH}"
-    echo "Ensure the share is mounted and the path is correct."
+    echo "Ensure the NAS export is reachable and the path is correct."
     exit 1
 fi
 
-MOUNT_POINT=$(findmnt -n -o TARGET --target "${REPO_PATH}")
+# findmnt --target returns both the autofs and nfs lines for an automount; take the first.
+MOUNT_POINT=$(findmnt -n -o TARGET --target "${REPO_PATH}" | head -n1)
 
 if [[ -z "${MOUNT_POINT}" ]]; then
     echo "ERROR: Could not determine mount point for ${REPO_PATH}."
@@ -213,7 +244,7 @@ kopia maintenance set --full-interval=720h
 # Exclusions for home directory via .kopiaignore (idempotent)
 cat > "${BACKUP_HOME}/.kopiaignore" << 'KOPIAIGNORE'
 .cache/
-# LLM models (large, re-downloadable) — explicit even though .cache/ already covers HF
+# LLM models (large, re-downloadable); explicit even though .cache/ already covers HF
 .cache/huggingface/
 .ollama/
 .var/app/*/cache/

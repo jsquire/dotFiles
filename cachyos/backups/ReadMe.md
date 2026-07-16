@@ -1,6 +1,6 @@
 # CachyOS Backup & Restore
 
-Backup and restore scripts for CachyOS using [Kopia](https://kopia.io/) with snapshots stored on a network samba share. Includes automated nightly backups, selective file restore, and full disaster recovery.
+Backup and restore scripts for CachyOS using [Kopia](https://kopia.io/) with snapshots stored on the NAS backups export (NFS). Includes automated nightly backups, selective file restore, and full disaster recovery.
 
 ## Scripts
 
@@ -19,56 +19,30 @@ All scripts require `sudo`.
 ### Prerequisites
 
 - CachyOS installed with `bootstrap.sh` completed (provides `yay`, base packages)
-- `cifs-utils` installed (`sudo pacman -S cifs-utils` — included in bootstrap)
-- A samba/SMB share accessible on the local network
+- `nfs-utils` installed (`sudo pacman -S nfs-utils`)
+- The NAS backups share exported over NFS and reachable on the LAN (Collaborative/all-squash mode; no uid/gid matching or `no_root_squash` needed)
 
-### Step 1: Create the samba credentials file
+### Step 1: Run the backup setup script
 
-Store credentials in a protected file (never put passwords directly in fstab):
-
-```bash
-cat > ~/.smbcredentials << EOF
-username=your_samba_username
-password=your_samba_password
-EOF
-chmod 600 ~/.smbcredentials
-```
-
-### Step 2: Add the samba mount to fstab
-
-Create the mount point and add a permanent mount entry:
-
-```bash
-sudo mkdir -p /mnt/nas-backups
-sudo vim /etc/fstab
-```
-
-Add this line (adjust the server hostname, share name, and credentials path for your setup):
-
-```
-//nas.lan/backups  /mnt/nas-backups  cifs  credentials=/home/jesse/.smbcredentials,file_mode=0700,dir_mode=0700,uid=1000,gid=1000,_netdev,nofail  0  0
-```
-
-Option choices worth calling out:
-
-- `file_mode=0700,dir_mode=0700,uid=1000,gid=1000`: backup data is not world-readable and is owned by the local user (adjust uid/gid for your account if different from 1000).
-- `_netdev,nofail`: tells systemd the mount depends on the network and that boot must not fail if the NAS is temporarily unreachable.
-
-Mount and verify:
-
-```bash
-sudo mount -av
-ls /mnt/nas-backups/
-```
-
-### Step 3: Run the backup setup script
+The script mounts the NAS backups export itself (adds an NFS entry to `/etc/fstab`
+with a systemd automount) - no manual mount or samba credentials are required.
 
 ```bash
 cd ~/src/dotFiles/cachyos/backups
 sudo ./kopia-backup.sh
 ```
 
-The script prompts for a few settings (backup user, repository path, schedule time) with sensible defaults — press Enter to accept each one.
+It prompts (with defaults) for:
+
+- **NAS host** - the NAS IP (default `192.168.1.100`; an IP is recommended so the mount works before DNS is up at boot).
+
+- **NAS backups NFS export path** - default `/var/nfs/shared/backups`.
+
+- **Local mount point** - default `/mnt/nas-backups`.
+
+- **Repository path** - default `/mnt/nas-backups/Jesse-CachyOS` (this machine's own subfolder on the shared backups export).
+
+- **Backup time** (HH:MM:SS) and a confirmation of the sources and retention policy.
 
 Once complete, the following are configured:
 
@@ -82,7 +56,7 @@ Once complete, the following are configured:
 | Log file | `/var/log/nightly-backup.log` | Backup run output (rotated at 5 MB) |
 | Snapper | `snapper-timeline.timer` | Fast btrfs rollback (complements Kopia) |
 
-### Step 4: Verify the setup
+### Step 2: Verify the setup
 
 ```bash
 # Confirm the timer is active and see when it fires next
@@ -210,7 +184,7 @@ Use `kopia-restore-full.sh` after a fresh CachyOS install to recover your entire
 
 1. Install CachyOS fresh
 2. Run `bootstrap.sh` from dotFiles (installs yay, kopia, base packages)
-3. Mount the samba share (see [Initial Configuration](#1-initial-configuration) steps 1-2)
+3. Mount the NAS backups export over NFS, e.g. `sudo mkdir -p /mnt/nas-backups && sudo mount -t nfs 192.168.1.100:/var/nfs/shared/backups /mnt/nas-backups` (or run `kopia-backup.sh` first, which adds the persistent mount)
 4. Run the disaster recovery script:
 
 ```bash

@@ -280,6 +280,13 @@ if [ ! -f "$HOME/.xsession" ] || ! grep -qx 'exec startplasma-x11' "$HOME/.xsess
     chmod 644 "$HOME/.xsession"
 fi
 
+# CachyOS ships the arch-update (cachy-update) notifier, which enables a per-user
+# tray icon + periodic update-check timer. On a headless, SSH-driven server that
+# background nag has no value (updates are applied deliberately via pacman -Syu).
+# Disable it globally so new user sessions don't start it. --global avoids needing
+# a running user systemd instance during provisioning.
+sudo systemctl --global disable arch-update.timer arch-update-tray.service 2>/dev/null || true
+
 
 ############################################
 # Service groups
@@ -372,7 +379,7 @@ fi
 # Non-interactive server backup configuration.
 # Repo lives on the NAS backups export (NFS, Collaborative/all-squash); the Kopia
 # repo is the Squire-Server subdirectory. Sources are LOCAL only (home, /etc, /boot,
-# install dir) and never the NAS mounts — enforced with --one-file-system below.
+# install dir) and never the NAS mounts; enforced with --one-file-system below.
 
 KOPIA_REPO="${NAS_BACKUP_MOUNT}/Squire-Server"
 KOPIA_BACKUP_SCRIPT="/usr/local/bin/nightly-backup.sh"
@@ -382,7 +389,7 @@ KOPIA_SOURCES=( "$HOME" "/etc" "/boot" "$INSTALL_DIR" )
 
 # Mount the NAS backups export (NFS) so the Kopia repo is reachable.
 # Kopia runs as root; writes are accepted under the NAS all-squash policy
-# (mapped to the share's anon owner) — no no_root_squash required on the NAS.
+# (mapped to the share's anon owner); no no_root_squash required on the NAS.
 
 if [[ -n "$NAS_HOST" && -n "$NAS_BACKUP_EXPORT" ]]; then
     sudo mkdir -p "$NAS_BACKUP_MOUNT"
@@ -440,7 +447,7 @@ fi
 
 cat > "$HOME/.kopiaignore" << 'KOPIAIGNORE'
 .cache/
-# LLM models (large, re-downloadable) — explicit even though .cache/ already covers HF
+# LLM models (large, re-downloadable); explicit even though .cache/ already covers HF
 .cache/huggingface/
 .ollama/
 .var/app/*/cache/
