@@ -192,7 +192,7 @@ if ($Help) {
     -EnableLAN           Set OLLAMA_HOST=0.0.0.0 so other machines can connect
     -SkipWslNetworking   Don't configure WSL2 mirrored networking (.wslconfig)
     -Force               Overwrite existing crush.json + Copilot mcp-config.json (skipped by default).
-                         Backs each up to a timestamped .bak first. Use to refresh outdated client
+                         Overwrites in place (no .bak; rely on git). Use to refresh outdated client
                          config, e.g. after a provider/roster change.
     -Theme <Dark|Light>  Shortcut icon theme (default: Dark)
                          Dark  = white icons (for dark taskbar/Start Menu)
@@ -250,10 +250,12 @@ $UserProfile    = $env:USERPROFILE
 # drive: Ollama models (<DataRoot>\models), image-gen repo+venv and MCP venvs
 # (<DataRoot>\ai-tools), and the HuggingFace cache (<DataRoot>\hf-cache = HF_HOME).
 # uv and its managed Python are intentionally EXCLUDED (standalone tool, not AI
-# stack). When -DataRoot is omitted, everything falls back to the LocalAppData /
-# default-cache behavior (backward compatible). Runtime consumers (imagegen server,
-# MCP client, launch scripts) read the AI_TOOLS_DIR + HF_HOME env vars the installer
-# sets below, with a LocalAppData fallback.
+# stack). When -DataRoot is omitted, the installer reuses the location from a PRIOR
+# install by reading the persistent AI_TOOLS_DIR / HF_HOME / OLLAMA_MODELS env vars
+# it set last time (so a plain refresh stays put instead of silently reverting to C:).
+# Only when none of those exist does it fall back to the LocalAppData / default-cache
+# behavior (backward compatible). Runtime consumers (imagegen server, MCP client,
+# launch scripts) read the AI_TOOLS_DIR + HF_HOME env vars the installer sets below.
 if (-not [string]::IsNullOrWhiteSpace($DataRoot)) {
     $AiToolsRoot = $DataRoot
     $HFCacheDir  = Join-Path $DataRoot "hf-cache"
@@ -261,8 +263,21 @@ if (-not [string]::IsNullOrWhiteSpace($DataRoot)) {
         $ModelPath = Join-Path $DataRoot "models"
     }
 } else {
-    $AiToolsRoot = $LocalAppData
-    $HFCacheDir  = $null
+    # No -DataRoot: reuse a prior install's location from the env vars we set last time,
+    # so `-Force` refreshes don't silently move everything back to the OS drive.
+    $priorAiTools = [Environment]::GetEnvironmentVariable('AI_TOOLS_DIR', 'User')
+    $priorHFHome  = [Environment]::GetEnvironmentVariable('HF_HOME', 'User')
+    $priorModels  = [Environment]::GetEnvironmentVariable('OLLAMA_MODELS', 'User')
+    if (-not [string]::IsNullOrWhiteSpace($priorAiTools)) {
+        $AiToolsRoot = Split-Path $priorAiTools -Parent   # AI_TOOLS_DIR = <root>\ai-tools
+        Write-Info "Reusing prior data root from AI_TOOLS_DIR: $AiToolsRoot (pass -DataRoot to override)."
+    } else {
+        $AiToolsRoot = $LocalAppData
+    }
+    $HFCacheDir = if (-not [string]::IsNullOrWhiteSpace($priorHFHome)) { $priorHFHome } else { $null }
+    if ([string]::IsNullOrWhiteSpace($ModelPath) -and -not [string]::IsNullOrWhiteSpace($priorModels)) {
+        $ModelPath = $priorModels
+    }
 }
 $AiToolsDir     = Join-Path $AiToolsRoot "ai-tools"
 $CrushDir       = Join-Path $UserProfile ".config\crush"
@@ -962,11 +977,6 @@ if ($ShouldInstallSoftware) {
         if ((Test-Path $crushConfigDest) -and -not $Force) {
             Write-Info "Crush config already exists at $crushConfigDest — skipping (won't overwrite; use -Force to refresh)."
         } else {
-            if (Test-Path $crushConfigDest) {
-                $crushBak = "$crushConfigDest.$(Get-Date -Format 'yyyyMMdd-HHmmss').bak"
-                Copy-Item $crushConfigDest $crushBak -Force
-                Write-Info "-Force: backed up existing crush.json to $crushBak"
-            }
             # Expand template placeholders for this platform
             $crushContent = Get-Content $crushConfigSource -Raw
             $expandedLocalAppData = ($AiToolsRoot -replace '\\', '/') # ai-tools root (DataRoot or LocalAppData), fwd slashes for JSON
@@ -1051,11 +1061,6 @@ if ($ShouldInstallSoftware) {
         if ((Test-Path $copilotMcpDest) -and -not $Force) {
             Write-Info "Copilot MCP config already exists at $copilotMcpDest — skipping (won't overwrite; use -Force to refresh)."
         } else {
-            if (Test-Path $copilotMcpDest) {
-                $mcpBak = "$copilotMcpDest.$(Get-Date -Format 'yyyyMMdd-HHmmss').bak"
-                Copy-Item $copilotMcpDest $mcpBak -Force
-                Write-Info "-Force: backed up existing mcp-config.json to $mcpBak"
-            }
             $mcpContent = Get-Content $copilotMcpSource -Raw
             $expandedLocalAppData = ($AiToolsRoot -replace '\\', '/') # ai-tools root (DataRoot or LocalAppData)
             $expandedConfigDir = ($CrushDir -replace '\\', '/')
