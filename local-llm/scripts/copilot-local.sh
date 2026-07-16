@@ -256,14 +256,10 @@ GIT_SAFETY=(
     --deny-tool='shell(git revert)' --deny-tool='shell(git tag)'
 )
 
-# Office authoring guidance: point Copilot at the vendored 'office' skill dir via
-# COPILOT_CUSTOM_INSTRUCTIONS_DIRS (Copilot loads custom-instructions files from these dirs; it has
-# no --custom-instructions flag).
+# Office authoring: the 'office' skill is deployed to ~/.copilot/skills/office and discovered natively by
+# Copilot (see `copilot skill list`), so it is available in every session regardless of model/provider. The
+# launcher does NOT need to inject it (Copilot's COPILOT_CUSTOM_INSTRUCTIONS_DIRS ignores SKILL.md anyway).
 EXTRA_FLAGS=()
-if [[ "$SEL_OFFICE" == "1" ]]; then
-    OFFICE_SKILL_DIR="${HOME}/.config/crush/skills/office"
-    [[ -d "$OFFICE_SKILL_DIR" ]] && export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="$OFFICE_SKILL_DIR"
-fi
 
 echo "  ▶ ${SEL_LABEL}  ·  alias=${SEL_MODEL}${SEL_TAG:+  ·  $SEL_TAG}"
 echo

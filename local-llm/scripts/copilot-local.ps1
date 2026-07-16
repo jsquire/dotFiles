@@ -220,11 +220,9 @@ $gitSafety = @(
     '--deny-tool=shell(git tag)'
 )
 $extraFlags = @()
-if ($officeSkill) {
-    # Copilot loads custom-instructions files from COPILOT_CUSTOM_INSTRUCTIONS_DIRS (no --custom-instructions flag).
-    $officeDir = Join-Path $env:USERPROFILE ".config\crush\skills\office"
-    if (Test-Path $officeDir) { $env:COPILOT_CUSTOM_INSTRUCTIONS_DIRS = $officeDir }
-}
+# Office authoring: the 'office' skill is deployed to ~/.copilot/skills/office and discovered natively by
+# Copilot (see `copilot skill list`), so it's available in every session regardless of model/provider. No
+# launcher injection needed (Copilot's COPILOT_CUSTOM_INSTRUCTIONS_DIRS ignores SKILL.md anyway).
 
 # ── Launch banner ────────────────────────────────────────────────────────────
 $modelLabel = if ($selLabel) { $selLabel } else { LL-Label $env:COPILOT_MODEL }

@@ -1047,6 +1047,16 @@ if ($ShouldInstallSoftware) {
         New-Item -ItemType Directory -Path $skillsDestDir -Force | Out-Null
         Copy-Item "$skillsSourceDir\*" $skillsDestDir -Recurse -Force
         Write-Success "Deployed local skills (git-safety, office) to $skillsDestDir"
+
+        # Copilot discovers skills from ~/.copilot/skills (NOT the crush dir, and its custom-instructions
+        # loader ignores SKILL.md) — deploy the 'office' skill there so Copilot sees it in every session.
+        $officeSkillSrc = Join-Path $skillsSourceDir "office"
+        if (Test-Path $officeSkillSrc) {
+            $copilotSkillsDir = Join-Path $env:USERPROFILE ".copilot\skills\office"
+            New-Item -ItemType Directory -Path $copilotSkillsDir -Force | Out-Null
+            Copy-Item "$officeSkillSrc\*" $copilotSkillsDir -Recurse -Force
+            Write-Success "Deployed 'office' skill to $copilotSkillsDir (Copilot personal skills)"
+        }
     }
 
     # ── Step: Deploy Copilot CLI MCP configuration ────────────────────

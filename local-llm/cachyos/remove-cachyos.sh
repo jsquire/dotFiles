@@ -440,6 +440,7 @@ remove_user_path "$LOCAL_MODELS_JSON" 'local model roster'
 remove_user_path "$SERVER_MODELS_JSON" 'server model roster fallback'
 if [[ "$KEEP_CONFIG" == false ]]; then
     remove_user_path "$COPILOT_MCP_CONFIG" 'Copilot MCP config'
+    remove_user_path "${HOME}/.copilot/skills/office" 'Copilot office skill'
 else
     info 'Keeping ~/.copilot/mcp-config.json as requested (--keep-config).'
 fi
