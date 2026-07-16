@@ -57,7 +57,17 @@ PLEX_HOSTNAME="${PLEX_HOSTNAME:-Squire-Media}"
 PLEX_UID="${PLEX_UID:-$(id -u plex 2>/dev/null || id -u)}"
 PLEX_GID="${PLEX_GID:-$(id -g plex 2>/dev/null || id -g)}"
 PLEX_CLAIM_FILE="${PLEX_CLAIM_FILE:-$SCRIPT_DIR/.plex-claim}"
-PLEX_CLAIM=$(read_secret "${PLEX_CLAIM:-}" "$PLEX_CLAIM_FILE" "Plex claim token" "CHANGE_ME_PLEX_CLAIM")
+# The Plex claim token is single-use and only needed at INITIAL server claim; once
+# claimed, Plex stores its identity in the config volume and ignores this value.
+# So never prompt for it: use the PLEX_CLAIM env var or an optional .plex-claim file
+# if present, otherwise leave it empty (correct for an already-claimed server).
+if [ -n "${PLEX_CLAIM:-}" ]; then
+  :
+elif [ -f "$PLEX_CLAIM_FILE" ]; then
+  PLEX_CLAIM="$(tr -d '\r\n' < "$PLEX_CLAIM_FILE")"
+else
+  PLEX_CLAIM=""
+fi
 
 umask 077
 cat <<EOF > .env
