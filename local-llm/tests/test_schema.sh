@@ -46,6 +46,21 @@ ok(sm.get("default_mode") in [m["mode"] for m in sm["modes"]], "default_mode is 
 mids = [m["model_id"] for m in sm["modes"]]
 ok(len(mids) == len(set(mids)), f"server model_id not unique: {mids}")
 
+# menu (schema v2): the TASK picker. Every row.mode must resolve to a real mode; keys unique across it.
+modes_set = {m["mode"] for m in sm["modes"]}
+menu = (sm.get("menu") or {}).get("categories")
+ok(menu is not None, "server-models.json missing menu.categories")
+if menu:
+    mkeys = []
+    for cat in menu:
+        ok("heading" in cat, "menu category missing heading")
+        for r in cat.get("rows", []):
+            mkeys.append(r["key"])
+            ok(r.get("mode") in modes_set, f"menu row [{r.get('key')}] mode '{r.get('mode')}' not a real mode")
+            ok("label" in r, f"menu row [{r.get('key')}] missing label")
+    ok(len(mkeys) == len(set(mkeys)), f"menu duplicate keys: {mkeys}")
+ok("glm" not in modes_set, "GLM was retired from the server roster but is still present in modes")
+
 for f in (sys.argv[1], sys.argv[2]):
     ok("__" not in open(f).read(), f"{f} contains a residual __placeholder__")
 
@@ -61,6 +76,7 @@ fb = vsw._FALLBACK_ROSTER
 ok(fb.get("default_mode") == sm.get("default_mode"), "fallback default_mode != server-models.json")
 ok(fb.get("api_port") == sm.get("api_port"), "fallback api_port != server-models.json")
 ok(fb.get("schema_version") == sm.get("schema_version"), "fallback schema_version != server-models.json")
+ok(fb.get("menu") == sm.get("menu"), "_FALLBACK_ROSTER menu != server-models.json menu")
 fb_by = {m["mode"]: m for m in fb["modes"]}
 ok(len(fb["modes"]) == len(sm["modes"]), f"fallback mode count {len(fb['modes'])} != {len(sm['modes'])}")
 _fields = ("mode", "key", "label", "task", "model_id", "ctx", "max_output",

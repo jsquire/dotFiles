@@ -23,7 +23,7 @@ function Copilot-Sep($inputs) {
 Assert-Eq "crush local image url"   "http://127.0.0.1:8001" (Crush-Url @("1", "5"))
 Assert-Eq "crush server image url"  "http://10.9.9.9:8001"  (Crush-Url @("3", "5"))
 Assert-Eq "crush local coding url"  "http://127.0.0.1:8001" (Crush-Url @("1", "1"))
-Assert-Eq "crush server coding url" "http://10.9.9.9:8001"  (Crush-Url @("3", "1"))
+Assert-Eq "crush server coding url" "http://10.9.9.9:8001"  (Crush-Url @("3", "3"))
 Assert-Eq "copilot local image host"  "127.0.0.1" (Copilot-Host @("1", "7"))
 Assert-Eq "copilot server image host" "10.9.9.9"  (Copilot-Host @("3", "5"))
 Assert-Eq "copilot local no -- separator"  "no" (Copilot-Sep @("1", "1"))

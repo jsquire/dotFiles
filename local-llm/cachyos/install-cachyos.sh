@@ -39,9 +39,10 @@ VLLM_PORT=8000
 # on the server (clear of AdGuard 3000/53/80/443, Plex 32400/8080, vLLM 8000/8001).
 VLLM_SWITCH_WEB_PORT=4090
 VLLM_SWITCH_USER="vllm-model-control"
-# Standing default served model = Mistral-Small-3.2-24B-Instruct (authoring/office focus). See the base
-# vllm.service comment for the gghfez-weights + jeffcookio-tokenizer rationale. GLM-4.7-Flash is retained
-# as an on-demand switch mode (cachyos-switch-model glm) for agentic/reasoning/coding tasks.
+# Standing default served model = Mistral-Small-3.2-24B-Instruct (basic chat / general use). See the base
+# vllm.service comment for the gghfez-weights + jeffcookio-tokenizer rationale. On-demand switch modes
+# (cachyos-switch-model): coder = Qwen3-Coder (coding + office document authoring, the reliable tool-use
+# model), coder-alt = Devstral-2 (agentic coding / review), image = HiDream + Qwen3-4B.
 VLLM_DEFAULT_MODEL="gghfez/Mistral-Small-3.2-24B-Instruct-hf-AWQ"
 VLLM_DEFAULT_TOKENIZER="jeffcookio/Mistral-Small-3.2-24B-Instruct-2506-awq-sym"
 VLLM_DEFAULT_SERVED_NAME="mistral-small"
@@ -191,7 +192,7 @@ model_description() {
         qwen2.5-coder:32b) printf '%s' 'Qwen2.5-Coder 32B — heavy coding, ~19 GB' ;;
         qwen2.5-coder:14b) printf '%s' 'Qwen2.5-Coder 14B — light coding, ~9 GB' ;;
         deepseek-r1:32b) printf '%s' 'DeepSeek R1 32B — code review/reasoning, ~19 GB' ;;
-        mistral-small3.2:24b) printf '%s' 'Mistral Small 3.2 — docs/creative/office, ~15 GB' ;;
+        mistral-small3.2:24b) printf '%s' 'Mistral Small 3.2 — docs/creative/chat, ~15 GB' ;;
         gemma4:31b) printf '%s' 'Gemma 4 31B — heavy coding (256k ctx), ~20 GB' ;;
         gemma4:26b) printf '%s' 'Gemma 4 26B MoE — general (256k ctx), ~17 GB' ;;
         qwen3:14b) printf '%s' 'Qwen3 14B — light coding profile (131k ctx), ~9 GB' ;;
@@ -202,8 +203,8 @@ model_description() {
         qwen3:32b) printf '%s' 'Qwen3 32B — creative writing (128k ctx), ~20 GB' ;;
         x/z-image-turbo) printf '%s' 'Z-Image Turbo 6B — image generation, ~12 GB' ;;
         # HuggingFace model IDs (vLLM server mode)
-        QuantTrio/GLM-4.7-Flash-AWQ) printf '%s' 'GLM-4.7-Flash AWQ — agentic/reasoning/coding switch mode (glm mode; MLA KV, ~44K), ~20 GB' ;;
-        gghfez/Mistral-Small-3.2-24B-Instruct-hf-AWQ) printf '%s' 'Mistral-Small-3.2 24B AWQ — STANDING DEFAULT: office/authoring (64K, tool-calling), ~14 GB' ;;
+        QuantTrio/GLM-4.7-Flash-AWQ) printf '%s' 'GLM-4.7-Flash AWQ — RETIRED from the server roster (hallucinated in office/agentic use); Qwen3-Coder took its slot' ;;
+        gghfez/Mistral-Small-3.2-24B-Instruct-hf-AWQ) printf '%s' 'Mistral-Small-3.2 24B AWQ — STANDING DEFAULT: basic chat / general (64K, tool-calling), ~14 GB' ;;
         jeffcookio/Mistral-Small-3.2-24B-Instruct-2506-awq-sym) printf '%s' 'Mistral-Small-3.2 tokenizer source (tekken.json for --tokenizer-mode mistral); weights unused' ;;
         cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit) printf '%s' 'Devstral-2 24B AWQ — agentic-coding alternative (switch mode, dense, 384k ctx, compressed-tensors), ~14 GB' ;;
         Qwen/Qwen3-4B-Instruct-2507) printf '%s' 'Qwen3 4B — image-gen companion LLM (co-resides with HiDream), ~8 GB' ;;
@@ -214,7 +215,7 @@ model_description() {
         btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit) printf '%s' 'Qwen3-Coder 30B MoE GPTQ — heavy coding (agentic), ~19 GB' ;;
         Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4) printf '%s' 'Qwen2.5-Coder 14B GPTQ — light coding, ~8 GB' ;;
         deepseek-ai/DeepSeek-R1-Distill-Qwen-32B-GPTQ-Int4) printf '%s' 'DeepSeek R1 Distill 32B GPTQ — code review, ~18 GB' ;;
-        mistralai/Mistral-Small-3.2-24B-Instruct-2503-GPTQ-Int4) printf '%s' 'Mistral Small 3.2 GPTQ — docs/creative/office, ~13 GB' ;;
+        mistralai/Mistral-Small-3.2-24B-Instruct-2503-GPTQ-Int4) printf '%s' 'Mistral Small 3.2 GPTQ — docs/creative/chat, ~13 GB' ;;
         *) printf '%s' 'Custom model' ;;
     esac
 }
@@ -473,18 +474,18 @@ load_effective_model_config() {
     SELECTED_MODELS=()
 
     if [[ "$IS_SERVER_MODE" == true ]]; then
-        # vLLM (server): serves ONE model at a time (24GB). GLM-4.7-Flash is the standing
-        # default; the rest are downloaded so the mode-switch (cachyos-switch-model) can
-        # load them on demand without a fresh pull.
+        # vLLM (server): serves ONE model at a time (24GB). Mistral-Small is the standing default; the
+        # rest are downloaded so the mode-switch (cachyos-switch-model) can load them on demand without a
+        # fresh pull. (GLM-4.7-Flash was retired: it hallucinated in office/agentic use; Qwen3-Coder is
+        # the office + coding model now.)
         SELECTED_MODELS=(
             "gghfez/Mistral-Small-3.2-24B-Instruct-hf-AWQ"
             "jeffcookio/Mistral-Small-3.2-24B-Instruct-2506-awq-sym"
-            "QuantTrio/GLM-4.7-Flash-AWQ"
             "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit"
             "cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit"
             "Orion-zhen/Qwen3-1.7B-AWQ"
         )
-        EFFECTIVE_MODEL_REQUIRED_GB=109
+        EFFECTIVE_MODEL_REQUIRED_GB=89
         OLLAMA_TIER_LABEL="n/a (vLLM)"
         MODEL_SOURCE_MESSAGE="Using vLLM (server) HuggingFace model roster."
     else
@@ -1077,20 +1078,6 @@ if [[ "$SHOULD_INSTALL_SOFTWARE" == true ]]; then
                 fi
             fi
 
-            # Guard: GLM-4.7-Flash (glm4_moe_lite) needs transformers >=5.x (shipped since 5.13.0).
-            # vLLM 0.24.0+ pulls a compatible one; assert both the version AND the module so a future
-            # pin can't silently reintroduce the "transformers does not recognize glm4_moe_lite" failure.
-            step "Verify transformers supports GLM-4.7-Flash (glm4_moe_lite)"
-            VLLM_VENV="${HOME}/.local/share/vllm-env"
-            tf_ver="$("$VLLM_VENV/bin/python" -c 'import transformers; print(transformers.__version__)' 2>/dev/null || true)"
-            if [[ -z "$tf_ver" ]]; then
-                add_warning "Could not read transformers version in the vLLM venv; GLM-4.7-Flash may fail to load."
-            elif "$VLLM_VENV/bin/python" -c 'import importlib.util,sys; sys.exit(0 if importlib.util.find_spec("transformers.models.glm4_moe_lite") else 1)' 2>/dev/null; then
-                success "transformers ${tf_ver} provides glm4_moe_lite — GLM-4.7-Flash is servable."
-            else
-                add_warning "transformers ${tf_ver} lacks glm4_moe_lite; the GLM-4.7-Flash default will not load. Upgrade to transformers >=5.13 in ${VLLM_VENV} (e.g. '${UV_BIN} pip install --python ${VLLM_VENV}/bin/python -U transformers')."
-            fi
-
             step "Install hf CLI (model downloader)"
             VLLM_VENV="${HOME}/.local/share/vllm-env"
             # huggingface_hub >=1.0 ships the `hf` CLI; the old `huggingface-cli` is deprecated and no
@@ -1130,7 +1117,7 @@ ExecStart=${VLLM_VENV}/bin/python -m vllm.entrypoints.openai.api_server \\
     --served-model-name \${VLLM_SERVED_NAME} active-model \\
     --enable-auto-tool-choice \\
     --tool-call-parser \${VLLM_TOOL_PARSER}
-# Standing default = Mistral-Small-3.2-24B (authoring). Weights = gghfez AWQ (compressed-tensors, auto-
+# Standing default = Mistral-Small-3.2-24B (basic chat / general). Weights = gghfez AWQ (compressed-tensors, auto-
 # detected — no --quantization); tokenizer = jeffcookio tekken (--tokenizer-mode mistral) since gghfez's
 # HF tokenizer mis-detokenizes. The gghfez re-quant's config.json wrongly caps max_position_embeddings
 # at 32768, though the upstream Mistral-3.2 (same weights, rope_theta=1e9) is natively 128K. Serving
@@ -1169,7 +1156,7 @@ WantedBy=multi-user.target
                 success "Created vLLM service at $local_vllm_service"
                 info "Default model: ${VLLM_DEFAULT_MODEL} (served as '${VLLM_DEFAULT_SERVED_NAME}')"
                 info "Listening on: 0.0.0.0:${VLLM_PORT}"
-                info "To switch modes: cachyos-switch-model {mistral|glm|coder|coder-alt|image}"
+                info "To switch modes: cachyos-switch-model {mistral|coder|coder-alt|image}"
             else
                 add_failure "Failed to create vLLM systemd service."
             fi
@@ -1309,7 +1296,7 @@ WantedBy=multi-user.target
 
             step "Configure model-switch mechanism (cachyos-switch-model)"
             # vLLM holds ONE model at a time in 24GB. Mistral-Small-3.2 (vllm.service) is the
-            # standing default; glm/coder/coder-alt/image modes are loaded on demand via templated
+            # standing default; coder/coder-alt/image modes are loaded on demand via templated
             # vllm@<mode>.service instances + the existing imagegen.service (HiDream).
             VLLM_VENV="${HOME}/.local/share/vllm-env"
             run_privileged mkdir -p /etc/vllm/modes
@@ -1385,21 +1372,6 @@ VLLM_MAX_MODEL_LEN=57344
 VLLM_GPU_MEMORY_UTILIZATION=0.90
 VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
-            # glm: GLM-4.7-Flash — the former default, kept as an agentic/reasoning/coding switch mode.
-            # MLA on Ada needs kv auto (no fp8); glm47 tool + reasoning parsers. 54K ctx @ util 0.92
-            # (MLA KV ~0.052 MiB/tok; measured ceiling 57.9K@0.92, ~727 MiB desktop-up margin, conc 1.05x).
-            local glm_env="VLLM_MODEL=QuantTrio/GLM-4.7-Flash-AWQ
-VLLM_SERVED_NAME=glm-4.7-flash
-VLLM_QUANTIZATION=awq
-VLLM_TOOL_PARSER=glm47
-VLLM_REASONING_PARSER=glm47
-VLLM_HOST=0.0.0.0
-VLLM_PORT=${VLLM_PORT}
-VLLM_MAX_MODEL_LEN=55296
-VLLM_MAX_NUM_SEQS=16
-VLLM_GPU_MEMORY_UTILIZATION=0.92
-VLLM_KV_CACHE_DTYPE=auto
-"
             # coder-alt: Devstral-2 24B (dense, agentic-SWE) — AWQ is compressed-tensors format,
             # so leave VLLM_QUANTIZATION unset and let vLLM auto-detect it. mistral tool parser is REQUIRED
             # for agentic use (Devstral is Mistral-family; verified it emits parseable tool calls without
@@ -1432,10 +1404,9 @@ VLLM_GPU_MEMORY_UTILIZATION=0.16
 VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
             printf '%s' "$coder_env"     | run_privileged tee /etc/vllm/modes/coder.env     >/dev/null
-            printf '%s' "$glm_env"       | run_privileged tee /etc/vllm/modes/glm.env       >/dev/null
             printf '%s' "$coder_alt_env" | run_privileged tee /etc/vllm/modes/coder-alt.env >/dev/null
             printf '%s' "$image_env"     | run_privileged tee /etc/vllm/modes/image.env     >/dev/null
-            success "Wrote mode env-files (glm, coder, coder-alt, image) to /etc/vllm/modes"
+            success "Wrote mode env-files (coder, coder-alt, image) to /etc/vllm/modes"
 
             # The switch CLI (also invoked over ssh by the client launchers).
             local switch_script="#!/usr/bin/env bash
@@ -1444,17 +1415,16 @@ mode=\"\${1:-mistral}\"
 SUDO=\"\"
 [[ \$EUID -ne 0 ]] && SUDO=\"sudo\"
 stop_all() {
-    for u in vllm.service vllm@glm.service vllm@coder.service vllm@coder-alt.service vllm@image.service imagegen.service; do
+    for u in vllm.service vllm@coder.service vllm@coder-alt.service vllm@image.service imagegen.service; do
         \$SUDO systemctl stop \"\$u\" 2>/dev/null || true
     done
 }
 case \"\$mode\" in
     mistral)   stop_all; \$SUDO systemctl start vllm.service ;;
-    glm)       stop_all; \$SUDO systemctl start vllm@glm.service ;;
     coder)     stop_all; \$SUDO systemctl start vllm@coder.service ;;
     coder-alt) stop_all; \$SUDO systemctl start vllm@coder-alt.service ;;
     image)     stop_all; \$SUDO systemctl start imagegen.service; \$SUDO systemctl start vllm@image.service ;;
-    *) echo \"Unknown mode: \$mode (use: mistral|glm|coder|coder-alt|image)\" >&2; exit 1 ;;
+    *) echo \"Unknown mode: \$mode (use: mistral|coder|coder-alt|image)\" >&2; exit 1 ;;
 esac
 echo \"cachyos-switch-model: now in '\$mode' mode\"
 "
@@ -1467,7 +1437,7 @@ echo \"cachyos-switch-model: now in '\$mode' mode\"
 
             # Passwordless sudo for the switch (so client ssh can flip modes non-interactively).
             local switch_user; switch_user="$(whoami)"
-            local sudoers_line="${switch_user} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@glm.service, /usr/bin/systemctl stop vllm@glm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@coder-alt.service, /usr/bin/systemctl stop vllm@coder-alt.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
+            local sudoers_line="${switch_user} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@coder-alt.service, /usr/bin/systemctl stop vllm@coder-alt.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
             if printf '%s\n' "$sudoers_line" | run_privileged tee /etc/sudoers.d/cachyos-vllm-switch >/dev/null; then
                 run_privileged chmod 0440 /etc/sudoers.d/cachyos-vllm-switch
                 if run_privileged visudo -c -f /etc/sudoers.d/cachyos-vllm-switch >/dev/null 2>&1; then
@@ -1514,7 +1484,7 @@ esac
             fi
 
             run_privileged systemctl daemon-reload
-            info "Standing default: Mistral-Small-3.2 (vllm.service). Switch with: cachyos-switch-model {mistral|glm|coder|coder-alt|image}"
+            info "Standing default: Mistral-Small-3.2 (vllm.service). Switch with: cachyos-switch-model {mistral|coder|coder-alt|image}"
 
             # ── Model-switch web service (LAN, port ${VLLM_SWITCH_WEB_PORT}) ──────────────
             # Dependency-free browser button page so LAN users (esp. Windows / non-technical)
@@ -1562,7 +1532,7 @@ esac
             if [[ "$web_daemon_ok" == true ]]; then
             # Passwordless sudo for the service account (same narrow unit whitelist as the CLI switch).
             local sw_sudoers="Defaults:${VLLM_SWITCH_USER} !requiretty
-${VLLM_SWITCH_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@glm.service, /usr/bin/systemctl stop vllm@glm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@coder-alt.service, /usr/bin/systemctl stop vllm@coder-alt.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
+${VLLM_SWITCH_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@coder-alt.service, /usr/bin/systemctl stop vllm@coder-alt.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
             if printf '%s\n' "$sw_sudoers" | run_privileged tee /etc/sudoers.d/vllm-model-control >/dev/null; then
                 run_privileged chmod 0440 /etc/sudoers.d/vllm-model-control
                 if run_privileged visudo -c -f /etc/sudoers.d/vllm-model-control >/dev/null 2>&1; then
@@ -2187,7 +2157,7 @@ elif [[ "$IS_SERVER_MODE" == true ]]; then
     printf '%b\n' ""
     printf '%b\n' "  Switch model (one mode at a time — Mistral is the standing default):"
     printf '%b\n' "    Browser (any LAN device, no login):  http://${local_ip}:${VLLM_SWITCH_WEB_PORT}/"
-    printf '%b\n' "    CLI on server:  cachyos-switch-model mistral | glm | coder | coder-alt | image"
+    printf '%b\n' "    CLI on server:  cachyos-switch-model mistral | coder | coder-alt | image"
     printf '%b\n' ""
     printf '%b\n' "${COLOR_CYAN}──────────────────────────────────────────────────────────────${COLOR_RESET}"
     echo

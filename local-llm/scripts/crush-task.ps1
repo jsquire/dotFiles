@@ -237,11 +237,22 @@ if (-not $Task) {
             "server" {
                 $sm = Get-ServerRoster
                 if (-not $sm) { Clear-Host; Write-Host "  ERROR: could not reach the server model list at :4090/models and no fallback file found."; exit 1 }
-                Show-Top; Show-Center "Crush"; Show-Line ""; Show-Center "squire-server : remote models"; Show-Mid
+                $sMenu = if ($sm.PSObject.Properties['menu'] -and $sm.menu) { $sm.menu.categories } else { $null }
+                Show-Top; Show-Center "Crush"; Show-Line ""; Show-Center "squire-server : pick a task"; Show-Mid
                 Show-Line ""
-                $sub = "(server - switches the standing model on pick)"
-                Show-Line "     Remote"; Show-Line "         $sub"; Show-Line ("     " + ("-" * ($sub.Length + 4))); Show-Line ""
-                foreach ($m in $sm.modes) { Show-Row $m.key $m.label $m.task }
+                Show-Center "(picking a task switches the served model)"
+                Show-Line ""
+                if ($sMenu) {
+                    $first = $true
+                    foreach ($c in $sMenu) {
+                        if (-not $first) { Show-Line ""; Show-Line "" }
+                        $first = $false
+                        Show-Line "     $($c.heading)"; Show-Line ("     " + ("-" * $c.heading.Length)); Show-Line ""
+                        foreach ($r in $c.rows) { Show-Row $r.key $r.label "" }
+                    }
+                } else {
+                    foreach ($m in $sm.modes) { Show-Row $m.key $m.label $m.task }
+                }
                 Show-Line ""; Show-Line ""; Show-Line ""
                 if ($hasLocal) { Show-Row "B" "Back to environments" "" }
                 Show-Row "Q" "Quit" ""; Show-Line ""
@@ -250,7 +261,13 @@ if (-not $Task) {
                 $sel = Read-Host "   Your choice [1]"; if (-not $sel) { $sel = "1" }
                 if ($sel.ToUpper() -eq "Q") { Clear-Host; exit }
                 if ($sel.ToUpper() -eq "B" -and $hasLocal) { $page = "env"; continue picker }
-                $m = $sm.modes | Where-Object { $_.key -eq $sel } | Select-Object -First 1
+                $m = $null
+                if ($sMenu) {
+                    $row = $sMenu.rows | Where-Object { $_.key -eq $sel } | Select-Object -First 1
+                    if ($row) { $m = $sm.modes | Where-Object { $_.mode -eq $row.mode } | Select-Object -First 1 }
+                } else {
+                    $m = $sm.modes | Where-Object { $_.key -eq $sel } | Select-Object -First 1
+                }
                 if ($m) {
                     $Provider = "server"; $SwitchMode = $m.mode; $SelectedModel = $m.model_id; $SelLabel = $m.label
                     $ServerMcp = @{ "imagegen-mcp" = @{ disabled = [bool]$m.imagegen_disabled } }
