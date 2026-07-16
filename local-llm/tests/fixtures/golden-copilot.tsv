@@ -3,7 +3,7 @@ cl-2	model=qwen3coder-144k base=http://localhost:11434/v1 prompt=51200 out=16384
 cl-3	model=qwen3coder-144k base=http://localhost:11434/v1 prompt=51200 out=16384 imagegen=off office=no offload=no
 cl-4	model=qwen36-27b-212k base=http://localhost:11434/v1 prompt=51200 out=16384 imagegen=off office=no offload=no
 cl-5	model=qwen36-27b-212k base=http://localhost:11434/v1 prompt=51200 out=16384 imagegen=off office=no offload=no
-cl-6	model=glm47-flash-198k base=http://localhost:11434/v1 prompt=51200 out=16384 imagegen=off office=yes offload=no
+cl-6	model=glm47-flash-198k base=http://localhost:11434/v1 prompt=51200 out=16384 imagegen=off office=no offload=no
 cl-7	model=qwen3:8b base=http://localhost:11434/v1 prompt=51200 out=16384 imagegen=on office=no offload=no
 ce-1	model=qwen36-27b-212k base=http://localhost:11434/v1 prompt=51200 out=16384 imagegen=off office=no offload=no
 ce-2	model=qwen36-35b-256k base=http://localhost:11434/v1 prompt=51200 out=16384 imagegen=off office=no offload=no

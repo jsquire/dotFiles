@@ -1920,6 +1920,15 @@ with open(p, 'w') as f:
         mkdir -p "$skills_dest_dir"
         cp -r "$skills_source_dir"/* "$skills_dest_dir"/
         success "Deployed local skills (git-safety, office) to $skills_dest_dir"
+
+        # Copilot discovers skills from ~/.copilot/skills (NOT the crush dir, and its custom-instructions
+        # loader ignores SKILL.md) — deploy the 'office' skill there so Copilot sees it in every session.
+        if [[ -d "${skills_source_dir}/office" ]]; then
+            local copilot_skills_office="${HOME}/.copilot/skills/office"
+            mkdir -p "$copilot_skills_office"
+            cp -r "${skills_source_dir}/office"/* "$copilot_skills_office"/
+            success "Deployed 'office' skill to $copilot_skills_office (Copilot personal skills)"
+        fi
     fi
 
     # ── Deploy Copilot CLI MCP configuration ──────────────────────────────
