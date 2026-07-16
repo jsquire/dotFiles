@@ -333,7 +333,7 @@ if [[ "$MODE" == "full" ]]; then
 
     step "Stop and disable vLLM server stack"
     if command_exists systemctl; then
-        for svc in vllm-switch-web.service vllm.service vllm@glm.service vllm@coder.service vllm@coder-alt.service vllm@image.service imagegen.service; do
+        for svc in vllm-switch-web.service vllm.service vllm@coder.service vllm@coder-alt.service vllm@image.service imagegen.service; do
             run_privileged systemctl stop "$svc" >/dev/null 2>&1 || true
             run_privileged systemctl disable "$svc" >/dev/null 2>&1 || true
         done

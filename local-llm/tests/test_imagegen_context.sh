@@ -27,7 +27,7 @@ assert_eq "crush local image url"   "http://127.0.0.1:8001" "$(crush_url $'1\n5'
 assert_eq "crush server image url"  "http://10.9.9.9:8001"  "$(crush_url $'3\n5')"
 # crush non-image profile still carries a sane local default (imagegen disabled anyway)
 assert_eq "crush local coding url"  "http://127.0.0.1:8001" "$(crush_url $'1\n1')"
-assert_eq "crush server coding url" "http://10.9.9.9:8001"  "$(crush_url $'3\n1')"
+assert_eq "crush server coding url" "http://10.9.9.9:8001"  "$(crush_url $'3\n3')"
 
 # copilot: the launcher exports the right imagegen host per environment
 assert_eq "copilot local image host"   "127.0.0.1" "$(copilot_host $'1\n7')"

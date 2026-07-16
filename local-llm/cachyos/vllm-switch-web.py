@@ -44,26 +44,38 @@ ROSTER_PATH = os.environ.get("VLLM_SERVER_MODELS", "/etc/local-llm/server-models
 # Built-in fallback, used ONLY if the roster file is missing/unreadable so the service still
 # works out of the box. Keep in sync with cachyos/server-models.json.
 _FALLBACK_ROSTER = {
-    "schema_version": 1,
+    "schema_version": 2,
     "api_port": 8000,
     "default_mode": "mistral",
     "modes": [
-        {"mode": "mistral", "key": "1", "label": "Mistral-Small", "task": "default : office/authoring, 64K",
+        {"mode": "mistral", "key": "1", "label": "Mistral-Small", "task": "basic chat / general, 64K",
          "model_id": "mistral-small", "ctx": 65536, "max_output": 8192, "max_prompt": 54272,
          "unit": "vllm.service", "imagegen_disabled": True, "default": True},
-        {"mode": "glm", "key": "2", "label": "GLM-4.7-Flash", "task": "agentic / reasoning",
-         "model_id": "glm-4.7-flash", "ctx": 55296, "max_output": 8192, "max_prompt": 44032,
-         "unit": "vllm@glm.service", "imagegen_disabled": True, "default": False},
-        {"mode": "coder", "key": "3", "label": "Qwen3-Coder", "task": "coding-first",
+        {"mode": "coder", "key": "2", "label": "Qwen3-Coder", "task": "coding + office docs",
          "model_id": "qwen3-coder", "ctx": 57344, "max_output": 8192, "max_prompt": 46080,
          "unit": "vllm@coder.service", "imagegen_disabled": True, "default": False},
-        {"mode": "coder-alt", "key": "4", "label": "Devstral-2 24B", "task": "coding-alt, agentic",
+        {"mode": "coder-alt", "key": "3", "label": "Devstral-2 24B", "task": "agentic coding / review",
          "model_id": "devstral", "ctx": 57344, "max_output": 8192, "max_prompt": 46080,
          "unit": "vllm@coder-alt.service", "imagegen_disabled": True, "default": False},
-        {"mode": "image", "key": "5", "label": "Image gen", "task": "HiDream + Qwen3-4B",
+        {"mode": "image", "key": "4", "label": "Image gen", "task": "HiDream + Qwen3-4B",
          "model_id": "qwen3-4b", "ctx": 32768, "max_output": 2048, "max_prompt": 28672,
          "unit": "vllm@image.service", "imagegen_disabled": False, "default": False},
     ],
+    "menu": {
+        "categories": [
+            {"heading": "Writing & Documents", "rows": [
+                {"key": "1", "label": "Chat / general", "mode": "mistral"},
+                {"key": "2", "label": "Office documents", "mode": "coder"},
+            ]},
+            {"heading": "Coding", "rows": [
+                {"key": "3", "label": "Coding", "mode": "coder"},
+                {"key": "4", "label": "Code review / agentic", "mode": "coder-alt"},
+            ]},
+            {"heading": "Visual", "rows": [
+                {"key": "5", "label": "Image generation", "mode": "image"},
+            ]},
+        ]
+    },
 }
 
 # Fields exposed to LAN clients at GET /models (the systemd 'unit' is deliberately withheld).
@@ -114,6 +126,7 @@ def _models_payload():
         "default_mode": DEFAULT_MODE,
         "api_port": API_PORT,
         "modes": [{k: m.get(k) for k in _CLIENT_FIELDS} for m in MODES],
+        "menu": ROSTER.get("menu"),
     }
 
 

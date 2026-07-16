@@ -5,28 +5,50 @@ description: Create and edit Office documents (Word .docx, PowerPoint .pptx, Exc
 
 # Office Documents (code-generation approach)
 
-Author and edit `.docx`, `.pptx`, and `.xlsx` files by **writing a short Python script and running
-it**. Do NOT ask for a document-editing tool — you already have a shell. The libraries
+Author and edit `.docx`, `.pptx`, and `.xlsx` files by **writing a Python script to a file with your
+file-creation tool and running it**. Do NOT ask for a document-editing tool. The libraries
 (`python-docx`, `python-pptx`, `openpyxl`) are well known to you from training; write ordinary Python.
 
-## How to run
+You use exactly two tools here: your **file-creation/editor tool** (to write the script) and the
+**shell** (only to run it with `uv`).
 
-Run scripts with `uv`, which supplies the libraries on demand (no venv to manage, wheels are cached):
+## Step 1 — Write the script to a file (with your file tool, NOT the shell)
+
+- Use your normal **create-a-new-file** tool — the same one you use to write source code — to create
+  `build_doc.py`. Write plain, multi-line Python, exactly as you would any source file.
+- Do **NOT** use the *edit* tool for this (it fails if the file does not exist yet) — **create** a new file.
+- Save it in the **current working directory** (or an absolute path the user asked for). **Never** write it
+  into the skill's own folder or anywhere under `.copilot` / `.config` — that is not where the user works.
+- Do **NOT** compose the script through the shell: no `echo`, `cat`, here-docs, `>` redirection,
+  `Set-Content`, or PowerShell here-strings. Those inject shell escapes and corrupt the file. (Copilot's
+  shell on Windows is PowerShell, where this reliably fails.)
+- The file must contain **real newlines and real quotes**. If the content you are producing contains the
+  characters `\n`, `\r\n`, or `\"`, **STOP** — you are using the wrong tool. Your file tool takes literal
+  text; it needs no escaping.
+
+## Step 2 — Run it with uv
 
 ```
-uv run --with python-docx --with python-pptx --with openpyxl <script>.py
+uv run --with python-docx --with python-pptx --with openpyxl build_doc.py
 ```
 
-- Use only the `--with` packages you actually need (e.g. just `--with python-docx` for a Word file).
-- Write the script to a real file (e.g. `build_doc.py`) and run it; don't rely on huge inline one-liners.
-- After running, confirm the output file exists and report its path to the user.
+- Use only the `--with` packages you actually need (just `--with python-docx` for a Word file).
+- Have the script `.save(...)` the document to the current working directory (or the path the user asked
+  for). The shell is only for running the script and `uv`, never for composing it.
+
+## Step 3 — Confirm and iterate
+
+- Confirm the output file exists and report its full path to the user.
+- If the run fails, read the traceback, **edit the script file** (it now exists) to fix it, and re-run.
+  Never retry by piping code through the shell.
 
 ## Workflow
 
 1. Clarify the target: file type, filename/path, and the content/structure requested.
-2. Write a focused Python script that builds (or opens + edits) the document.
-3. Run it with the `uv run --with ...` command above.
-4. Verify the file was created/modified; surface any traceback and fix, then re-run.
+2. Create `build_doc.py` in the working directory with your file tool (Step 1) that builds (or opens +
+   edits) the document.
+3. Run it with the `uv run --with ...` command (Step 2).
+4. Verify the file was created/modified; on a traceback, edit the script file and re-run.
 5. Tell the user the final path (and a one-line summary of what you produced).
 
 ## Word — python-docx

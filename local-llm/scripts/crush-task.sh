@@ -203,18 +203,38 @@ _srv_json() {
 _srv() {
     SRV_JSON="$1" python3 - "${@:2}" <<'PY'
 import json, os, sys
-d = json.loads(os.environ["SRV_JSON"]); modes = d.get("modes", [])
+d = json.loads(os.environ["SRV_JSON"])
+modes = d.get("modes", [])
+by_mode = {m["mode"]: m for m in modes}
+menu = (d.get("menu") or {}).get("categories")
 cmd = sys.argv[1]
 if cmd == "page":
-    for m in modes:
-        print("ROW\x1f%s\x1f%s\x1f%s" % (m["key"], m["label"], m.get("task", "")))
+    if menu:
+        for cat in menu:
+            print("CAT\x1f%s" % cat.get("heading", ""))
+            for r in cat.get("rows", []):
+                print("ROW\x1f%s\x1f%s" % (r["key"], r["label"]))
+    else:
+        for m in modes:
+            print("ROW\x1f%s\x1f%s" % (m["key"], m["label"]))
 elif cmd == "resolve":
-    for m in modes:
-        if m["key"] == sys.argv[2]:
-            print("\x1f".join(str(x) for x in (
-                m["mode"], m["label"], m["model_id"], m["ctx"],
-                m["max_output"], m["max_prompt"], int(bool(m.get("imagegen_disabled", True))))))
-            sys.exit(0)
+    key = sys.argv[2]
+    m = None
+    if menu:
+        for cat in menu:
+            for r in cat.get("rows", []):
+                if r["key"] == key:
+                    m = by_mode.get(r["mode"]); break
+            if m: break
+    else:
+        for cand in modes:
+            if cand["key"] == key:
+                m = cand; break
+    if m:
+        print("\x1f".join(str(x) for x in (
+            m["mode"], m["label"], m["model_id"], m["ctx"],
+            m["max_output"], m["max_prompt"], int(bool(m.get("imagegen_disabled", True))))))
+        sys.exit(0)
     sys.exit(1)
 PY
 }
@@ -301,11 +321,20 @@ if [[ -z "$task" ]]; then
                     clear; echo "  ERROR: could not reach the server model list at :4090/models and no fallback file found." >&2
                     exit 1
                 fi
-                box_top; box_center "Crush"; box_line ""; box_center "squire-server : remote models"; box_mid
+                box_top; box_center "Crush"; box_line ""; box_center "squire-server : pick a task"; box_mid
                 box_line ""
-                s_sub="(server - switches the standing model on pick)"
-                box_line "     Remote"; box_line "         $s_sub"; rule $(( ${#s_sub} + 4 )); box_line ""
-                while IFS=$'\x1f' read -r typ k l t; do [[ "$typ" == "ROW" ]] && box_row "$k" "$l" "$t"; done < <(_srv "$SRVJSON" page)
+                box_center "(picking a task switches the served model)"
+                srv_first=1
+                while IFS=$'\x1f' read -r typ a b; do
+                    case "$typ" in
+                        CAT)
+                            if [[ $srv_first -eq 0 ]]; then box_line ""; box_line ""; else box_line ""; fi
+                            srv_first=0
+                            box_line "     $a"; rule "${#a}"; box_line ""
+                            ;;
+                        ROW) box_row "$a" "$b" "" ;;
+                    esac
+                done < <(_srv "$SRVJSON" page)
                 box_line ""; box_line ""; box_line ""
                 if $has_local; then box_row "B" "Back to environments" ""; fi
                 box_row "Q" "Quit" ""; box_line ""
