@@ -1123,6 +1123,7 @@ ExecStart=${VLLM_VENV}/bin/python -m vllm.entrypoints.openai.api_server \\
     --host \${VLLM_HOST} \\
     --port \${VLLM_PORT} \\
     --max-model-len \${VLLM_MAX_MODEL_LEN} \\
+    --hf-overrides '{\"max_position_embeddings\":131072}' \\
     --max-num-seqs \${VLLM_MAX_NUM_SEQS} \\
     --gpu-memory-utilization \${VLLM_GPU_MEMORY_UTILIZATION} \\
     --kv-cache-dtype \${VLLM_KV_CACHE_DTYPE} \\
@@ -1131,9 +1132,12 @@ ExecStart=${VLLM_VENV}/bin/python -m vllm.entrypoints.openai.api_server \\
     --tool-call-parser \${VLLM_TOOL_PARSER}
 # Standing default = Mistral-Small-3.2-24B (authoring). Weights = gghfez AWQ (compressed-tensors, auto-
 # detected — no --quantization); tokenizer = jeffcookio tekken (--tokenizer-mode mistral) since gghfez's
-# HF tokenizer mis-detokenizes. gghfez config caps ctx at 32K but the model is natively 128K, so
-# VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 lets us serve 64K safely. Mistral has no reasoning parser.
-# (Validated on-box 2026-07-07: 64K, clean output, tool-calling OK, ~58 tok/s, strong payer-proposal prose.)
+# HF tokenizer mis-detokenizes. The gghfez re-quant's config.json wrongly caps max_position_embeddings
+# at 32768, though the upstream Mistral-3.2 (same weights, rope_theta=1e9) is natively 128K. Serving
+# --max-model-len 65536 against that truncated table let a >32768-token prompt overrun it -> CUDA
+# device-side assert -> engine crash (seen 2026-07-16, office authoring). --hf-overrides restores the
+# true 131072 position table so the 64K window is in-bounds. VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 is now a
+# no-op (derived max == 131072 > 65536). Mistral has no reasoning parser.
 Environment=\"VLLM_MODEL=${VLLM_DEFAULT_MODEL}\"
 Environment=\"VLLM_TOKENIZER=${VLLM_DEFAULT_TOKENIZER}\"
 Environment=\"VLLM_TOKENIZER_MODE=mistral\"
