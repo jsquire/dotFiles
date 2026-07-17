@@ -27,7 +27,7 @@ These resources from the base `cachyos/` directory are directly compatible with 
 ### Items
 
 * **bootstrap.sh**  
-  _Authored in 2026, this is an idempotent server setup script covering packages, ZSH, KDE Plasma + xrdp, Docker, firewall configuration, Python/uv, Node/NVM, and the NFS client.  Pass `--full` to also mount the NAS Plex media export over NFS and deploy container services end-to-end._
+  _Authored in 2026, this is an idempotent server setup script covering packages, ZSH, KDE Plasma + KRDP (KDE's built-in Remote Desktop), Docker, firewall configuration, Python/uv, Node/NVM, and the NFS client.  Pass `--full` to also mount the NAS Plex media export over NFS and deploy container services end-to-end._
 
   Arguments:
   | Flag | Default | Purpose |

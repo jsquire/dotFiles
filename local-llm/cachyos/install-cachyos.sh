@@ -1449,7 +1449,7 @@ case \"\${1:-}\" in
   on)
     echo 'Starting the Plasma desktop for RDP...'
     \$SUDO systemctl start plasmalogin.service
-    echo 'Desktop up — RDP via xrdp.'
+    echo 'Desktop up. RDP via KRDP (KDE Remote Desktop).'
     ;;
   status)
     systemctl is-active plasmalogin.service >/dev/null 2>&1 && echo 'desktop: up (RDP available)' || echo 'desktop: down (headless)'

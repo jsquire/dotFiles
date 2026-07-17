@@ -249,36 +249,32 @@ chmod 600 "$HOME/.gnupg/gpg-agent.conf"
 
 
 ############################################
-# KDE Plasma Desktop + xrdp
+# KDE Plasma Desktop + KRDP (Remote Desktop)
 ############################################
+
+# Remote access uses KDE's built-in Remote Desktop server (KRDP), not xrdp.
+# KRDP shares the live Plasma Wayland session (like Windows RDP), which avoids
+# xrdp's separate-X-session handling and the dual-session conflicts that come
+# with it. plasma-meta provides the Wayland session that KRDP shares.
 
 sudo pacman -S --needed --noconfirm \
     plasma-meta \
-    plasma-x11-session
-
-# xrdp + xorgxrdp are AUR-only on Arch/CachyOS
-
-yay -S --needed --noconfirm \
-    xrdp \
-    xorgxrdp
+    krdp
 
 # plasma-meta pulls plasma-login-manager (KDE's DM) and enables it as
 # display-manager.service, so no separate SDDM enable is needed.
 
-service_enable_now xrdp
-
-if [ -f /etc/xrdp/sesman.ini ]; then
-    if grep -Eq '^[[:space:]]*(UserWindowManager|DefaultWindowManager)[[:space:]]*=[[:space:]]*startwm\.sh' /etc/xrdp/sesman.ini; then
-        echo "Detected /etc/xrdp/sesman.ini; user sessions will flow through startwm.sh."
-    else
-        echo "Detected /etc/xrdp/sesman.ini; creating ~/.xsession for Plasma session startup."
-    fi
-fi
-
-if [ ! -f "$HOME/.xsession" ] || ! grep -qx 'exec startplasma-x11' "$HOME/.xsession"; then
-    printf '%s\n' 'exec startplasma-x11' > "$HOME/.xsession"
-    chmod 644 "$HOME/.xsession"
-fi
+# KRDP enablement is per-user and partly interactive, so it is NOT scripted here:
+# System Settings -> Remote Desktop generates the TLS certificate, stores the RDP
+# credentials in KWallet, and writes ~/.config/krdpserverrc (Autostart=true).
+# After first login to the Plasma (Wayland) session:
+#   System Settings -> Remote Desktop -> enable it, set a username/password
+#   (or "Use system credentials"), then Apply. KRDP then listens on TCP 3389.
+#
+# KRDP needs a running Plasma Wayland session to share, so this server should
+# auto-login to that session at boot (configured in the login manager). Do NOT
+# also install/enable xrdp: it would bind TCP 3389 first and prevent KRDP from
+# starting.
 
 # CachyOS ships the arch-update (cachy-update) notifier, which enables a per-user
 # tray icon + periodic update-check timer. On a headless, SSH-driven server that
@@ -334,7 +330,7 @@ sudo ufw allow 80/tcp        # AdGuard Home admin
 sudo ufw allow 443/tcp       # AdGuard Home admin (HTTPS)
 sudo ufw allow 5353/udp      # Avahi / mDNS
 sudo ufw allow 32400/tcp     # Plex
-sudo ufw allow 3389/tcp      # xrdp (RDP)
+sudo ufw allow 3389/tcp      # KRDP (KDE Remote Desktop / RDP)
 
 sudo ufw --force enable
 service_enable_now ufw
