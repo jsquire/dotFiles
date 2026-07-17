@@ -141,11 +141,11 @@ sudo usermod -aG docker "$USER"
 
 
 ############################################
-# Remmina (Remote Desktop Client)
+# KRDC (Remote Desktop Client)
 ############################################
 
 sudo pacman -S --needed --noconfirm \
-    remmina \
+    krdc \
     freerdp \
     libvncserver
 
