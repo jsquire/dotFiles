@@ -4,8 +4,8 @@
 # ISOLATION: every launcher run happens in a throwaway sandbox. HOME points at the sandbox (seeded
 # with fixture rosters), CWD is a sandbox work dir (so .crush.json never lands in a real project),
 # PATH is prefixed with tests/stubs (fake curl/copilot/crush/clear/ollama that fail-closed on any
-# real host), and offload-serve.sh is stubbed next to the launcher copy. Nothing touches the real
-# ~/.config/local-llm, the real :4090 endpoint, systemd, sudo, ollama, or the network.
+# real host). Nothing touches the real ~/.config/local-llm, the real :4090 endpoint, systemd, sudo,
+# ollama, or the network.
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$TESTS_DIR/.." && pwd)"          # local-llm/
@@ -87,8 +87,6 @@ ll_run_sh() {
         -e "s|__SQUIRE_SSH_TARGET__|test@127.0.0.1|g" \
         -e "s|__LL_PROVIDERS__|${providers}|g" \
         "$src" > "$sb/launcher.sh"
-    # Stub offload-serve.sh so the offload profile can't touch a real ollama serve.
-    printf 'offload_start() { :; }\noffload_stop() { :; }\n' > "$sb/offload-serve.sh"
     LL_CRUSH_JSON=""
     LL_LAST_OUT="$(cd "$sb/work" && env HOME="$sb" PATH="$STUBS_DIR:$PATH" \
         LL_STUB_SERVER_JSON="$sb/.config/local-llm/server-models.json" $extra_env \

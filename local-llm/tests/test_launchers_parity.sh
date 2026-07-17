@@ -3,7 +3,7 @@
 #
 # For every menu selection (and the direct/arg paths) it captures the FUNCTIONAL result the launcher
 # would produce — the resolved model, provider base URL, token caps, MCP/imagegen flags, office skill,
-# offload, and (for crush) the emitted .crush.json — and asserts it equals a frozen golden.
+# and (for crush) the emitted .crush.json — and asserts it equals a frozen golden.
 #
 # The golden is generated ONCE from the PRE-REFACTOR launchers (git ref cf852ee^, the commit before
 # the data-drive refactor) via `--rebuild-golden`, then committed. So "no functional behaviour changed"
@@ -24,14 +24,12 @@ GOLDEN_CRUSH="$FIX_DIR/golden-crush.tsv"
 copilot_tuple() {   # <src> <providers> <input> <args>
     ll_run_sh "$1" "$2" "$3" "" "" "$4"
     local cap; cap="$(ll_capture_line)"; cap="${cap#CAPTURE }"
-    local off=no; [[ "$LL_LAST_OUT" == *"Offload mode:"* ]] && off=yes
-    printf '%s offload=%s' "$cap" "$off"
+    printf '%s' "$cap"
 }
 crush_tuple() {     # <src> <providers> <input> <args>
     ll_run_sh "$1" "$2" "$3" "" "" "$4"
-    local off=no; [[ "$LL_LAST_OUT" == *"Offload mode:"* ]] && off=yes
     local js="NONE"; [[ -n "$LL_CRUSH_JSON" ]] && js="$(norm_crush_json "$LL_CRUSH_JSON")"
-    printf 'json=%s offload=%s' "$js" "$off"
+    printf 'json=%s' "$js"
 }
 
 do_copilot() {      # <mode> <name> <src> <providers> <input> <args>
@@ -58,14 +56,14 @@ do_crush() {        # <mode> <name> <src> <providers> <input> <args>
 run_copilot_matrix() {  # <mode> <src>
     local mode="$1" src="$2" k
     for k in 1 2 3 4 5 6 7;            do do_copilot "$mode" "cl-$k" "$src" "local,server" "$(printf '1\n%s' "$k")" ""; done
-    for k in 1 2 3 4 5 6 7 8 9 10;     do do_copilot "$mode" "ce-$k" "$src" "local,server" "$(printf '2\n%s' "$k")" ""; done
+    for k in 1 2 3 4 5 6 7 8 9;        do do_copilot "$mode" "ce-$k" "$src" "local,server" "$(printf '2\n%s' "$k")" ""; done
     for k in 1 2 3 4 5;                do do_copilot "$mode" "cs-$k" "$src" "local,server" "$(printf '3\n%s' "$k")" ""; done
     do_copilot "$mode" "cdirect" "$src" "local,server" "" "qwen3:8b"
 }
 run_crush_matrix() {    # <mode> <src>
     local mode="$1" src="$2" k t
     for k in 1 2 3 4 5;                do do_crush "$mode" "kl-$k" "$src" "local,server" "$(printf '1\n%s' "$k")" ""; done
-    for k in 1 2 3 4 5 6 7 8 9 10;     do do_crush "$mode" "ke-$k" "$src" "local,server" "$(printf '2\n%s' "$k")" ""; done
+    for k in 1 2 3 4 5 6 7 8 9;        do do_crush "$mode" "ke-$k" "$src" "local,server" "$(printf '2\n%s' "$k")" ""; done
     for k in 1 2 3 4 5;                do do_crush "$mode" "ks-$k" "$src" "local,server" "$(printf '3\n%s' "$k")" ""; done
     for t in coding review docs image; do do_crush "$mode" "karg-$t" "$src" "local,server" "" "$t"; done
 }

@@ -97,7 +97,7 @@ Options:
                                AND to client installs whose --providers includes 'local' (it selects the
                                launcher's model-alias menu so it matches the remote Ollama server's tier).
   --test-profiles              Also install the experimental/bench models (North Mini Code, Nemotron
-                               Cascade 2, Ornith-1.0-35B, Qwen3-Next-80B). Default: production roster only.
+                               Cascade 2, Ornith-1.0-35B, Devstral Small 2). Default: production roster only.
   --squire-server-ip <ip>      Remote (server) address for client/local installs (default: 192.168.1.99)
   --squire-ssh-target <target> SSH target for the server model-switch (default: jesse@192.168.1.99)
   --ollama-host <url>          Optional extra remote Ollama provider (NOT required for client mode)
@@ -225,12 +225,11 @@ model_description() {
 # a tier populates the alias->base map, per-alias num_ctx, the task->alias SLOT map,
 # and the alias->friendly-label registry used by the launchers' tier config.
 # Globals set: OLLAMA_PULL_TAGS[], OLLAMA_ALIAS_FROM[], OLLAMA_ALIAS_CTX[],
-#              OLLAMA_SLOT[], OLLAMA_ALIAS_LABEL[], OLLAMA_ALIAS_TEMPLATE[].
+#              OLLAMA_SLOT[], OLLAMA_ALIAS_LABEL[].
 declare -A OLLAMA_ALIAS_FROM
 declare -A OLLAMA_ALIAS_CTX
 declare -A OLLAMA_SLOT
 declare -A OLLAMA_ALIAS_LABEL
-declare -A OLLAMA_ALIAS_TEMPLATE
 OLLAMA_PULL_TAGS=()
 
 populate_ollama_tier() {
@@ -241,7 +240,6 @@ populate_ollama_tier() {
     OLLAMA_ALIAS_CTX=()
     OLLAMA_SLOT=()
     OLLAMA_ALIAS_LABEL=()
-    OLLAMA_ALIAS_TEMPLATE=()
     OLLAMA_PULL_TAGS=()
 
     # Base GGUF tags (identical across tiers).
@@ -255,12 +253,11 @@ populate_ollama_tier() {
     local nemotron="hf.co/bartowski/nvidia_Nemotron-3-Nano-30B-A3B-GGUF:Q4_K_M"
     local ornith="hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"
     local devstral="hf.co/unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF:Q4_K_M"
-    local qwen3next="hf.co/Qwen/Qwen3-Next-80B-A3B-Instruct-GGUF:Q4_K_M"
 
     # Production roster (always). Experimental/bench models are added only with --test-profiles.
     OLLAMA_PULL_TAGS=("$mtp" "$q36_35b" "$gemma4" "$coder" "$glm" "$img")
     if [[ "$TEST_PROFILES" == true ]]; then
-        OLLAMA_PULL_TAGS+=("$northmini" "$nemotron" "$ornith" "$devstral" "$qwen3next")
+        OLLAMA_PULL_TAGS+=("$northmini" "$nemotron" "$ornith" "$devstral")
     fi
 
     # Per-tier alias names + contexts (24GB-safe on 4090; full on 5090).
@@ -287,8 +284,6 @@ populate_ollama_tier() {
         a_ornith=ornith-35b-96k;   c_ornith=98304
         a_devstral=devstral2-24b-64k; c_devstral=65536
     fi
-    local a_offload=qwen3next-80b-offload
-    local c_offload=131072
 
     OLLAMA_ALIAS_FROM["$a_heavy"]="$mtp";        OLLAMA_ALIAS_CTX["$a_heavy"]="$c_heavy"
     OLLAMA_ALIAS_FROM["$a_q3635"]="$q36_35b";    OLLAMA_ALIAS_CTX["$a_q3635"]="$c_q3635"
@@ -316,35 +311,22 @@ populate_ollama_tier() {
     OLLAMA_ALIAS_LABEL["$a_glm"]="GLM-4.7-Flash"
     OLLAMA_ALIAS_LABEL["$img"]="Qwen3 8B"
 
-    # Experimental/bench models — registered only with --test-profiles (aliases, bench task slots
-    # [H6]-[H8]/[O2], friendly labels, and the Qwen3-Next ChatML template). Kept out of the maps
-    # otherwise so the alias-creation loop never tries to build an un-pulled model.
+    # Experimental/bench models - registered only with --test-profiles (aliases, bench task slots
+    # [H6]-[H9], friendly labels). Kept out of the maps otherwise so the alias-creation loop never
+    # tries to build an un-pulled model.
     if [[ "$TEST_PROFILES" == true ]]; then
         OLLAMA_ALIAS_FROM["$a_north"]="$northmini";   OLLAMA_ALIAS_CTX["$a_north"]="$c_north"
         OLLAMA_ALIAS_FROM["$a_nemo"]="$nemotron";     OLLAMA_ALIAS_CTX["$a_nemo"]="$c_nemo"
         OLLAMA_ALIAS_FROM["$a_ornith"]="$ornith";     OLLAMA_ALIAS_CTX["$a_ornith"]="$c_ornith"
         OLLAMA_ALIAS_FROM["$a_devstral"]="$devstral"; OLLAMA_ALIAS_CTX["$a_devstral"]="$c_devstral"
-        OLLAMA_ALIAS_FROM["$a_offload"]="$qwen3next"; OLLAMA_ALIAS_CTX["$a_offload"]="$c_offload"
         OLLAMA_SLOT[h6]="$a_north"
         OLLAMA_SLOT[h7]="$a_nemo"
         OLLAMA_SLOT[h8]="$a_ornith"
         OLLAMA_SLOT[h9]="$a_devstral"
-        OLLAMA_SLOT[o2]="$a_offload"
         OLLAMA_ALIAS_LABEL["$a_north"]="North Mini Code 1.0"
         OLLAMA_ALIAS_LABEL["$a_nemo"]="Nemotron 3 Nano 30B-A3B"
         OLLAMA_ALIAS_LABEL["$a_ornith"]="Ornith-1.0-35B"
         OLLAMA_ALIAS_LABEL["$a_devstral"]="Devstral Small 2 (24B)"
-        OLLAMA_ALIAS_LABEL["$a_offload"]="Qwen3-Next-80B-A3B (partial offload)"
-        # Qwen3-Next needs an explicit ChatML template baked in (the GGUF's embedded template
-        # renders an immediate-EOS empty reply under Ollama).
-        OLLAMA_ALIAS_TEMPLATE["$a_offload"]='{{ if .System }}<|im_start|>system
-{{ .System }}<|im_end|>
-{{ end }}{{ range .Messages }}{{ if eq .Role "user" }}<|im_start|>user
-{{ .Content }}<|im_end|>
-{{ else if eq .Role "assistant" }}<|im_start|>assistant
-{{ .Content }}<|im_end|>
-{{ end }}{{ end }}<|im_start|>assistant
-'
     fi
 }
 
@@ -2064,7 +2046,6 @@ if [[ "$SHOULD_PULL_MODELS" == true ]]; then
                     for alias_name in "${!OLLAMA_ALIAS_FROM[@]}"; do
                         local from="${OLLAMA_ALIAS_FROM[$alias_name]}"
                         local ctx="${OLLAMA_ALIAS_CTX[$alias_name]}"
-                        local tmpl="${OLLAMA_ALIAS_TEMPLATE[$alias_name]:-}"
                         # Skip aliases whose base tag was not pulled successfully.
                         if ! "$OLLAMA_BIN" show "$from" >/dev/null 2>&1; then
                             add_warning "Base model $from missing — skipping alias $alias_name."
@@ -2073,10 +2054,6 @@ if [[ "$SHOULD_PULL_MODELS" == true ]]; then
                         local modelfile_tmp
                         modelfile_tmp="$(mktemp)"
                         printf 'FROM %s\nPARAMETER num_ctx %s\n' "$from" "$ctx" > "$modelfile_tmp"
-                        if [[ -n "$tmpl" ]]; then
-                            # Bake an explicit ChatML template (qwen3-next's embedded template mis-renders).
-                            printf 'TEMPLATE """%s"""\n' "$tmpl" >> "$modelfile_tmp"
-                        fi
                         if "$OLLAMA_BIN" create "$alias_name" -f "$modelfile_tmp" >/dev/null 2>&1; then
                             info "  $alias_name → $from @ num_ctx $ctx"
                         fi

@@ -16,7 +16,7 @@ model server, `copilot`/`crush` binary, or network is required.
 - **daemon** - `vllm-switch-web.py` serves `/models` (no `unit` leak), renders its page from the roster,
   enforces the `/switch` whitelist + limits, and falls back to a built-in roster on a missing/bad file.
 - **launcher parity** - every menu selection (and the direct/arg paths) resolves to the *same* model, base
-  URL, token caps, MCP/office/offload flags, and `.crush.json` as the **pre-refactor** launchers
+  URL, token caps, MCP/office flags, and `.crush.json` as the **pre-refactor** launchers
   (`git cf852ee^`). This is the guarantee that data-driving the rosters changed no behaviour.
 - **installer-gen** - `write_local_models_json` produces valid, tier-correct `local-models.json` for
   4090/5090 with and without `--test-profiles`.

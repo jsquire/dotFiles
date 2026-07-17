@@ -59,7 +59,7 @@ ok(d.get("tier") == tier, f"tier {d.get('tier')} != {tier}")
 ta = d.get("task_alias", {}); reg = d.get("registry", {})
 for s in ("heavy", "coder", "review", "agentic", "image_llm", "h1", "h5"):
     ok(s in ta, f"missing production/base slot '{s}'")
-for s in ("h6", "h9", "o2"):
+for s in ("h6", "h9"):
     if tp == "true": ok(s in ta, f"expected experimental slot '{s}' with --test-profiles")
     else:            ok(s not in ta, f"slot '{s}' should be gated off without --test-profiles")
 for s, a in ta.items():

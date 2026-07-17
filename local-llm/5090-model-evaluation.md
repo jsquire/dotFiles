@@ -437,6 +437,15 @@ For the top 1-2 candidates:
 
 ## MoE Expert CPU Offload — run oversized MoE models (VERIFIED 2026-06)
 
+> **RETIRED 2026-07-17.** The expert-offload experiment (`[O2]` Qwen3-Next-80B-A3B) was pulled from
+> the rosters, launchers, installers, and tests. Root cause: the whole approach relied on Ollama
+> honoring the `LLAMA_ARG_CPU_MOE` / `LLAMA_ARG_N_CPU_MOE` serve env var, and **Ollama 0.31+ (CGO
+> runner removed; llama-server is now a subprocess) no longer applies it** — verified live on 0.32.0
+> (the runner loads `-ngl 99` with no `--cpu-moe`, VRAM stays maxed). The only working path is running
+> `llama-server` directly with `-ot "exps=CPU"` (bypassing Ollama), which is too much bespoke plumbing
+> to maintain for a single experimental candidate. The content below is kept as a historical record of
+> the 2026-06 evaluation; it does NOT describe the current shipping config.
+
 Goal: keep attention/shared tensors + KV cache on the GPU but push a MoE model's **expert
 FFN weights to system RAM**, so a model that does NOT fit in VRAM still runs at usable
 speed. This raises the model-size ceiling and frees VRAM for larger context.

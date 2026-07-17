@@ -1,5 +1,5 @@
 {
-  "_comment": "Local Ollama launcher roster. This repo copy is the canonical 5090-tier default and doubles as the template. Windows ships it verbatim; the CachyOS installer deploys it to ~/.config/local-llm/local-models.json and (for a 4090 install) overwrites 'tier' + 'registry' + 'task_alias' with the 4090 values. Read by copilot-local and crush-task to build the pickers. REPLACES the old ollama-tier.sh. Sections: registry (alias -> {label, ctx}, tier-dependent), task_alias (menu slot -> alias, tier-dependent), launchers.<name>.production/experimental (static menus: ordered categories of rows). A row's detail column defaults to task_alias[slot] plus any 'note'; set 'detail' to override. Row flags: office (inject office skill), imagegen (keep imagegen-mcp enabled), offload (Big-MoE expert offload). Crush rows also carry 'profile' (crush task: coding/review/docs/image).",
+  "_comment": "Local Ollama launcher roster. This repo copy is the canonical 5090-tier default and doubles as the template. Windows ships it verbatim; the CachyOS installer deploys it to ~/.config/local-llm/local-models.json and (for a 4090 install) overwrites 'tier' + 'registry' + 'task_alias' with the 4090 values. Read by copilot-local and crush-task to build the pickers. REPLACES the old ollama-tier.sh. Sections: registry (alias -> {label, ctx}, tier-dependent), task_alias (menu slot -> alias, tier-dependent), launchers.<name>.production/experimental (static menus: ordered categories of rows). A row's detail column defaults to task_alias[slot] plus any 'note'; set 'detail' to override. Row flags: office (inject office skill), imagegen (keep imagegen-mcp enabled). Crush rows also carry 'profile' (crush task: coding/review/docs/image).",
   "schema_version": 1,
   "tier": "5090",
 
@@ -13,8 +13,7 @@
     "northmini-code-256k":   { "label": "North Mini Code 1.0",                "ctx": 262144 },
     "nemotron3-nano-256k":   { "label": "Nemotron 3 Nano 30B-A3B",            "ctx": 262144 },
     "ornith-35b-256k":       { "label": "Ornith-1.0-35B",                     "ctx": 262144 },
-    "devstral2-24b-128k":    { "label": "Devstral Small 2 (24B)",             "ctx": 131072 },
-    "qwen3next-80b-offload": { "label": "Qwen3-Next-80B-A3B (partial offload)", "ctx": 131072 }
+    "devstral2-24b-128k":    { "label": "Devstral Small 2 (24B)",             "ctx": 131072 }
   },
 
   "task_alias": {
@@ -31,8 +30,7 @@
     "h6": "northmini-code-256k",
     "h7": "nemotron3-nano-256k",
     "h8": "ornith-35b-256k",
-    "h9": "devstral2-24b-128k",
-    "o2": "qwen3next-80b-offload"
+    "h9": "devstral2-24b-128k"
   },
 
   "launchers": {
@@ -79,13 +77,6 @@
               { "key": "8", "label": "Ornith-1.0-35B",       "slot": "h8" },
               { "key": "9", "label": "Devstral Small 2 24B", "slot": "h9" }
             ]
-          },
-          {
-            "heading": "Big-MoE expert-offload bench",
-            "subtitle": "(experts to RAM; slower)",
-            "rows": [
-              { "key": "10", "label": "Qwen3-Next-80B-A3B", "slot": "o2", "detail": "offload, Q4_K_M ~45 GB", "offload": true }
-            ]
           }
         ]
       }
@@ -131,13 +122,6 @@
               { "key": "7", "label": "Nemotron 3 Nano 30B",  "slot": "h7", "profile": "coding" },
               { "key": "8", "label": "Ornith-1.0-35B",       "slot": "h8", "profile": "coding" },
               { "key": "9", "label": "Devstral Small 2 24B", "slot": "h9", "profile": "coding" }
-            ]
-          },
-          {
-            "heading": "Big-MoE expert-offload bench",
-            "subtitle": "(experts to RAM; slower)",
-            "rows": [
-              { "key": "10", "label": "Qwen3-Next-80B-A3B", "slot": "o2", "profile": "coding", "detail": "offload, Q4_K_M ~45 GB", "offload": true }
             ]
           }
         ]

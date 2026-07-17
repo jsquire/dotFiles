@@ -28,7 +28,7 @@
              GLM-4.7-Flash, Qwen3 8B) (~100 GB) — coherent with config\crush.json.
     The Windows host is the 5090 gaming desktop; a real 24GB (4090) box runs the
     CachyOS installer, which has its own tier. -TestProfiles installs the same roster
-    PLUS the heavy-coding + expert-offload bench contenders. Ignored in Client mode.
+    PLUS the heavy-coding bench contenders. Ignored in Client mode.
 
 .PARAMETER SquireServerIP
     IP/host of the CachyOS vLLM "Squire Server" used by the launcher Remote
@@ -176,9 +176,7 @@ if ($Help) {
                          Nano 30B-A3B, Ornith-1.0-35B, Devstral Small 2 24B) and their
                          launcher aliases (qwen36-27b-212k/qwen3coder-144k/glm47-flash-198k/
                          northmini-code-256k/nemotron3-nano-256k/ornith-35b-256k/
-                         devstral2-24b-128k/etc.), PLUS the
-                         Qwen3-Next-80B-A3B (Q4_K_M GGUF) expert-offload bench
-                         (qwen3next-80b-offload). ~240 GB. Use with
+                         devstral2-24b-128k/etc.). ~195 GB. Use with
                          -ModelPath to put the models off the OS drive.
     -ModelPath <path>    Custom model storage directory (sets OLLAMA_MODELS env var)
     -DataRoot <path>     Put ALL large AI-stack data off the OS drive under one root:
@@ -301,7 +299,7 @@ $KnownModelDescriptions = @{
 # Production roster — the six daily models exposed in config\crush.json + the launcher
 # Tier-1 profiles. The default (non -TestProfiles) install pulls exactly these and builds
 # the matching aliases (see $ProductionAliases below), so a generic install is coherent
-# with crush.json. -TestProfiles is a SUPERSET that adds the bench/offload contenders.
+# with crush.json. -TestProfiles is a SUPERSET that adds the bench contenders.
 $ProductionModels = [ordered]@{
     "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M" = $KnownModelDescriptions["hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M"]
     "qwen3.6:35b"     = $KnownModelDescriptions["qwen3.6:35b"]
@@ -344,11 +342,6 @@ $ProfileDefinitions = @{
             "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M" = "Ornith-1.0-35B (MIT) — agentic-coding reasoning bench (256k ctx), ~20 GB"
             "hf.co/unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF:Q4_K_M" = "Devstral Small 2 24B (Mistral) — agentic-coding bench (128k ctx), ~14 GB"
             "qwen3:8b"         = "Qwen3 8B Dense — image-gen companion (32k ctx), ~5 GB"
-            # Qwen3-Next-80B-A3B-Instruct offload bench. The official Ollama tag is 159 GB (full
-            # precision) and does NOT fit 96 GB, but the official Qwen GGUF repo publishes a single-file
-            # Q4_K_M (~45 GB) that does. Pulled directly via Ollama's HF passthrough; the offload alias
-            # below is built FROM this tag. Alternate (quality-leaning): unsloth's UD-Q4_K_XL (~43 GB).
-            "hf.co/Qwen/Qwen3-Next-80B-A3B-Instruct-GGUF:Q4_K_M" = "Qwen3-Next-80B-A3B-Instruct (Q4_K_M GGUF) — expert-offload bench, ~45 GB"
         }
     }
 }
@@ -1284,26 +1277,6 @@ TIMESTEP_TOKEN_NUM = 1
         Write-Warn "server-models.json not found at $serverRosterSrc; server page will rely on the live :4090/models endpoint."
     }
 
-    # ── Step: Deploy offload-serve helper ─────────────────────────────────
-    # Both copilot-local.cmd (O1/O2 offload profiles) and crush-task.ps1 invoke this helper from
-    # their own directory (%~dp0 / $PSScriptRoot = Documents\CLI), so it must be deployed alongside
-    # them or the offload profiles fail with a missing-file error.
-
-    Write-Step "Deploy offload-serve helper"
-    $offloadSource = Join-Path $PSScriptRoot "..\scripts\offload-serve.ps1"
-    $offloadDest = Join-Path $UserProfile "Documents\CLI\offload-serve.ps1"
-
-    if (Test-Path $offloadSource) {
-        $cliDir = Split-Path $offloadDest
-        if (-not (Test-Path $cliDir)) {
-            New-Item -ItemType Directory -Path $cliDir -Force | Out-Null
-        }
-        Copy-Item -Path $offloadSource -Destination $offloadDest -Force
-        Write-Success "Deployed offload-serve.ps1 to $offloadDest"
-    } else {
-        Write-Warn "Offload helper not found at $offloadSource — skipping."
-    }
-
     # ── Step: Create Start Menu shortcuts ─────────────────────────────────
 
     Write-Step "Create Start Menu shortcuts"
@@ -1444,9 +1417,6 @@ if ($ShouldPullModels) {
                 "glm-4.7-flash"   = 202752
                 "qwen3:8b"        = 32768
             }
-            if ($TestProfiles) {
-                # Offload bench base num_ctx handled per-alias below.
-            }
             foreach ($entry in $numCtxSettings.GetEnumerator()) {
                 $tag = $entry.Key
                 $ctx = $entry.Value
@@ -1464,14 +1434,6 @@ PARAMETER num_ctx $ctx
 
             # Create named alias models used by launcher scripts
             Write-Host "  Creating launcher model aliases..." -ForegroundColor White
-            # Explicit ChatML template for the Qwen3-Next offload alias (its GGUF-embedded template
-            # renders to an immediate-EOS empty reply under Ollama 0.30.8 — verified on-box).
-            $qwen3nextChatML = @"
-{{- range `$i, `$_ := .Messages }}<|im_start|>{{ .Role }}
-{{ .Content }}<|im_end|>
-{{ end }}<|im_start|>assistant
-
-"@
             # Production launcher aliases (the six daily models in crush.json + the Tier-1
             # menus). Built on EVERY install — default AND -TestProfiles — so a generic
             # install is coherent with crush.json. Coders get lower temp; GLM slightly higher.
@@ -1489,20 +1451,16 @@ PARAMETER num_ctx $ctx
                 "glm47-flash-198k" = @{ From = "glm-4.7-flash";   Ctx = 202752; Temp = 0.30 }
             }
             if ($TestProfiles) {
-                # -TestProfiles SUPERSET: heavy-coding bench ([H6]-[H9]) + expert-offload bench
-                # ([O2]). Native context is larger (North 500k, Nemotron 1M, Ornith 256k, Devstral 256k)
-                # but capped for a controlled bench + KV sanity on 32 GB VRAM. North Mini Code and Devstral
-                # are instruct coders (low temp); Nemotron 3 Nano and Ornith are reasoning models (<think>)
-                # tuned warmer per their cards. Devstral is a DENSE 24B (heavier KV) so it is capped at 128k
-                # to stay resident on 32 GB, whereas the MoE/hybrid bench models hold 256k. Offload aliases
-                # set num_gpu 99 (non-expert layers on GPU; the launcher's offload mode sets
-                # LLAMA_ARG_N_CPU_MOE to spill experts to RAM). Qwen3-Next needs an explicit ChatML TEMPLATE
-                # — its GGUF-embedded template renders to an immediate-EOS empty reply under Ollama's engine.
+                # -TestProfiles SUPERSET: heavy-coding bench ([H6]-[H9]). Native context is larger
+                # (North 500k, Nemotron 1M, Ornith 256k, Devstral 256k) but capped for a controlled
+                # bench + KV sanity on 32 GB VRAM. North Mini Code and Devstral are instruct coders
+                # (low temp); Nemotron 3 Nano and Ornith are reasoning models (<think>) tuned warmer
+                # per their cards. Devstral is a DENSE 24B (heavier KV) so it is capped at 128k to
+                # stay resident on 32 GB, whereas the MoE/hybrid bench models hold 256k.
                 $aliasModels["northmini-code-256k"]   = @{ From = "hf.co/unsloth/North-Mini-Code-1.0-GGUF:UD-Q4_K_M"; Ctx = 262144; Temp = 0.25 }
                 $aliasModels["nemotron3-nano-256k"]   = @{ From = "hf.co/bartowski/nvidia_Nemotron-3-Nano-30B-A3B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
                 $aliasModels["ornith-35b-256k"]       = @{ From = "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
                 $aliasModels["devstral2-24b-128k"]    = @{ From = "hf.co/unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF:Q4_K_M"; Ctx = 131072; Temp = 0.25 }
-                $aliasModels["qwen3next-80b-offload"] = @{ From = "hf.co/Qwen/Qwen3-Next-80B-A3B-Instruct-GGUF:Q4_K_M"; Ctx = 131072; Temp = 0.25; Gpu = 99; Template = $qwen3nextChatML }
             }
             foreach ($entry in $aliasModels.GetEnumerator()) {
                 $alias = $entry.Key
@@ -1512,18 +1470,11 @@ PARAMETER num_ctx $ctx
                 if ($cfg.ContainsKey("Temp")) {
                     $modelfileBody += "PARAMETER temperature $($cfg.Temp)`n"
                 }
-                if ($cfg.ContainsKey("Gpu")) {
-                    $modelfileBody += "PARAMETER num_gpu $($cfg.Gpu)`n"
-                }
-                if ($cfg.ContainsKey("Template")) {
-                    $modelfileBody += "TEMPLATE """"""$($cfg.Template)""""""`n"
-                }
                 $modelfileBody | Set-Content $modelfilePath
                 ollama create $alias -f $modelfilePath 2>$null
                 if ($LASTEXITCODE -eq 0) {
                     $tempNote = if ($cfg.ContainsKey("Temp")) { " temp $($cfg.Temp)" } else { "" }
-                    $gpuNote  = if ($cfg.ContainsKey("Gpu"))  { " num_gpu $($cfg.Gpu)" } else { "" }
-                    Write-Info "  $alias → $($cfg.From) @ num_ctx $($cfg.Ctx)$tempNote$gpuNote"
+                    Write-Info "  $alias → $($cfg.From) @ num_ctx $($cfg.Ctx)$tempNote"
                 }
                 Remove-Item $modelfilePath -ErrorAction SilentlyContinue
             }
