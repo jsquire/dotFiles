@@ -130,7 +130,6 @@ function Get-ServerRoster {
 }
 
 $SelectedModel = $null
-$OffloadMode = $false
 $Provider = "ollama"
 $SwitchMode = $null
 $ServerMcp = $null
@@ -229,7 +228,6 @@ if (-not $Task) {
                     $Task = $r.profile
                     $SelectedModel = LL-Alias $r.slot
                     $SelLabel = LL-Label $SelectedModel
-                    $OffloadMode = [bool]($r.PSObject.Properties['offload'] -and $r.offload)
                     break picker
                 }
                 $menuErr = "Invalid selection, try again."
@@ -341,18 +339,4 @@ Be direct. If the code is correct, say so briefly.
 Write-Host "  Config: $(Resolve-Path .crush.json)"
 Write-Host ""
 
-if ($OffloadMode) {
-    # Big-MoE offload mode: run a dedicated Ollama serve with expert CPU-offload, then
-    # restore the managed server when Crush exits. The model alias already carries
-    # num_gpu 99; offload-serve.ps1 sets LLAMA_ARG_N_CPU_MOE so experts spill to RAM.
-    $offloadScript = Join-Path $PSScriptRoot "offload-serve.ps1"
-    Write-Host "  Offload mode: experts -> system RAM (partial; slower than VRAM-resident)" -ForegroundColor DarkYellow
-    & $offloadScript -Action start -NCpuMoe 24
-    try {
-        crush
-    } finally {
-        & $offloadScript -Action stop
-    }
-} else {
-    crush
-}
+crush

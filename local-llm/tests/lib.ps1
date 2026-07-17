@@ -1,8 +1,7 @@
 # Shared helpers for the PowerShell-side test suites: asserts + a sandboxed .ps1 launcher runner.
 # Isolation mirrors the bash lib: temp USERPROFILE seeded with fixtures, temp CWD for .crush.json,
-# copilot/crush/Clear-Host/Read-Host/Invoke-RestMethod overridden (no network, no real launch),
-# offload-serve.ps1 stubbed. Reuses the SAME golden as the bash parity suite, so a pass also proves
-# bash/PowerShell cross-platform equivalence.
+# copilot/crush/Clear-Host/Read-Host/Invoke-RestMethod overridden (no network, no real launch).
+# Reuses the SAME golden as the bash parity suite, so a pass also proves bash/PowerShell equivalence.
 
 $PS_TESTS_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $PS_REPO      = Split-Path -Parent $PS_TESTS_DIR
@@ -78,7 +77,6 @@ function Invoke-LauncherPs1 {
     $squireIp = if ($env:LL_TEST_SQUIRE_IP) { $env:LL_TEST_SQUIRE_IP } else { '127.0.0.1' }
     $c = $c -replace '__SQUIRE_SERVER_IP__', $squireIp -replace '__SQUIRE_SSH_TARGET__', 'test@127.0.0.1' -replace '__LL_PROVIDERS__', $Providers
     [System.IO.File]::WriteAllText((Join-Path $sb "launcher.ps1"), $c, $withBom)
-    Set-Content (Join-Path $sb "offload-serve.ps1") 'param($Action,$NCpuMoe)' -Encoding UTF8
 
     $inLit = ($Inputs | ForEach-Object { "'" + ($_ -replace "'", "''") + "'" }) -join ','
     $largs = ""

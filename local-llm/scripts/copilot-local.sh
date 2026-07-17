@@ -50,7 +50,7 @@ elif cmd == "resolve":
     for c in cats(sys.argv[2], sys.argv[3]):
         for r in c["rows"]:
             if r["key"] == key:
-                flags = ",".join(f for f in ("office", "imagegen", "offload") if r.get(f))
+                flags = ",".join(f for f in ("office", "imagegen") if r.get(f))
                 print("%s\x1f%s\x1f%s" % (alias_of(r), flags, r.get("profile", "")))
                 sys.exit(0)
     sys.exit(1)
@@ -179,7 +179,7 @@ LL_TIER="$(_ll tier)"
 has_local=false; has_server=false
 _ll_has local && has_local=true
 _ll_has server && has_server=true
-SEL_MODEL=""; SEL_LABEL=""; SEL_TAG=""; SEL_IMAGEGEN=0; SEL_OFFICE=0; OFFLOAD_MODE=0; SEL_REMOTE=0
+SEL_MODEL=""; SEL_LABEL=""; SEL_TAG=""; SEL_IMAGEGEN=0; SEL_OFFICE=0; SEL_REMOTE=0
 menuerr=""; SRVJSON=""; pg_which=""; res=""; sres=""; s_sub=""
 if $has_local; then page=env; else page=server; fi
 while true; do
@@ -220,7 +220,6 @@ while true; do
                 SEL_MODEL="$a_alias"; SEL_LABEL="$(_ll label "$a_alias")"; SEL_REMOTE=0
                 [[ ",$a_flags," == *",imagegen,"* ]] && SEL_IMAGEGEN=1 || SEL_IMAGEGEN=0
                 [[ ",$a_flags," == *",office,"* ]] && SEL_OFFICE=1 || SEL_OFFICE=0
-                [[ ",$a_flags," == *",offload,"* ]] && OFFLOAD_MODE=1 || OFFLOAD_MODE=0
                 [[ "$page" == "exp" ]] && SEL_TAG="[$sel] experimental" || SEL_TAG="[$sel] task profile"
                 break
             fi
@@ -297,16 +296,6 @@ if [[ -n "${COPILOT_PROVIDER_BASE_URL:-}" ]]; then
     # Remote mode: launch copilot directly (skip ollama wrapper)
     echo "  Remote: $COPILOT_PROVIDER_BASE_URL"
     exec copilot --model "$COPILOT_MODEL" "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
-elif [[ "$OFFLOAD_MODE" == "1" ]]; then
-    # Big-MoE offload mode: dedicated Ollama serve with expert CPU-offload, restored on exit.
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    # shellcheck source=offload-serve.sh
-    source "$SCRIPT_DIR/offload-serve.sh"
-    echo "  Offload mode: experts -> system RAM (partial; slower than VRAM-resident)"
-    offload_start 24
-    trap 'offload_stop' EXIT
-    export COPILOT_PROVIDER_BASE_URL="http://localhost:11434/v1"
-    copilot --model "$COPILOT_MODEL" "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
 else
     export COPILOT_PROVIDER_BASE_URL="http://localhost:11434/v1"
     exec copilot --model "$COPILOT_MODEL" "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"

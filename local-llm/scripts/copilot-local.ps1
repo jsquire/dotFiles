@@ -118,7 +118,7 @@ function Get-ServerRoster {
 }
 
 # ── Resolve the selection: explicit model arg wins; otherwise the picker ──────
-$selLabel = ""; $selTag = ""; $mcpKeep = $false; $officeSkill = $false; $offload = $false; $selRemote = $false
+$selLabel = ""; $selTag = ""; $mcpKeep = $false; $officeSkill = $false; $selRemote = $false
 $env:COPILOT_PROVIDER_BASE_URL = $null
 if ($Model -and $Model -match ':') {
     # Direct model alias/tag (e.g. copilot-local qwen3:8b) — skip the picker.
@@ -166,7 +166,6 @@ if ($Model -and $Model -match ':') {
                     $selLabel = LL-Label $env:COPILOT_MODEL
                     $mcpKeep = [bool]($r.PSObject.Properties['imagegen'] -and $r.imagegen)
                     $officeSkill = [bool]($r.PSObject.Properties['office'] -and $r.office)
-                    $offload = [bool]($r.PSObject.Properties['offload'] -and $r.offload)
                     $selTag = if ($which -eq "experimental") { "[$sel] experimental" } else { "[$sel] task profile" }
                     break picker
                 }
@@ -251,12 +250,6 @@ $copilotArgs = @('--model', $env:COPILOT_MODEL) + $mcpFlags + $gitSafety + $extr
 if ($env:COPILOT_PROVIDER_BASE_URL) {
     Write-Host "  Remote: $($env:COPILOT_PROVIDER_BASE_URL)"; Write-Host ""
     & copilot @copilotArgs
-} elseif ($offload) {
-    Write-Host "  Offload mode: experts -> system RAM (partial; slower than VRAM-resident)"; Write-Host ""
-    & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot\offload-serve.ps1" -Action start -NCpuMoe 24
-    $env:COPILOT_PROVIDER_BASE_URL = "http://localhost:11434/v1"
-    & copilot @copilotArgs
-    & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot\offload-serve.ps1" -Action stop
 } else {
     Write-Host ""
     $env:COPILOT_PROVIDER_BASE_URL = "http://localhost:11434/v1"

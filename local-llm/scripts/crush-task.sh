@@ -117,7 +117,6 @@ EOF
 
 task="${1:-}"
 SELECTED_MODEL=""
-OFFLOAD_MODE=0
 PROVIDER="ollama"
 SWITCH_MODE=""
 SRV_IMG=""
@@ -165,7 +164,7 @@ elif cmd == "resolve":
     for c in cats(sys.argv[2], sys.argv[3]):
         for r in c["rows"]:
             if r["key"] == key:
-                flags = ",".join(f for f in ("office", "imagegen", "offload") if r.get(f))
+                flags = ",".join(f for f in ("office", "imagegen") if r.get(f))
                 print("%s\x1f%s\x1f%s" % (alias_of(r), flags, r.get("profile", "")))
                 sys.exit(0)
     sys.exit(1)
@@ -310,7 +309,6 @@ if [[ -z "$task" ]]; then
                     IFS=$'\x1f' read -r a_alias a_flags a_profile <<<"$res"
                     task="$a_profile"; SELECTED_MODEL="$a_alias"; PROVIDER="ollama"
                     SEL_LABEL="$(_ll_label "$a_alias")"
-                    [[ ",$a_flags," == *",offload,"* ]] && OFFLOAD_MODE=1 || OFFLOAD_MODE=0
                     break
                 fi
                 menuerr="Invalid selection, try again."
@@ -411,16 +409,4 @@ fi
 echo "  Config: $(pwd)/.crush.json"
 echo
 
-if [[ "$OFFLOAD_MODE" == "1" ]]; then
-    # Big-MoE offload mode: run a dedicated Ollama serve with expert CPU-offload, then
-    # restore the managed server when Crush exits.
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    # shellcheck source=offload-serve.sh
-    source "$SCRIPT_DIR/offload-serve.sh"
-    echo "  Offload mode: experts -> system RAM (partial; slower than VRAM-resident)"
-    offload_start 24
-    trap 'offload_stop' EXIT
-    crush
-else
-    exec crush
-fi
+exec crush

@@ -17,14 +17,12 @@ function Copilot-Tuple($src, $providers, $inputs, $modelArg) {
     Invoke-LauncherPs1 -Src $src -Providers $providers -Inputs $inputs -ModelArg $modelArg
     $cap = ($script:PS_LAST_OUT -split "`n" | Where-Object { $_ -like 'CAPTURE model=*' } | Select-Object -First 1)
     $cap = $cap -replace '^CAPTURE ', ''
-    $off = if ($script:PS_LAST_OUT -match 'Offload mode:') { 'yes' } else { 'no' }
-    "$cap offload=$off"
+    "$cap"
 }
 function Crush-Tuple($src, $providers, $inputs, $taskArg) {
     Invoke-LauncherPs1 -Src $src -Providers $providers -Inputs $inputs -TaskArg $taskArg
-    $off = if ($script:PS_LAST_OUT -match 'Offload mode:') { 'yes' } else { 'no' }
     $js = if ($script:PS_CRUSH) { Norm-CrushJson $script:PS_CRUSH } else { "NONE" }
-    "json=$js offload=$off"
+    "json=$js"
 }
 function Golden-Lookup($file, $name) {
     $line = Get-Content $file | Where-Object { $_ -like ($name + "`t*") } | Select-Object -First 1
@@ -45,7 +43,7 @@ function Do-Crush($mode, $name, $src, $prov, $inputs, $taskArg) {
 function Run-CopilotMatrix($mode, $src) {
     $script:GoldRows = @()
     foreach ($k in 1..7)  { Do-Copilot $mode "cl-$k" $src "local,server" @("1", "$k") "" }
-    foreach ($k in 1..10) { Do-Copilot $mode "ce-$k" $src "local,server" @("2", "$k") "" }
+    foreach ($k in 1..9)  { Do-Copilot $mode "ce-$k" $src "local,server" @("2", "$k") "" }
     foreach ($k in 1..5)  { Do-Copilot $mode "cs-$k" $src "local,server" @("3", "$k") "" }
     Do-Copilot $mode "cdirect" $src "local,server" @() "qwen3:8b"
     if ($mode -eq 'golden') { Set-Content $goldenC ($script:GoldRows -join "`n") -Encoding ASCII }
@@ -53,7 +51,7 @@ function Run-CopilotMatrix($mode, $src) {
 function Run-CrushMatrix($mode, $src) {
     $script:GoldRows = @()
     foreach ($k in 1..5)  { Do-Crush $mode "kl-$k" $src "local,server" @("1", "$k") "" }
-    foreach ($k in 1..10) { Do-Crush $mode "ke-$k" $src "local,server" @("2", "$k") "" }
+    foreach ($k in 1..9)  { Do-Crush $mode "ke-$k" $src "local,server" @("2", "$k") "" }
     foreach ($k in 1..5)  { Do-Crush $mode "ks-$k" $src "local,server" @("3", "$k") "" }
     foreach ($t in 'coding', 'review', 'docs', 'image') { Do-Crush $mode "karg-$t" $src "local,server" @() $t }
     if ($mode -eq 'golden') { Set-Content $goldenK ($script:GoldRows -join "`n") -Encoding ASCII }

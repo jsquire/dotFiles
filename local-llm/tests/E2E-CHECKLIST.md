@@ -17,8 +17,7 @@ hardware (a running vLLM/Ollama server and the `copilot`/`crush` binaries). Run 
 - [ ] `copilot-local` -> Local -> pick each category's model -> Copilot launches against Ollama (`:11434`)
 - [ ] `copilot-local` -> Squire-Server -> pick a model -> the server switches, then Copilot talks to vLLM
       (`:8000`); banner shows the roster label + the expected prompt/output caps
-- [ ] `copilot-local` -> Local-Experimental -> `[10]` offload -> the offload serve starts and is restored on exit
-- [ ] `copilot-local` -> `[6]` Office documents -> Copilot gets `--custom-instructions .../office/SKILL.md`
+- [ ] `copilot-local` -> `[6]` Office documents -> Copilot discovers the office skill (`copilot skill list` shows it)
 - [ ] `crush-task` -> Local pick -> `.crush.json` written in the CWD, crush launches
 - [ ] `crush-task` -> Squire-Server pick -> switch happens and `.crush.json` `context_window` matches the roster
 - [ ] `crush-task` review / docs / image profiles each write the right MCP + system-prompt config
