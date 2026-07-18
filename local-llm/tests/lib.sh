@@ -88,7 +88,7 @@ ll_run_sh() {
         -e "s|__LL_PROVIDERS__|${providers}|g" \
         "$src" > "$sb/launcher.sh"
     LL_CRUSH_JSON=""
-    LL_LAST_OUT="$(cd "$sb/work" && env HOME="$sb" PATH="$STUBS_DIR:$PATH" \
+    LL_LAST_OUT="$(cd "$sb/work" && env HOME="$sb" PATH="$STUBS_DIR:$PATH" LL_TEST=1 \
         LL_STUB_SERVER_JSON="$sb/.config/local-llm/server-models.json" $extra_env \
         bash "$sb/launcher.sh" $largs <<<"$input" 2>&1)"
     if [[ -f "$sb/work/.crush.json" ]]; then

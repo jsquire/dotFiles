@@ -436,6 +436,7 @@ step "Remove launcher scripts and tier config"
 remove_user_path "$COPILOT_LOCAL_LAUNCHER" 'copilot-local launcher'
 remove_user_path "$COPILOT_SERVER_LAUNCHER" 'copilot-server launcher'
 remove_user_path "$CRUSH_TASK_LAUNCHER" 'crush-task launcher'
+remove_user_path "${HOME}/.local/bin/ollama-compat-proxy.py" 'ollama compat proxy'
 remove_user_path "$LOCAL_MODELS_JSON" 'local model roster'
 remove_user_path "$SERVER_MODELS_JSON" 'server model roster fallback'
 if [[ "$KEEP_CONFIG" == false ]]; then

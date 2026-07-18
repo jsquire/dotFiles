@@ -339,4 +339,16 @@ Be direct. If the code is correct, say so briefly.
 Write-Host "  Config: $(Resolve-Path .crush.json)"
 Write-Host ""
 
+# Local Ollama is reached through the compat proxy (:11435), which coerces content:null -> "" so a
+# reasoning-model turn can't poison a session with Ollama's "invalid message content type: <nil>" 400.
+function Ensure-OllamaProxy {
+    if ($env:LL_TEST) { return }   # test harness / CI: never probe or start the proxy
+    if (Get-NetTCPConnection -LocalPort 11435 -State Listen -ErrorAction SilentlyContinue) { return }
+    $proxy = Join-Path $PSScriptRoot "ollama-compat-proxy.py"
+    if (-not (Test-Path $proxy)) { Write-Host "  WARN: ollama-compat-proxy.py not found; crush will hit Ollama's :11435 provider directly."; return }
+    Start-Process -WindowStyle Hidden -FilePath 'python' -ArgumentList "`"$proxy`"" | Out-Null
+    for ($i = 0; $i -lt 12; $i++) { Start-Sleep -Milliseconds 300; if (Get-NetTCPConnection -LocalPort 11435 -State Listen -ErrorAction SilentlyContinue) { return } }
+}
+if ($Provider -eq 'ollama') { Ensure-OllamaProxy }
+
 crush

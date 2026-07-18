@@ -7,7 +7,7 @@ chmod +x "$DIR"/*.sh "$DIR"/stubs/* 2>/dev/null || true
 
 before="$(stat -c %Y "$HOME/.config/local-llm" 2>/dev/null || echo none)"
 fail=0
-for s in test_schema.sh test_daemon.sh test_launchers_parity.sh test_installer_gen.sh test_imagegen_context.sh test_imagegen_path.sh test_office_skill.sh; do
+for s in test_schema.sh test_daemon.sh test_launchers_parity.sh test_installer_gen.sh test_imagegen_context.sh test_imagegen_path.sh test_office_skill.sh test_ollama_proxy.sh; do
     echo "########## $s ##########"
     if bash "$DIR/$s"; then echo "-> $s OK"; else echo "-> $s FAILED"; fail=1; fi
     echo

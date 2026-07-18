@@ -43,6 +43,7 @@ function Norm-CrushJson($path) {
 
 $script:PS_WRAPPER_TMPL = @'
 $env:USERPROFILE = '__SB__'
+$env:LL_TEST = '1'
 function Clear-Host {}
 function copilot {
     $ig = if ("$args" -match 'disable-mcp-server imagegen-mcp') { 'off' } else { 'on' }

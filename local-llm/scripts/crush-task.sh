@@ -141,6 +141,22 @@ fi
 LL_SERVER_FALLBACK="${LL_CONFIG_DIR}/server-models.json"
 SQUIRE_IP="__SQUIRE_SERVER_IP__"
 
+# crush.json's ollama provider points at the compat proxy (:11435), which coerces content:null -> ""
+# so a reasoning-model turn can't poison a session with Ollama's "invalid message content type: <nil>"
+# 400. Start it on demand (only thing on :11435, so no port race).
+ensure_ollama_proxy() {
+    [[ -n "${LL_TEST:-}" ]] && return 0   # test harness / CI: never probe or start the proxy
+    timeout 1 bash -c 'exec 3<>/dev/tcp/127.0.0.1/11435' 2>/dev/null && return 0
+    local proxy="${_ll_self_dir}/ollama-compat-proxy.py" i
+    [[ -f "$proxy" ]] || { echo "  WARN: ollama-compat-proxy.py not found; crush hits the :11435 provider directly." >&2; return 1; }
+    nohup python3 "$proxy" >/dev/null 2>&1 </dev/null &
+    for i in $(seq 1 12); do
+        timeout 1 bash -c 'exec 3<>/dev/tcp/127.0.0.1/11435' 2>/dev/null && return 0
+        sleep 0.3
+    done
+    return 1
+}
+
 # python worker over the local roster ($LL_MODELS_FILE). Subcommands: page/resolve/alias/label/tier.
 _ll() {
     LL_FILE="$LL_MODELS_FILE" python3 - "$@" <<'PY'
@@ -409,4 +425,5 @@ fi
 echo "  Config: $(pwd)/.crush.json"
 echo
 
+[[ "$PROVIDER" == "ollama" ]] && ensure_ollama_proxy || true
 exec crush

@@ -27,6 +27,23 @@ fi
 LL_SERVER_FALLBACK="${LL_CONFIG_DIR}/server-models.json"
 SQUIRE_IP="__SQUIRE_SERVER_IP__"
 
+# Local Ollama is reached through the compat proxy (:11435), which coerces content:null -> "" so a
+# reasoning-model turn can't poison a session with Ollama's "invalid message content type: <nil>" 400.
+# Started on demand (it's the only thing on :11435, so no port race); falls back to direct Ollama.
+ensure_ollama_proxy() {
+    [[ -n "${LL_TEST:-}" ]] && return 0   # test harness / CI: never probe or start the proxy
+    timeout 1 bash -c 'exec 3<>/dev/tcp/127.0.0.1/11435' 2>/dev/null && return 0
+    local proxy="${_ll_self_dir}/ollama-compat-proxy.py" i
+    [[ -f "$proxy" ]] || { echo "  WARN: ollama-compat-proxy.py not found; using Ollama directly." >&2; return 1; }
+    nohup python3 "$proxy" >/dev/null 2>&1 </dev/null &
+    for i in $(seq 1 12); do
+        timeout 1 bash -c 'exec 3<>/dev/tcp/127.0.0.1/11435' 2>/dev/null && return 0
+        sleep 0.3
+    done
+    return 1
+}
+local_ollama_base() { ensure_ollama_proxy || true; echo "http://localhost:11435/v1"; }
+
 # python worker over the local roster ($LL_MODELS_FILE). Subcommands: page/keys/resolve/label.
 _ll() {
     LL_FILE="$LL_MODELS_FILE" python3 - "$@" <<'PY'
@@ -139,7 +156,7 @@ if [[ "${1:-}" == *":"* ]]; then
     COPILOT_MODEL="$1"
     shift
     echo "  ▶ $(model_label "$COPILOT_MODEL")  ·  alias=$COPILOT_MODEL"
-    export COPILOT_PROVIDER_BASE_URL="http://localhost:11434/v1"
+    export COPILOT_PROVIDER_BASE_URL="$(local_ollama_base)"
     exec copilot --model "$COPILOT_MODEL" "$@"
 fi
 
@@ -297,6 +314,6 @@ if [[ -n "${COPILOT_PROVIDER_BASE_URL:-}" ]]; then
     echo "  Remote: $COPILOT_PROVIDER_BASE_URL"
     exec copilot --model "$COPILOT_MODEL" "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
 else
-    export COPILOT_PROVIDER_BASE_URL="http://localhost:11434/v1"
+    export COPILOT_PROVIDER_BASE_URL="$(local_ollama_base)"
     exec copilot --model "$COPILOT_MODEL" "${MCP_FLAGS[@]}" "${GIT_SAFETY[@]}" "${EXTRA_FLAGS[@]}" "$@"
 fi

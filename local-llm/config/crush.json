@@ -3,7 +3,7 @@
   "providers": {
     "ollama": {
       "name": "Ollama (Local Desktop)",
-      "base_url": "http://localhost:11434/v1/",
+      "base_url": "http://localhost:11435/v1/",
       "type": "openai",
       "models": [
         {
