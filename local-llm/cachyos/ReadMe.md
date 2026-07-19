@@ -31,20 +31,19 @@ Clients connect via `http://server-ip:8000/v1` — same OpenAI API as Ollama.
 | **copilot-local** | Task picker launcher | `~/.local/bin/` |
 | **MCP servers** | Office document editing | Isolated Python venvs |
 
-### Models (HuggingFace 4-bit AWQ/GPTQ, ~80 GB disk + ~35 GB image gen)
+### Models (HuggingFace 4-bit AWQ/GPTQ, ~50 GB disk + ~35 GB image gen)
 
-> **vLLM serves ONE model at a time** on the 24 GB card. **GLM-4.7-Flash is the standing default**
-> (covers coding + review + office MCP); the rest are on-demand **switch modes** loaded via
-> `cachyos-switch-model` (see below). GLM-4.7-Flash's `glm4_moe_lite` architecture is **natively
-> supported by stable vLLM** (vLLM ≥ 0.24.0 + transformers ≥ 5.13.0) — no nightly/git build needed.
+> **vLLM serves ONE model at a time** on the 24 GB card. **Mistral-Small-3.2-24B is the standing
+> default** (basic chat / general, 64K); the specialist coding and image roles are on-demand
+> **switch modes** loaded via `cachyos-switch-model` (see below). All roster models run on stable
+> vLLM (≥ 0.24.0) — no nightly/git build needed.
 
 | Model | HuggingFace ID | Served name | Size | Mode / role |
 |-------|---------------|-------------|------|-------------|
-| GLM-4.7-Flash AWQ | `QuantTrio/GLM-4.7-Flash-AWQ` | `glm-4.7-flash` | ~20 GB | **`glm` (default)** — coding + review + office MCP (MLA KV) |
-| Qwen3-Coder 30B-A3B | `btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit` | `qwen3-coder` | ~19 GB | `coder` — fast MoE coding (3B active, 256K) |
-| Devstral-2 24B | `cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit` | `devstral` | ~14 GB | `coder-alt` — dense agentic-SWE coder (384K) |
-| Qwen3.6 27B | `cyankiwi/Qwen3.6-27B-AWQ-INT4` | `qwen3.6-27b` | ~20 GB | `vision` — multimodal (image understanding, 256K) |
-| Qwen3 4B | `Qwen/Qwen3-4B-Instruct-2507` | `qwen3-4b` | ~8 GB | `image` companion (co-resides with HiDream) |
+| Mistral-Small-3.2 24B AWQ | `gghfez/Mistral-Small-3.2-24B-Instruct-hf-AWQ` | `mistral-small` | ~14 GB | **`mistral` (default)** — basic chat / general (64K) |
+| Qwen3-Coder 30B-A3B GPTQ | `btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit` | `qwen3-coder` | ~19 GB | `coder` — coding + office docs (56K) |
+| Devstral-2 24B AWQ | `cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit` | `devstral` | ~14 GB | `coder-alt` — agentic coding / review (56K) |
+| Qwen3 1.7B AWQ | `Orion-zhen/Qwen3-1.7B-AWQ` | `qwen3-4b` | ~2 GB | `image` companion (co-resides with HiDream) |
 | HiDream-O1-Image-Dev | `HiDream-ai/HiDream-O1-Image-Dev` | — | ~35 GB | `image` generation (SGLang-Diffusion) |
 
 ## Install
@@ -95,16 +94,18 @@ The installer creates a systemd service. Configuration via environment in the ov
 ```bash
 # /etc/systemd/system/vllm.service.d/override.conf
 [Service]
-Environment="VLLM_MODEL=QuantTrio/GLM-4.7-Flash-AWQ"
+Environment="VLLM_MODEL=gghfez/Mistral-Small-3.2-24B-Instruct-hf-AWQ"
+Environment="VLLM_TOKENIZER=jeffcookio/Mistral-Small-3.2-24B-Instruct-2506-awq-sym"
+Environment="VLLM_TOKENIZER_MODE=mistral"
 Environment="VLLM_HOST=0.0.0.0"
 Environment="VLLM_PORT=8000"
-Environment="VLLM_MAX_MODEL_LEN=32768"
-Environment="VLLM_GPU_MEMORY_UTILIZATION=0.90"
+Environment="VLLM_MAX_MODEL_LEN=65536"
+Environment="VLLM_GPU_MEMORY_UTILIZATION=0.92"
 ```
 
 Switch the active model (see **Switching Models** below for the recommended `cachyos-switch-model` CLI):
 ```bash
-# For the GLM default only — edit the override
+# For the Mistral default only — edit the override
 sudo systemctl edit vllm
 # Change VLLM_MODEL to the desired model
 # Then restart
@@ -165,7 +166,7 @@ curl http://localhost:8000/v1/models
 # 3. LLM inference works
 curl http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"glm-4.7-flash","messages":[{"role":"user","content":"Say hello"}]}'
+  -d '{"model":"mistral-small","messages":[{"role":"user","content":"Say hello"}]}'
 # Expected: JSON with a greeting
 
 # 4. Image gen service is running
@@ -211,22 +212,21 @@ journalctl -u imagegen -f       # Image gen logs
 
 ### Switching Models
 
-vLLM loads one model at a time (unlike Ollama's hot-swap). GLM-4.7-Flash (`vllm.service`) is the
+vLLM loads one model at a time (unlike Ollama's hot-swap). Mistral-Small-3.2 (`vllm.service`) is the
 standing default; the specialist modes are templated `vllm@<mode>.service` instances (config in
 `/etc/vllm/modes/<mode>.env`) plus `imagegen.service`. Use the switch CLI:
 
 ```bash
-cachyos-switch-model glm         # GLM-4.7-Flash (default: coding + review + office MCP)
-cachyos-switch-model coder       # Qwen3-Coder 30B-A3B (fast MoE coder)
-cachyos-switch-model coder-alt   # Devstral-2 24B (dense agentic-SWE coder)
-cachyos-switch-model vision      # Qwen3.6-27B (multimodal / image understanding)
-cachyos-switch-model image       # HiDream image gen + Qwen3-4B companion
+cachyos-switch-model mistral     # Mistral-Small-3.2 24B (default: basic chat / general)
+cachyos-switch-model coder       # Qwen3-Coder 30B-A3B (coding + office docs)
+cachyos-switch-model coder-alt   # Devstral-2 24B (dense agentic-SWE coder / review)
+cachyos-switch-model image       # HiDream image gen + Qwen3 companion
 ```
 
 The switch CLI stops the other modes first (one model owns the 24 GB card), and is passwordless via a
 sudoers drop-in so the client launchers can flip modes over SSH. To change the model *within* a mode,
 edit its env-file (e.g. `sudo nano /etc/vllm/modes/coder.env`) and re-run the switch, or
-`sudo systemctl edit vllm` for the GLM default.
+`sudo systemctl edit vllm` for the Mistral default.
 
 ### Client Connection
 
@@ -255,7 +255,7 @@ COPILOT_PROVIDER_BASE_URL=http://server-ip:8000/v1 copilot-local
 from openai import OpenAI
 client = OpenAI(base_url="http://server-ip:8000/v1", api_key="unused")
 response = client.chat.completions.create(
-    model="glm-4.7-flash",
+    model="mistral-small",
     messages=[{"role": "user", "content": "Hello"}]
 )
 ```
@@ -294,7 +294,7 @@ journalctl -u vllm -f            # Live server logs
 
 | Model | Concurrent Users | Context per User |
 |-------|-----------------|-----------------|
-| GLM-4.7-Flash (default, MLA KV) | 3-5 | ~12k tokens each |
+| Mistral-Small-3.2 24B (default) | 3-5 | ~12k tokens each |
 | Qwen3-Coder 30B-A3B | 2-4 | ~10k tokens each |
 | Devstral-2 24B (dense) | 2-3 | ~10k tokens each |
 
@@ -343,7 +343,7 @@ nvidia-smi
 
 # Switch to a lighter/faster mode (e.g. Devstral-2 24B is ~14 GB)
 cachyos-switch-model coder-alt
-# ...or reduce context on the GLM default
+# ...or reduce context on the Mistral default
 sudo systemctl edit vllm
 # VLLM_MAX_MODEL_LEN=16384
 sudo systemctl restart vllm
