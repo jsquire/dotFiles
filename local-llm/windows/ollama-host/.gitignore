@@ -1,0 +1,10 @@
+# Build output (the shipped binary lives in dist/, not bin/)
+bin/
+obj/
+*.user
+
+# Visual Studio local cache
+.vs/
+
+# Shipped from dist/, but never commit debug symbols
+dist/*.pdb

@@ -10,6 +10,7 @@ Single-user AI assistant on Windows with Ollama, Crush, Copilot CLI, MCP, and lo
 | Component | Purpose | Install Method |
 |-----------|---------|---------------|
 | **Ollama** | GPU-accelerated model server | winget |
+| **ollama-host** | Tray supervisor: owns Ollama + content:null compat proxy on `:11435` | Prebuilt from `dist/` |
 | **Crush** | Terminal AI agent with MCP support | winget |
 | **GitHub Copilot CLI** | Alternative terminal agent | User-local |
 | **uv** | Python toolchain (manages MCP venvs) | winget |
@@ -37,7 +38,7 @@ cd local-llm\windows
 .\install-windows.ps1
 
 # RTX 5090 with secondary storage (recommended)
-.\install-windows.ps1 -ModelPath D:\OllamaModels
+.\install-windows.ps1 -ModelPath v:\ollama
 
 # Show all options
 .\install-windows.ps1 -Help
@@ -69,6 +70,20 @@ Provider tokens: `local` = local Ollama · `server` = CachyOS vLLM server.
 
 ## Configure
 
+### Ollama Host (compat supervisor)
+
+`ollama-host` is the default local supervisor on Windows. It owns Ollama's lifecycle and runs a small
+in-process proxy on `:11435` that coerces `content: null` chat messages to `""`, working around
+Ollama's stricter-than-OpenAI `400 "invalid message content type: <nil>"`. Point local clients at
+`http://localhost:11435/v1` rather than Ollama's own `:11434`.
+
+The installer deploys the prebuilt binary to `%LOCALAPPDATA%\ollama-host\` and adds an **Ollama Host**
+Start Menu shortcut (under `AI\`); launch it to bring the local stack up. The binary ships prebuilt in
+`windows/ollama-host/dist/` — the installer copies that copy verbatim (verifying its `.sha256`) and
+never builds from source, so **updating `dist/` is the responsibility of whoever changes the
+ollama-host code.** See [`ollama-host/README.md`](ollama-host/README.md) for build, configuration, and
+design details.
+
 ### Crush (primary agent)
 
 Config: `~/.config/crush/crush.json` (created by installer)
@@ -84,20 +99,20 @@ GOOGLE_AI_API_KEY=AIza...
 
 ### Copilot CLI
 
-The `copilot-local` launcher reads `COPILOT_LOCAL_PROFILE` env var (set by installer). No manual config needed.
+`copilot-local` wires everything at launch — no manual config. It points Copilot at the local compat
+proxy (`http://localhost:11435/v1`) for Ollama models, or at the CachyOS vLLM server (`:8000`) for the
+`server` environment, and sets the model from whatever you pick.
 
-### Custom Model List
+### Model Roster
 
-Override defaults by editing `config/ollama-models.txt`:
-```text
-# One base library tag per line (not launcher aliases)
-hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M
-qwen3.6:35b
-gemma4:31b
-qwen3-coder:30b
-glm-4.7-flash
-qwen3:8b
-```
+Two separate lists, by design:
+
+- **What gets pulled** — the base tags the installer downloads, defined in `install-windows.ps1`
+  (`$ProductionModels`). Change the installed set there, or use `-SkipModels` and pull by hand.
+
+- **What the picker shows** — `scripts/local-models.json`, shipped verbatim to `~/.config/local-llm/`.
+  Edit its `registry` / `task_alias` / launcher menus to re-map aliases and menu entries without
+  touching the installer.
 
 ### Image Generation
 
@@ -129,21 +144,33 @@ curl http://localhost:8001/health
 
 ### copilot-local (daily driver)
 
+`copilot-local` opens a two-level picker: first an environment, then a task within it. Pass a model
+alias to skip the picker entirely.
+
 ```
-copilot-local                    # Interactive task picker
-copilot-local qwen36-27b-212k   # Skip picker, use specific model
+copilot-local                    # Interactive picker
+copilot-local qwen36-27b-212k    # Skip picker, use a specific model
 ```
 
-**Task picker (RTX 5090):**
+**Local — task profiles (RTX 5090):**
 ```
-  [1] Heavy coding        (qwen36-27b-212k)
-  [2] Light coding        (qwen3coder-144k)
-  [3] Code review         (qwen3coder-144k)
-  [4] Technical docs      (qwen36-27b-212k)
-  [5] Creative writing    (qwen36-27b-212k)
-  [6] Office documents    (glm47-flash-198k)
-  [7] Image generation    (qwen3:8b + HiDream via MCP)
+  Coding
+    [1] Heavy coding       qwen36-27b-212k
+    [2] Light coding       qwen3coder-144k
+    [3] Code review        qwen3coder-144k
+    
+  Writing & Documents
+    [4] Technical docs     qwen36-27b-212k
+    [5] Creative writing   qwen36-27b-212k
+    [6] Office documents   glm47-flash-198k   (office skill)
+    
+  Visual
+    [7] Image generation   qwen3:8b + HiDream (MCP)
 ```
+
+**Local — Experimental** swaps in the heavy-coding bench (Qwen3.6 35B-A3B, Gemma 4 31B, North Mini
+Code, Nemotron 3 Nano, Ornith-1.0-35B, Devstral Small 2, …) with MCP off. **Squire-Server** appears
+when the `server` provider is enabled and targets the CachyOS vLLM box.
 
 ### Crush (agentic tasks)
 
@@ -156,7 +183,7 @@ crush run "create a slide deck"  # One-shot; Office docs via the office skill
 
 **HiDream-O1-Image-Dev** (8B params, MIT) — OpenAI-compatible API on `localhost:8001`:
 
-1. Select option 7 from copilot-local (starts the server)
+1. Pick **Image generation** (`[7]`, under Local) in copilot-local — it starts the server on demand
 2. Server loads HiDream-O1 in bf16 (~16GB VRAM, ~15-25s/image)
 
 ```powershell
@@ -188,19 +215,10 @@ nvidia-smi                       # GPU VRAM usage
 
 ### Connecting to the CachyOS Server
 
-If you also run the CachyOS server (vLLM), you can point Crush at it:
-```json
-// In ~/.config/crush/crush.json, add a provider:
-{
-  "providers": {
-    "vllm-server": {
-      "kind": "openai",
-      "baseURL": "http://server-ip:8000/v1",
-      "apiKey": "unused"
-    }
-  }
-}
-```
+The CachyOS vLLM box is already wired as the `server` Crush provider — no hand-editing. Install with
+`-Providers local,server` (the default for `-Install Full`) and point it at the box with
+`-SquireServerIP <ip>`. In the launchers it shows up as the **Squire-Server** environment; Crush
+exposes it directly as the `server` provider.
 
 ## Uninstall
 

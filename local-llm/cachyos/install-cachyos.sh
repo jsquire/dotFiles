@@ -1817,6 +1817,21 @@ with open(p, 'w') as f:
         warn "Launcher script not found at $launcher_source — skipping."
     fi
 
+    # ── Deploy ollama-compat-proxy ────────────────────────────────────────
+    # Tiny local reverse proxy (:11435 -> Ollama :11434) that coerces content:null -> "" so a
+    # reasoning-model turn can't poison a session with Ollama's "invalid message content type: <nil>"
+    # 400. The launchers start it on demand from ~/.local/bin (stdlib python3, no venv/deps).
+    step "Deploy ollama-compat-proxy"
+    local proxy_source="${SCRIPT_DIR}/../scripts/ollama-compat-proxy.py"
+    local proxy_dest="${HOME}/.local/bin/ollama-compat-proxy.py"
+    if [[ -f "$proxy_source" ]]; then
+        mkdir -p "${HOME}/.local/bin"
+        install -m 0644 "$proxy_source" "$proxy_dest"
+        success "Deployed ollama-compat-proxy.py to $proxy_dest"
+    else
+        warn "ollama-compat-proxy.py not found at $proxy_source — copilot/crush will use Ollama directly."
+    fi
+
     # ── Deploy crush-task launcher ────────────────────────────────────────
     step "Deploy crush-task launcher"
     local crush_task_source="${SCRIPT_DIR}/../scripts/crush-task.sh"

@@ -1,0 +1,58 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(CommonTargetFramework)</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AssemblyName>ollama-host</AssemblyName>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <OptimizationPreference>Size</OptimizationPreference>
+    <RootNamespace>Squire.OllamaHost</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OllamaHost.Proxy\OllamaHost.Proxy.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!--
+    After a publish, stage the shipping binary into dist/ and regenerate its SHA-256 checksum.
+    Publish targets the normal output directory; only the executable is copied into dist/, so the
+    intermediate publish artifacts (such as the .pdb files) are left behind. The checksum is written
+    in sha256sum format ("<lowercase-hash>  <file>") so it verifies with `sha256sum -c`.
+  -->
+  <Target Name="StageShippingBinary" AfterTargets="Publish">
+    <PropertyGroup>
+      <DistDirectory>$(MSBuildProjectDirectory)\..\..\dist</DistDirectory>
+      <PublishedExecutable>$(PublishDir)$(AssemblyName).exe</PublishedExecutable>
+      <DistExecutable>$(DistDirectory)\$(AssemblyName).exe</DistExecutable>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(DistDirectory)" />
+
+    <Copy SourceFiles="$(PublishedExecutable)" DestinationFolder="$(DistDirectory)" />
+
+    <GetFileHash Files="$(DistExecutable)" Algorithm="SHA256">
+      <Output TaskParameter="Hash" PropertyName="ShippingBinaryHash" />
+    </GetFileHash>
+
+    <WriteLinesToFile File="$(DistExecutable).sha256"
+                      Lines="$(ShippingBinaryHash.ToLowerInvariant())  $(AssemblyName).exe"
+                      Overwrite="true" />
+
+    <Message Importance="high"
+             Text="Staged $(AssemblyName).exe into $(DistDirectory) and refreshed its .sha256." />
+  </Target>
+</Project>

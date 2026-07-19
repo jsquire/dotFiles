@@ -246,12 +246,22 @@ $modelLabel = if ($selLabel) { $selLabel } else { LL-Label $env:COPILOT_MODEL }
 Write-Host "  Launching $modelLabel  [alias $($env:COPILOT_MODEL)]  $selTag"
 
 # ── Launch Copilot ───────────────────────────────────────────────────────────
+# Local Ollama is reached through ollama-host's compat proxy (:11435), which coerces content:null -> ""
+# so reasoning-model turns can't poison a session with Ollama's "invalid message content type: <nil>"
+# 400. If ollama-host isn't running there's nothing on :11435, so fall back to Ollama direct (:11434).
+function Get-LocalOllamaBase {
+    if ($env:LL_TEST) { return "http://localhost:11435/v1" }   # test harness: assume the proxy, never probe
+    if (Get-NetTCPConnection -LocalPort 11435 -State Listen -ErrorAction SilentlyContinue) { return "http://localhost:11435/v1" }
+    Write-Host "  WARN: ollama-host isn't running (nothing on :11435). Launch 'Ollama Host' from the Start Menu"
+    Write-Host "        for the content:null fix; falling back to Ollama direct on :11434 (content:null 400s possible)."
+    return "http://localhost:11434/v1"
+}
 $copilotArgs = @('--model', $env:COPILOT_MODEL) + $mcpFlags + $gitSafety + $extraFlags + $args
 if ($env:COPILOT_PROVIDER_BASE_URL) {
     Write-Host "  Remote: $($env:COPILOT_PROVIDER_BASE_URL)"; Write-Host ""
     & copilot @copilotArgs
 } else {
     Write-Host ""
-    $env:COPILOT_PROVIDER_BASE_URL = "http://localhost:11434/v1"
+    $env:COPILOT_PROVIDER_BASE_URL = Get-LocalOllamaBase
     & copilot @copilotArgs
 }

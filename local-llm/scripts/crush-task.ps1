@@ -339,4 +339,19 @@ Be direct. If the code is correct, say so briefly.
 Write-Host "  Config: $(Resolve-Path .crush.json)"
 Write-Host ""
 
+# ollama-host serves the compat proxy on :11435 (coerces content:null -> "" so a reasoning-model turn
+# can't poison a session with Ollama's "invalid message content type: <nil>" 400). If ollama-host
+# isn't running, fall back to Ollama direct on :11434 by overriding the generated .crush.json.
+if ($Provider -eq 'ollama' -and -not $env:LL_TEST) {
+    if (-not (Get-NetTCPConnection -LocalPort 11435 -State Listen -ErrorAction SilentlyContinue)) {
+        Write-Host "  WARN: ollama-host isn't running (nothing on :11435). Launch 'Ollama Host' from the Start"
+        Write-Host "        Menu for the content:null fix; falling back to Ollama direct on :11434 (400s possible)."
+        $cfg = Get-Content ".crush.json" -Raw | ConvertFrom-Json
+        if (-not $cfg.PSObject.Properties['providers']) { $cfg | Add-Member -MemberType NoteProperty -Name providers -Value ([pscustomobject]@{}) }
+        if (-not $cfg.providers.PSObject.Properties['ollama']) { $cfg.providers | Add-Member -MemberType NoteProperty -Name ollama -Value ([pscustomobject]@{}) }
+        $cfg.providers.ollama | Add-Member -MemberType NoteProperty -Name base_url -Value "http://localhost:11434/v1/" -Force
+        $cfg | ConvertTo-Json -Depth 5 | Set-Content ".crush.json" -Encoding UTF8
+    }
+}
+
 crush
