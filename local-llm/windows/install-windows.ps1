@@ -1234,27 +1234,12 @@ TIMESTEP_TOKEN_NUM = 1
         Write-Warn "Launcher script not found at $launcherPs1Source — skipping."
     }
 
-    # ── Step: Deploy ollama-compat-proxy ──────────────────────────────────
-    # Tiny local reverse proxy (:11435 -> Ollama :11434) that coerces content:null -> "" so a
-    # reasoning-model turn can't poison a session with Ollama's "invalid message content type: <nil>"
-    # 400. The launchers start it on demand from Documents\CLI (stdlib python, no venv/deps).
-    Write-Step "Deploy ollama-compat-proxy"
-    $proxySource = Join-Path $PSScriptRoot "..\scripts\ollama-compat-proxy.py"
-    $proxyDest = Join-Path $UserProfile "Documents\CLI\ollama-compat-proxy.py"
-    if (Test-Path $proxySource) {
-        $cliDir2 = Split-Path $proxyDest
-        if (-not (Test-Path $cliDir2)) { New-Item -ItemType Directory -Path $cliDir2 -Force | Out-Null }
-        Copy-Item $proxySource $proxyDest -Force
-        Write-Success "Deployed ollama-compat-proxy.py to $cliDir2"
-    } else {
-        Write-Warn "ollama-compat-proxy.py not found at $proxySource — copilot/crush will use Ollama directly."
-    }
-
     # ── Step: Deploy ollama-host (tray supervisor) ────────────────────────
     # Default Windows supervisor: a NativeAOT tray app that OWNS Ollama's lifecycle and hosts the
     # content:null proxy in-process (no .NET runtime needed). Ships prebuilt in windows/ollama-host/dist.
     # Installs to its own %LOCALAPPDATA%\ollama-host\ dir (exe + appsettings + logs). Clients point at
-    # :11435; ollama-host and the python fallback never fight over it (launchers defer to whoever owns it).
+    # :11435; if ollama-host isn't running the launchers fall back to Ollama direct on :11434. The
+    # Python compat proxy is CachyOS-only and is never deployed on Windows.
     Write-Step "Deploy ollama-host (tray supervisor)"
     $ollamaHostSource = Join-Path $PSScriptRoot "ollama-host\dist\ollama-host.exe"
     $ollamaHostDir = Join-Path $UserProfile "AppData\Local\ollama-host"
