@@ -13,7 +13,10 @@
     "northmini-code-256k":   { "label": "North Mini Code 1.0",                "ctx": 262144 },
     "nemotron3-nano-256k":   { "label": "Nemotron 3 Nano 30B-A3B",            "ctx": 262144 },
     "ornith-35b-256k":       { "label": "Ornith-1.0-35B",                     "ctx": 262144 },
-    "devstral2-24b-128k":    { "label": "Devstral Small 2 (24B)",             "ctx": 131072 }
+    "devstral2-24b-128k":    { "label": "Devstral Small 2 (24B)",             "ctx": 131072 },
+    "mistral-small32-64k":   { "label": "Mistral-Small-3.2 24B",              "ctx": 65536  },
+    "gemma3-27b-64k":        { "label": "Gemma 3 27B it",                     "ctx": 65536  },
+    "qwen3-32b-64k":         { "label": "Qwen3 32B (non-thinking)",           "ctx": 65536  }
   },
 
   "task_alias": {
@@ -30,7 +33,10 @@
     "h6": "northmini-code-256k",
     "h7": "nemotron3-nano-256k",
     "h8": "ornith-35b-256k",
-    "h9": "devstral2-24b-128k"
+    "h9": "devstral2-24b-128k",
+    "cw1": "mistral-small32-64k",
+    "cw2": "gemma3-27b-64k",
+    "cw3": "qwen3-32b-64k"
   },
 
   "launchers": {
@@ -77,6 +83,15 @@
               { "key": "8", "label": "Ornith-1.0-35B",       "slot": "h8" },
               { "key": "9", "label": "Devstral Small 2 24B", "slot": "h9" }
             ]
+          },
+          {
+            "heading": "Creative-writing bench",
+            "subtitle": "(VRAM-resident; swap model, MCP off; prose temp 0.7)",
+            "rows": [
+              { "key": "10", "label": "Mistral-Small-3.2 24B", "slot": "cw1" },
+              { "key": "11", "label": "Gemma 3 27B it",        "slot": "cw2" },
+              { "key": "12", "label": "Qwen3 32B",             "slot": "cw3" }
+            ]
           }
         ]
       }
@@ -122,6 +137,15 @@
               { "key": "7", "label": "Nemotron 3 Nano 30B",  "slot": "h7", "profile": "coding" },
               { "key": "8", "label": "Ornith-1.0-35B",       "slot": "h8", "profile": "coding" },
               { "key": "9", "label": "Devstral Small 2 24B", "slot": "h9", "profile": "coding" }
+            ]
+          },
+          {
+            "heading": "Creative-writing bench",
+            "subtitle": "(docs profile, swap model, temp 0.7)",
+            "rows": [
+              { "key": "10", "label": "Mistral-Small-3.2 24B", "slot": "cw1", "profile": "docs" },
+              { "key": "11", "label": "Gemma 3 27B it",        "slot": "cw2", "profile": "docs" },
+              { "key": "12", "label": "Qwen3 32B",             "slot": "cw3", "profile": "docs" }
             ]
           }
         ]

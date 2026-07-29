@@ -71,6 +71,13 @@ Current plan and corrections (authoritative sources flagged):
 - **Image: keep HiDream-I1, do NOT adopt FLUX** — FLUX performed noticeably worse than
   HiDream in a prior hands-on install. Verify the deployed "HiDream-O1-Image-Dev"
   identity on the box.
+- **Creative writing disappoints locally** (hands-on): both **GLM-4.7-Flash** and
+  **Qwen3.6** (27B dense + 35B-A3B) repeatedly struggled to draft cover letters from rich
+  source data. This is the launcher's weak spot by construction: the picker has **no
+  dedicated creative-writing model** and borrows the coding/agentic picks (copilot key 5
+  "Creative writing" routes to the `heavy` slot = `qwen36-27b-212k`; Office/docs use
+  `glm47-flash-198k`), which are selected for code and tool-use, not prose. A replacement
+  sweep for a VRAM-resident (≤~32 GB Q4) prose-strong model is in §BP below.
 
 Everything below this banner is retained as historical research/methodology; where it
 conflicts with this banner, **this banner wins.**
@@ -714,3 +721,91 @@ Ensure these are set before any evaluation:
 - [ ] Config files updated per decision path
 - [ ] Scripts deployed to C:\Users\Jesse\Documents\CLI\
 - [ ] CachyOS server updated if applicable (Path A only)
+
+---
+
+## §BP: Creative-writing replacement sweep (report only, 2026-07-19)
+
+Follow-on to the hands-on weakness note in the STATUS/CORRECTIONS banner: GLM-4.7-Flash and
+Qwen3.6 (27B dense + 35B-A3B) draft cover letters poorly. The launcher has no dedicated
+creative-writing model; the "Creative writing" pick borrows the coding/agentic slot. This
+section researches VRAM-resident replacements and ranks them. It is **report only**: no
+launcher/installer/config edits, no `ollama pull`, no bench wiring.
+
+### Candidate envelope
+VRAM-resident on the 5090: Q4_K_M GGUF ≤ ~32 GB, Ollama-pullable, no offload. All sizes and
+license/arch facts below are authoritative (HuggingFace API, 2026-07-19); community
+quality claims are labeled sentiment and are not treated as verified.
+
+### Verified candidates (all fit VRAM-resident at Q4_K_M)
+
+| Model | Base arch (Ollama loads) | License | Q4_K_M GGUF | HF signal | Class |
+|---|---|---|---|---|---|
+| **Mistral-Small-3.2-24B-Instruct-2506** | Mistral3 (text GGUF = mistral) | Apache-2.0 | **13.35 GB** | base dl 281K / 598 likes | official instruct |
+| **Gemma 3 27B it** | Gemma3 | Gemma ToU (open) | **15.41 GB** | base dl 854K / 2002 likes | official instruct |
+| **Qwen3-32B** (non-thinking) | Qwen3 | Apache-2.0 | **18.40 GB** | base dl 10.2M / 721 likes | official instruct, dense |
+| TheDrummer/Cydonia-24B-v4.3 | Mistral | (Mistral-Small base) | 13.35 GB | GGUF dl 19K / 72 likes | community writing/RP tune |
+| TheDrummer/Skyfall-31B-v4.2 | Mistral | (Mistral-Small base) | 17.68 GB | GGUF dl 6K / 34 likes | community writing/RP tune |
+
+### Ranked shortlist for cover-letter / professional prose
+
+1. **Mistral-Small-3.2-24B-Instruct-2506 (Apache-2.0, 13.35 GB), top pick.** Official Mistral
+   instruct with a strong general-writing reputation, smallest footprint of the set, and a
+   permissive license. It is the most conservative swap: an instruct model tuned for
+   following the kind of rich, structured brief a cover letter needs.
+2. **Gemma 3 27B it (Gemma ToU, 15.41 GB), strongest prose contender to bench.** Gemma 3 is
+   repeatedly praised for prose specifically. The prior local disappointment was Gemma **4**
+   at **coding**, which does not carry over to Gemma 3 at **writing**. Worth a
+   creative-specific hands-on comparison against Mistral-Small. License is the Gemma ToU (open gate).
+3. **Qwen3-32B non-thinking (Apache-2.0, 18.40 GB), dense general baseline.** Dense (soft
+   preference), broadly capable, permissive. Not prose-specialized, so include it as a
+   control rather than an expected winner. Run with thinking disabled for prose.
+4. **Community tunes (Cydonia-24B-v4.3, Skyfall-31B-v4.2), bench only, labeled.** These are
+   the popular creative-writing finetune family (TheDrummer, Mistral-Small base). They lean
+   RP / uncensored, and their quality is community sentiment, not benchmarked. That lean is a
+   poor fit for professional cover-letter tone, so they rank below the official instruct
+   models. Include at most one (Cydonia-24B-v4.3) as an optional experimental slot only if
+   the official models underwhelm on expressiveness.
+
+### Recommendation: give "Creative writing" its own slot
+
+The root cause is structural, not model quality: "Creative writing" shares the `heavy`
+coding slot, so the picker sends prose work to a code-tuned model. The durable fix is to
+**decouple it into its own `task_alias`** (for example `creative`) pointing at a dedicated
+prose model, rather than swapping the shared `heavy` slot (which would degrade coding).
+
+Concretely, when this leaves report-only status: add a `creative` alias mapped to
+**Mistral-Small-3.2-24B-Instruct** as the default, repoint copilot key 5 / crush "Creative
+writing" to it, and add Gemma 3 27B it as a bench entry so the two can be compared hands-on.
+This is deferred; it is the natural follow-up once a winner is confirmed by real use.
+
+### Honest gaps
+- No creative-writing quality numbers are relied on. Public "creative writing" leaderboards
+  and self-reported finetune claims are not authoritative; the resolution is a hands-on
+  cover-letter A/B on the box (Mistral-Small vs Gemma 3 27B), not a benchmark.
+- Gemma 3 27B and Mistral-Small-3.2 GGUFs are the text-only variants of multimodal bases;
+  they load as text models in Ollama (`gemma3` / `mistral-small3.2` tags exist).
+### Bench status: live as of 2026-07-26 (winner still pending hands-on)
+
+The shortlist is now pulled and wired as a hands-on bench, so the A/B can happen inside the
+launcher instead of on paper. This is the bench-first step; no production slot has changed and
+no winner is declared yet.
+
+- Three alias models were created on the 5090 box, each at `num_ctx 65536` with a consistent
+  prose `temperature 0.7` (a fair A/B, since the base defaults differ):
+  - `mistral-small32-64k` from `mistral-small3.2:24b`
+  - `gemma3-27b-64k` from `gemma3:27b`
+  - `qwen3-32b-64k` from `qwen3:32b`, rebuilt to force non-thinking (its template defaults to
+    thinking, which returns an empty draft under a normal token budget)
+- They appear as a new "Creative-writing bench" category in the experimental menu of both the
+  copilot and crush launchers, keys `[10]` Mistral-Small-3.2, `[11]` Gemma 3 27B, `[12]` Qwen3 32B.
+  Registry aliases `cw1/cw2/cw3` in `scripts/local-models.json` (and the deployed copy).
+- A demo on a shared "match resume to a job description" brief had all three produce clean,
+  on-brief professional letters, a clear step up from the GLM-4.7-Flash / Qwen3.6 drafts that
+  prompted this. First read: Mistral-Small was the most complete formal letter, Gemma 3 the
+  warmest with the best flow, Qwen3 the strongest at tying back to the brief but dense in one
+  block. These are first impressions on one generic brief, not a verdict.
+
+Still pending (needs real cover-letter drafting, not a benchmark): pick the winner, then promote
+it into a dedicated `creative` `task_alias`, repoint copilot key 5 off `heavy`, add the winner to
+the installer pull list, and trim the bench. Production is unchanged until then.
