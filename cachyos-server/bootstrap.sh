@@ -23,6 +23,11 @@ Options:
   --nas-backup-export PATH   NFS export path on the NAS for the Kopia backup repo.
   --nas-backup-mount PATH    Local mount point for the NAS backup export.
                              Default: /mnt/nas-backups
+  --maintenance-schedule CAL systemd OnCalendar expression for the automated
+                             maintenance window (packages, then containers,
+                             then cleanup, then a reboot only if required).
+                             Must complete before the nightly backup.
+                             Default: Sat *-*-* 00:00:00
 USAGE
 }
 
@@ -44,6 +49,7 @@ NAS_MEDIA_EXPORT=""
 NAS_MEDIA_MOUNT="/mnt/plex-media"
 NAS_BACKUP_EXPORT=""
 NAS_BACKUP_MOUNT="/mnt/nas-backups"
+MAINTENANCE_SCHEDULE="Sat *-*-* 00:00:00"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -66,6 +72,9 @@ while [[ $# -gt 0 ]]; do
         --nas-backup-mount)
             [[ -n "${2:-}" ]] || { echo "--nas-backup-mount requires a path" >&2; exit 1; }
             NAS_BACKUP_MOUNT="$2"; shift 2 ;;
+        --maintenance-schedule)
+            [[ -n "${2:-}" ]] || { echo "--maintenance-schedule requires an OnCalendar value" >&2; exit 1; }
+            MAINTENANCE_SCHEDULE="$2"; shift 2 ;;
         *)
             echo "Unknown argument: $1" >&2
             usage
@@ -107,6 +116,13 @@ group_ensure() {
 
 user_ensure_system() {
     id -u "$1" &>/dev/null || sudo useradd --system --no-create-home --shell /usr/bin/nologin "$1"
+}
+
+# Unattended AUR builds need a real home for the yay cache and the makepkg build
+# tree, so this variant creates one. Still a system account with no login shell.
+
+user_ensure_system_home() {
+    id -u "$1" &>/dev/null || sudo useradd --system --create-home --shell /usr/bin/nologin "$1"
 }
 
 user_in_group() {
@@ -584,11 +600,367 @@ LOGROTATE
 
 
 ############################################
+# Automated maintenance (packages, containers, cleanup, conditional reboot)
+############################################
+
+# One merged weekly unit rather than several timers. Merging is what makes the
+# ordering safe: packages are updated first, then containers are restarted onto
+# the updated docker, then cleanup runs, and only then is a reboot considered.
+# Two independent timers could overlap and would have needed a lock; one unit
+# cannot overlap itself.
+
+MAINTENANCE_SCRIPT="/usr/local/bin/squire-maintenance.sh"
+MAINTENANCE_REPORT_SCRIPT="/usr/local/bin/squire-maintenance-report.sh"
+MAINTENANCE_STATE_DIR="/var/lib/squire-maintenance"
+MAINTENANCE_LOG="/var/log/squire-maintenance.log"
+AUR_BUILD_USER="aurbuild"
+
+# Dedicated unattended build account. yay refuses to run as root and shells out
+# to sudo pacman, so an account with a home (yay cache + makepkg build tree) and
+# a narrow NOPASSWD pacman grant is required. The interactive user's sudo rules
+# are deliberately left untouched.
+
+user_ensure_system_home "$AUR_BUILD_USER"
+sudo mkdir -p "$MAINTENANCE_STATE_DIR"
+
+# Validate the sudoers drop-in before installing it. A malformed file here would
+# break sudo for every user, so it is written to a temp path, checked with
+# visudo, and only then moved into place.
+
+aurbuild_sudoers="${AUR_BUILD_USER} ALL=(root) NOPASSWD: /usr/bin/pacman
+"
+aurbuild_sudoers_tmp="$(mktemp)"
+printf '%s' "$aurbuild_sudoers" > "$aurbuild_sudoers_tmp"
+
+if sudo visudo -cf "$aurbuild_sudoers_tmp" >/dev/null; then
+    if ! sudo test -f "/etc/sudoers.d/${AUR_BUILD_USER}" ||
+       ! diff -q "$aurbuild_sudoers_tmp" <(sudo cat "/etc/sudoers.d/${AUR_BUILD_USER}") &>/dev/null; then
+        sudo install -m 0440 -o root -g root "$aurbuild_sudoers_tmp" "/etc/sudoers.d/${AUR_BUILD_USER}"
+    fi
+else
+    echo "ERROR: generated sudoers drop-in for ${AUR_BUILD_USER} failed validation; not installing." >&2
+    rm -f "$aurbuild_sudoers_tmp"
+    exit 1
+fi
+
+rm -f "$aurbuild_sudoers_tmp"
+
+# Reported on both success and failure. ExecStopPost is used rather than a
+# separate OnFailure unit because only ExecStopPost receives $SERVICE_RESULT and
+# $EXIT_STATUS, so the marker can record why the run failed without a second
+# unit having to guess.
+
+sudo tee "$MAINTENANCE_REPORT_SCRIPT" > /dev/null << REPORTSCRIPT
+#!/bin/bash
+# Written by bootstrap.sh. Do not edit directly.
+
+set -uo pipefail
+
+STATE_DIR="${MAINTENANCE_STATE_DIR}"
+FAIL_MARKER="\$STATE_DIR/last-run-failed"
+STEP_FILE="\$STATE_DIR/current-step"
+COUNT_FILE="\$STATE_DIR/consecutive-failures"
+
+if [ "\${SERVICE_RESULT:-success}" = "success" ]; then
+    # Only failure state is cleared here. The pacnew-increased marker is
+    # deliberately left alone: config drift is detected during a SUCCESSFUL run,
+    # so clearing it on success would erase it before anyone could see it.
+
+    rm -f "\$FAIL_MARKER" "\$COUNT_FILE" "\$STEP_FILE"
+    exit 0
+fi
+
+count=0
+[ -r "\$COUNT_FILE" ] && count=\$(cat "\$COUNT_FILE" 2>/dev/null || echo 0)
+case "\$count" in ''|*[!0-9]*) count=0 ;; esac
+count=\$((count + 1))
+echo "\$count" > "\$COUNT_FILE"
+
+step="unknown"
+[ -r "\$STEP_FILE" ] && step=\$(cat "\$STEP_FILE" 2>/dev/null || echo unknown)
+
+{
+    echo "timestamp:            \$(date '+%Y-%m-%d %H:%M:%S')"
+    echo "failed_step:          \$step"
+    echo "service_result:       \${SERVICE_RESULT:-unknown}"
+    echo "exit_status:          \${EXIT_STATUS:-unknown}"
+    echo "consecutive_failures: \$count"
+} > "\$FAIL_MARKER"
+REPORTSCRIPT
+
+sudo chmod 755 "$MAINTENANCE_REPORT_SCRIPT"
+
+sudo tee "$MAINTENANCE_SCRIPT" > /dev/null << MAINTSCRIPT
+#!/bin/bash
+# Written by bootstrap.sh. Do not edit directly.
+
+set -euo pipefail
+
+STATE_DIR="${MAINTENANCE_STATE_DIR}"
+STEP_FILE="\$STATE_DIR/current-step"
+PACNEW_COUNT_FILE="\$STATE_DIR/pacnew-count"
+PACNEW_MARKER="\$STATE_DIR/pacnew-increased"
+CONTAINER_UPDATE_SCRIPT="${INSTALL_DIR}/container-services/restart-update.sh"
+
+PRE_STATE=\$(mktemp)
+POST_STATE=\$(mktemp)
+trap 'rm -f "\$PRE_STATE" "\$POST_STATE"' EXIT
+
+mkdir -p "\$STATE_DIR"
+
+log() { echo "\$(date '+%Y-%m-%d %H:%M:%S') \$*"; }
+
+step() {
+    echo "\$1" > "\$STEP_FILE"
+    log "── \$1 ──"
+}
+
+log "════ Maintenance run starting ════"
+
+# 1. Official repositories.
+
+step "pacman -Syu"
+pacman -Q > "\$PRE_STATE"
+pacman -Syu --noconfirm
+
+# 2. AUR, as the unattended build user. yay refuses to run as root.
+#    -H is required: without it sudo keeps HOME=/root, so yay would write its
+#    cache and build tree into root's home instead of the build account's.
+#    -a limits this to the AUR, since step 1 already synced the repositories.
+
+step "yay -Syu (as ${AUR_BUILD_USER})"
+sudo -u ${AUR_BUILD_USER} -H yay -Syua --noconfirm --removemake --cleanafter
+
+# 3. Containers. Runs after the package steps so restarts land on the updated
+#    docker. Skipped cleanly if containers were never deployed on this host
+#    (a minimal install), but if they ARE deployed then a problem is a hard
+#    failure: silently skipping would mean containers quietly stop being
+#    updated with nothing to show for it.
+
+step "container update"
+if [ ! -f /etc/systemd/system/squire-server-containers.service ]; then
+    log "Container services are not deployed on this host; skipping container update."
+elif ! systemctl is-active --quiet docker; then
+    log "ERROR: docker.service is not active; cannot update containers."
+    exit 1
+elif [ ! -x "\$CONTAINER_UPDATE_SCRIPT" ]; then
+    log "ERROR: \$CONTAINER_UPDATE_SCRIPT is missing or not executable."
+    exit 1
+else
+    "\$CONTAINER_UPDATE_SCRIPT"
+fi
+
+# 4. Cleanup. Runs BEFORE any reboot, because a reboot terminates this script
+#    and anything ordered after it would never execute.
+
+step "cleanup"
+ORPHANS=\$(pacman -Qtdq || true)
+if [ -n "\$ORPHANS" ]; then
+    log "Removing orphaned packages: \$(echo \$ORPHANS | tr '\\n' ' ')"
+    # Unquoted on purpose: pacman needs these as separate arguments.
+    pacman -Rns --noconfirm \$ORPHANS
+else
+    log "No orphaned packages."
+fi
+
+# Keep 3 versions of installed packages so a manual pacman -U downgrade stays
+# available as a fix-forward move, and drop everything for uninstalled packages.
+
+if command -v paccache &>/dev/null; then
+    paccache -rk3
+    paccache -ruk0
+fi
+
+# 5. Configuration drift. Reporting only; merging config files unattended could
+#    break DNS, boot, or pacman itself. A rising count is normal, not a failure.
+
+step "config drift report"
+mapfile -t PACNEW_FILES < <(find /etc -name '*.pacnew' -o -name '*.pacsave' 2>/dev/null | sort)
+PACNEW_COUNT=\${#PACNEW_FILES[@]}
+PREV_COUNT=0
+[ -r "\$PACNEW_COUNT_FILE" ] && PREV_COUNT=\$(cat "\$PACNEW_COUNT_FILE" 2>/dev/null || echo 0)
+case "\$PREV_COUNT" in ''|*[!0-9]*) PREV_COUNT=0 ;; esac
+
+log "Unmerged config files under /etc: \$PACNEW_COUNT (previous run: \$PREV_COUNT)"
+if [ "\$PACNEW_COUNT" -gt 0 ]; then
+    printf '    %s\\n' "\${PACNEW_FILES[@]}"
+fi
+if [ "\$PACNEW_COUNT" -gt "\$PREV_COUNT" ]; then
+    log "NOTE: \$((PACNEW_COUNT - PREV_COUNT)) new file(s) since the last run. Review with: sudo pacdiff"
+
+    # Marker read by the login banner. Written here rather than only logged so a
+    # new config file cannot go unnoticed until someone reads the log by hand.
+    # This is NOT cleared by the report script on success: drift is detected
+    # during a successful run, so clearing it there would erase it immediately.
+
+    {
+        echo "timestamp:            \$(date '+%Y-%m-%d %H:%M:%S')"
+        echo "unmerged_now:         \$PACNEW_COUNT"
+        echo "unmerged_previously:  \$PREV_COUNT"
+        echo "new_since_last_run:   \$((PACNEW_COUNT - PREV_COUNT))"
+        printf '    %s\\n' "\${PACNEW_FILES[@]}"
+    } > "\$PACNEW_MARKER"
+else
+    # Cleared once the count stops rising. The banner reports newly appeared
+    # files, not the standing backlog, so it does not nag about known files that
+    # have been consciously left unmerged.
+
+    rm -f "\$PACNEW_MARKER"
+fi
+echo "\$PACNEW_COUNT" > "\$PACNEW_COUNT_FILE"
+
+# 6. Reboot only when the evidence says one is needed. checkrebuild is
+#    deliberately not used: it answers "needs rebuild against new sonames",
+#    which is a different question from "needs reboot".
+
+step "reboot decision"
+pacman -Q > "\$POST_STATE"
+REBOOT_REASON=""
+
+if [ ! -d "/usr/lib/modules/\$(uname -r)" ]; then
+    REBOOT_REASON="running kernel \$(uname -r) no longer has a modules directory"
+else
+    CHANGED=\$(diff "\$PRE_STATE" "\$POST_STATE" | grep -E '^[<>]' | \\
+        awk '{print \$2}' | sort -u | \\
+        grep -E '^(linux|linux-cachyos|systemd|glibc|dbus|nvidia)' || true)
+    if [ -n "\$CHANGED" ]; then
+        REBOOT_REASON="core packages changed: \$(echo \$CHANGED | tr '\\n' ' ')"
+    fi
+fi
+
+if [ -z "\$REBOOT_REASON" ]; then
+    log "No reboot required."
+    log "════ Maintenance run complete ════"
+    exit 0
+fi
+
+log "Reboot required (\$REBOOT_REASON)."
+
+# Never strand the box with no remote access. SSH is the only recovery path
+# after an unattended reboot, because there is no autologin and KRDP only
+# exists inside a logged-in session.
+
+if ! systemctl is-active --quiet sshd; then
+    log "ERROR: sshd is not active; refusing to reboot. Resolve sshd, then reboot manually."
+    exit 1
+fi
+
+log "════ Maintenance run complete; rebooting ════"
+
+# --no-block so this unit is not waiting on a job that cannot finish until this
+# unit itself has stopped.
+systemctl --no-block reboot
+MAINTSCRIPT
+
+sudo chmod 755 "$MAINTENANCE_SCRIPT"
+
+maintenance_service="[Unit]
+Description=Squire Server Weekly Maintenance (packages, containers, cleanup)
+Wants=network-online.target
+After=network-online.target
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=${MAINTENANCE_SCRIPT}
+ExecStopPost=${MAINTENANCE_REPORT_SCRIPT}
+TimeoutStartSec=5400
+StandardOutput=append:${MAINTENANCE_LOG}
+StandardError=append:${MAINTENANCE_LOG}
+"
+
+maintenance_timer="[Unit]
+Description=Squire Server Weekly Maintenance Timer
+
+[Timer]
+OnCalendar=${MAINTENANCE_SCHEDULE}
+Persistent=false
+RandomizedDelaySec=0
+Unit=squire-server-maintenance.service
+
+[Install]
+WantedBy=timers.target
+"
+
+daemon_reload_needed=0
+
+if install_file_if_changed /etc/systemd/system/squire-server-maintenance.service "$maintenance_service"; then
+    daemon_reload_needed=1
+fi
+
+if install_file_if_changed /etc/systemd/system/squire-server-maintenance.timer "$maintenance_timer"; then
+    daemon_reload_needed=1
+fi
+
+# Retire the standalone weekly container update timer. Its work now runs as a
+# step inside the merged maintenance unit; restart-update.sh itself is unchanged.
+# Disable before enabling the new timer so both are never armed at once, and
+# remove the unit files so a later preset pass cannot re-enable them.
+
+for stale_unit in squire-server-containers-update.timer squire-server-containers-update.service; do
+    if sudo test -f "/etc/systemd/system/$stale_unit"; then
+        # Timer is listed first so it is disarmed before its service is removed.
+        sudo systemctl disable --now "$stale_unit" &>/dev/null || true
+        sudo rm -f "/etc/systemd/system/$stale_unit"
+        daemon_reload_needed=1
+    fi
+done
+
+if [ "$daemon_reload_needed" -eq 1 ]; then
+    sudo systemctl daemon-reload
+fi
+
+service_enable_now squire-server-maintenance.timer
+
+# Failure banner. The only failure channel available without an SMTP server or a
+# third-party service, so it must never break a login: no set -e, no exit, and
+# nothing printed for non-interactive shells such as scp or rsync.
+
+maintenance_banner='# Installed by bootstrap.sh. Reports a failed automated maintenance run.
+# Deliberately contains no return/exit: this file is sourced by login shells and
+# must never be able to terminate one. Everything is nested inside the
+# interactive test instead, so non-interactive sessions (scp, rsync, sftp)
+# produce no output and take no action at all.
+
+case $- in
+    *i*)
+        if [ -r '"$MAINTENANCE_STATE_DIR"'/last-run-failed ]; then
+            printf "\n\033[1;31m*** Automated maintenance FAILED ***\033[0m\n"
+            sed "s/^/    /" '"$MAINTENANCE_STATE_DIR"'/last-run-failed 2>/dev/null
+            printf "    log:                  '"$MAINTENANCE_LOG"'\n"
+            printf "    retry:                sudo systemctl start squire-server-maintenance.service\n\n"
+        fi
+        if [ -r '"$MAINTENANCE_STATE_DIR"'/pacnew-increased ]; then
+            printf "\n\033[1;33m*** New unmerged config files after maintenance ***\033[0m\n"
+            sed "s/^/    /" '"$MAINTENANCE_STATE_DIR"'/pacnew-increased 2>/dev/null
+            printf "    review:               sudo pacdiff\n"
+            printf "    dismiss:              sudo rm -f '"$MAINTENANCE_STATE_DIR"'/pacnew-increased\n\n"
+        fi
+        ;;
+esac
+'
+
+install_file_if_changed /etc/profile.d/squire-maintenance-banner.sh "$maintenance_banner" || true
+sudo chmod 644 /etc/profile.d/squire-maintenance-banner.sh
+
+sudo tee /etc/logrotate.d/squire-maintenance > /dev/null << LOGROTATE
+${MAINTENANCE_LOG} {
+    size 5M
+    rotate 4
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
+LOGROTATE
+
+
+############################################
 # SSH
 ############################################
 
 service_enable_now sshd
-
 
 ############################################
 # Cleanup
@@ -761,40 +1133,14 @@ KillMode=process
 WantedBy=multi-user.target
 "
 
-    timer_unit='[Unit]
-Description=Weekly Container Update
-
-[Timer]
-OnCalendar=Sat *-*-* 01:00:00
-Persistent=true
-Unit=squire-server-containers-update.service
-
-[Install]
-WantedBy=timers.target
-'
-
-    update_service_unit="[Unit]
-Description=Update and restart container services
-After=docker.service
-Requires=docker.service
-
-[Service]
-Type=oneshot
-WorkingDirectory=${INSTALL_DIR}/container-services
-ExecStart=${INSTALL_DIR}/container-services/restart-update.sh
-"
+    # The weekly container update timer that used to live here has been retired.
+    # Container updates now run as a step inside squire-server-maintenance.service
+    # so they are ordered after the package updates instead of racing them.
+    # restart-update.sh itself is unchanged and is still what gets executed.
 
     daemon_reload_needed=0
 
     if install_file_if_changed /etc/systemd/system/squire-server-containers.service "$service_unit"; then
-        daemon_reload_needed=1
-    fi
-
-    if install_file_if_changed /etc/systemd/system/squire-server-containers-update.timer "$timer_unit"; then
-        daemon_reload_needed=1
-    fi
-
-    if install_file_if_changed /etc/systemd/system/squire-server-containers-update.service "$update_service_unit"; then
         daemon_reload_needed=1
     fi
 
@@ -805,8 +1151,6 @@ ExecStart=${INSTALL_DIR}/container-services/restart-update.sh
     if ! systemctl is-enabled squire-server-containers.service &>/dev/null; then
         sudo systemctl enable squire-server-containers.service
     fi
-
-    service_enable_now squire-server-containers-update.timer
 
     echo
     echo 'Full install complete.'
