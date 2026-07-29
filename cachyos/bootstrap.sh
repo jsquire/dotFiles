@@ -98,11 +98,20 @@ service_enable_now avahi-daemon
 # Micro editor
 ############################################
 
-if [ ! -f /usr/local/bin/micro ]; then
-    sudo mkdir -p /usr/local/bin
-    cd /usr/local/bin
-    wget -qO- https://getmic.ro | sudo bash
-    cd "$WORKDIR"
+# Installed from the official repositories so it is tracked by pacman -Syu.
+# The old getmic.ro installer dropped an unmanaged binary in /usr/local/bin,
+# which shadows /usr/bin/micro on PATH and therefore never receives updates.
+
+sudo pacman -S --needed --noconfirm micro
+
+if [ -f /usr/local/bin/micro ] && ! pacman -Qo /usr/local/bin/micro &>/dev/null; then
+    echo
+    echo "NOTE: an unmanaged micro binary is shadowing the packaged one:"
+    echo "        /usr/local/bin/micro   (unmanaged, never updated by pacman)"
+    echo "        /usr/bin/micro         (packaged, updated by pacman -Syu)"
+    echo "      One-time cleanup, then this notice stops appearing:"
+    echo "        sudo rm /usr/local/bin/micro"
+    echo
 fi
 
 

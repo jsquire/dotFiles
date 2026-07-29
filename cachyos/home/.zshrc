@@ -43,9 +43,20 @@ fi
 export PATH="$HOME/.cargo/bin:$PATH"
 
 # enable NVM
-export NVM_DIR="$HOME/.nvm"
-[[ -s "$NVM_DIR/nvm.sh" ]] && \. "$NVM_DIR/nvm.sh"
-[[ -s "$NVM_DIR/bash_completion" ]] && \. "$NVM_DIR/bash_completion"
+# Prefer the distro package (/usr/share/nvm), whose init-nvm.sh sets NVM_DIR and
+# sources nvm plus completions. Falls back to a user-local ~/.nvm install so this
+# file still works on hosts where nvm is not packaged.
+if [[ -s /usr/share/nvm/init-nvm.sh ]]; then
+    # stdout is discarded because init-nvm.sh uses "mkdir -vp" and "ln -vs" to
+    # create ~/.nvm and its symlinks on first run. That chatter breaks
+    # Powerlevel10k's instant prompt on a fresh machine. stderr is left alone so
+    # real failures still surface.
+    \. /usr/share/nvm/init-nvm.sh >/dev/null
+else
+    export NVM_DIR="$HOME/.nvm"
+    [[ -s "$NVM_DIR/nvm.sh" ]] && \. "$NVM_DIR/nvm.sh"
+    [[ -s "$NVM_DIR/bash_completion" ]] && \. "$NVM_DIR/bash_completion"
+fi
 
 # enable GPG signing
 # Use zsh's $TTY (not $(tty)): under Powerlevel10k instant prompt, stdin is

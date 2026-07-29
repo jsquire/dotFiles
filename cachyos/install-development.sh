@@ -6,7 +6,6 @@ set -euo pipefail
 # Version Targets
 ############################################
 
-NVM_VERSION=0.40.4
 
 
 ############################################
@@ -50,18 +49,33 @@ sudo pacman -S --needed --noconfirm github-copilot-cli
 # Install Node Version Manager (NVM)
 ############################################
 
-export NVM_DIR="$HOME/.nvm"
+# Installed from the official repositories rather than a pinned curl installer,
+# so pacman -Syu keeps it current. The package ships /usr/share/nvm/init-nvm.sh,
+# which sets NVM_DIR (~/.nvm here, since XDG_CONFIG_HOME is unset) and sources
+# nvm plus completions.
 
-if [ ! -d "$NVM_DIR" ]; then
-    echo "Installing NVM..."
-    mkdir -p "$NVM_DIR"
-    curl -o- "https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh" | bash
-else
-    echo "NVM already installed at $NVM_DIR"
+sudo pacman -S --needed --noconfirm nvm
+
+# Legacy ~/.nvm installs from the old curl installer leave real files where the
+# package expects to place symlinks, so init-nvm.sh silently keeps loading the
+# stale copy. Report it once; installed node versions under ~/.nvm/versions are
+# unaffected and are reused by the packaged nvm.
+
+if [ -f "$HOME/.nvm/nvm.sh" ] && [ ! -L "$HOME/.nvm/nvm.sh" ]; then
+    echo
+    echo "NOTE: a legacy curl-installed nvm is present in ~/.nvm and will shadow"
+    echo "      the packaged one (/usr/share/nvm). Your installed node versions in"
+    echo "      ~/.nvm/versions are NOT affected and will be reused."
+    echo "      One-time cleanup, then this notice stops appearing:"
+    echo "        rm -rf ~/.nvm/nvm.sh ~/.nvm/nvm-exec ~/.nvm/bash_completion \\"
+    echo "               ~/.nvm/.git ~/.nvm/*.md ~/.nvm/Dockerfile ~/.nvm/test"
+    echo "      Then open a new shell and confirm with: nvm --version"
+    echo
 fi
 
 # Source NVM for this session
-[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+# shellcheck source=/dev/null
+[ -s /usr/share/nvm/init-nvm.sh ] && \. /usr/share/nvm/init-nvm.sh
 
 
 ############################################

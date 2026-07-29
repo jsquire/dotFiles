@@ -94,7 +94,6 @@ NAS_BACKUP_MOUNT="${NAS_BACKUP_MOUNT%/}"
 # Version Targets
 ############################################
 
-NVM_VERSION=0.40.4
 YAY_BUILD_DIR="${HOME}/.cache/yay-bootstrap"
 
 
@@ -214,12 +213,20 @@ sudo pacman -S --needed --noconfirm \
 # Micro editor
 ############################################
 
-if [ ! -f /usr/local/bin/micro ]; then
-    sudo mkdir -p /usr/local/bin
-    (
-        cd /usr/local/bin
-        wget -qO- https://getmic.ro | sudo bash
-    )
+# Installed from the official repositories so it is tracked by pacman -Syu.
+# The old getmic.ro installer dropped an unmanaged binary in /usr/local/bin,
+# which shadows /usr/bin/micro on PATH and therefore never receives updates.
+
+sudo pacman -S --needed --noconfirm micro
+
+if [ -f /usr/local/bin/micro ] && ! pacman -Qo /usr/local/bin/micro &>/dev/null; then
+    echo
+    echo "NOTE: an unmanaged micro binary is shadowing the packaged one:"
+    echo "        /usr/local/bin/micro   (unmanaged, never updated by pacman)"
+    echo "        /usr/bin/micro         (packaged, updated by pacman -Syu)"
+    echo "      One-time cleanup, then this notice stops appearing:"
+    echo "        sudo rm /usr/local/bin/micro"
+    echo
 fi
 
 ############################################
@@ -258,6 +265,27 @@ install_home_file "${SCRIPT_DIR}/home/.gitignore" "$HOME/.gitignore"
 install_home_file "${SCRIPT_DIR}/home/.p10k.zsh"  "$HOME/.p10k.zsh"
 install_home_file "${SCRIPT_DIR}/home/.profile"   "$HOME/.profile"
 install_home_file "${SCRIPT_DIR}/home/.zshrc"     "$HOME/.zshrc"
+
+# The template .gitconfig ships placeholders rather than a real identity, and it
+# sets commit.gpgsign/tag.gpgsign to true. Left unedited, git does not merely
+# record a wrong email: every commit fails outright with "gpg: skipped ... No
+# secret key" and exit 128. The preserve guard above means a personalized file is
+# never clobbered, so this only ever fires on a genuinely unconfigured copy.
+
+if grep -q 'ADD EMAIL HERE\|ADD KEY HERE\|ADD TOKEN HERE' "$HOME/.gitconfig" 2>/dev/null; then
+    echo ""
+    echo "  ACTION REQUIRED: $HOME/.gitconfig still has template placeholders."
+    echo "  commit.gpgsign is enabled, so git commits will FAIL until these are set:"
+    grep -n 'ADD EMAIL HERE\|ADD KEY HERE\|ADD TOKEN HERE' "$HOME/.gitconfig" | sed 's/^/    line /'
+    echo ""
+    echo "  Set them with, for example:"
+    echo "    git config --global user.email 'you@example.com'"
+    echo "    git config --global user.signingkey '<your-gpg-key-id>'"
+    echo "  Or edit $HOME/.gitconfig directly. To commit without signing instead:"
+    echo "    git config --global commit.gpgsign false"
+    echo "    git config --global tag.gpgsign false"
+    echo ""
+fi
 mkdir -p "$HOME/.gnupg"
 cp "${SCRIPT_DIR}/home/.gnupg/gpg-agent.conf" "$HOME/.gnupg/gpg-agent.conf"
 chmod 700 "$HOME/.gnupg"
@@ -365,14 +393,32 @@ fi
 # Node.js (NVM-managed)
 ############################################
 
-export NVM_DIR="$HOME/.nvm"
+# Installed from the official repositories rather than a pinned curl installer,
+# so pacman -Syu keeps it current. The package ships /usr/share/nvm/init-nvm.sh,
+# which sets NVM_DIR (~/.nvm here, since XDG_CONFIG_HOME is unset) and sources
+# nvm plus completions.
 
-if [ ! -d "$NVM_DIR" ]; then
-    mkdir -p "$NVM_DIR"
-    curl -o- "https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh" | bash
+sudo pacman -S --needed --noconfirm nvm
+
+# Legacy ~/.nvm installs from the old curl installer leave real files where the
+# package expects to place symlinks, so init-nvm.sh silently keeps loading the
+# stale copy. Report it once; installed node versions under ~/.nvm/versions are
+# unaffected and are reused by the packaged nvm.
+
+if [ -f "$HOME/.nvm/nvm.sh" ] && [ ! -L "$HOME/.nvm/nvm.sh" ]; then
+    echo
+    echo "NOTE: a legacy curl-installed nvm is present in ~/.nvm and will shadow"
+    echo "      the packaged one (/usr/share/nvm). Your installed node versions in"
+    echo "      ~/.nvm/versions are NOT affected and will be reused."
+    echo "      One-time cleanup, then this notice stops appearing:"
+    echo "        rm -rf ~/.nvm/nvm.sh ~/.nvm/nvm-exec ~/.nvm/bash_completion \\"
+    echo "               ~/.nvm/.git ~/.nvm/*.md ~/.nvm/Dockerfile ~/.nvm/test"
+    echo "      Then open a new shell and confirm with: nvm --version"
+    echo
 fi
 
-[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+# shellcheck source=/dev/null
+[ -s /usr/share/nvm/init-nvm.sh ] && \. /usr/share/nvm/init-nvm.sh
 
 if ! nvm which default &>/dev/null; then
     nvm install --lts
@@ -702,10 +748,6 @@ PACNEW_COUNT_FILE="\$STATE_DIR/pacnew-count"
 PACNEW_MARKER="\$STATE_DIR/pacnew-increased"
 CONTAINER_UPDATE_SCRIPT="${INSTALL_DIR}/container-services/restart-update.sh"
 
-PRE_STATE=\$(mktemp)
-POST_STATE=\$(mktemp)
-trap 'rm -f "\$PRE_STATE" "\$POST_STATE"' EXIT
-
 mkdir -p "\$STATE_DIR"
 
 log() { echo "\$(date '+%Y-%m-%d %H:%M:%S') \$*"; }
@@ -717,10 +759,26 @@ step() {
 
 log "════ Maintenance run starting ════"
 
+# Reboot detection is delegated to CachyOS's own cachyos-reboot-required.hook
+# (from cachyos-hooks) rather than a hand-maintained package list here. The hook
+# is vendor-maintained, covers far more than a local list would (microcode, mesa,
+# cryptsetup, mkinitcpio, dracut, systemd*, wayland, xorg*), and is smarter: it
+# only fires for the RUNNING kernel, so an alternate kernel upgrade is ignored,
+# and btrfs-progs only counts when btrfs is actually mounted.
+#
+# The hook writes "==> INFO: Reboot is recommended ..." to stderr, which pacman
+# records in its log as an [ALPM-SCRIPTLET] line. It deliberately keeps no state
+# file and its desktop notification goes to logged-in users only, so an
+# unattended 00:00 run would otherwise see nothing. Marking the log line count
+# here lets step 6 read only what THIS run appended.
+
+PACMAN_LOG="/var/log/pacman.log"
+PACMAN_LOG_MARK=\$({ wc -l < "\$PACMAN_LOG"; } 2>/dev/null || echo 0)
+case "\$PACMAN_LOG_MARK" in ''|*[!0-9]*) PACMAN_LOG_MARK=0 ;; esac
+
 # 1. Official repositories.
 
 step "pacman -Syu"
-pacman -Q > "\$PRE_STATE"
 pacman -Syu --noconfirm
 
 # 2. AUR, as the unattended build user. yay refuses to run as root.
@@ -809,23 +867,39 @@ else
 fi
 echo "\$PACNEW_COUNT" > "\$PACNEW_COUNT_FILE"
 
-# 6. Reboot only when the evidence says one is needed. checkrebuild is
-#    deliberately not used: it answers "needs rebuild against new sonames",
-#    which is a different question from "needs reboot".
+# 6. Reboot only when the evidence says one is needed. The authoritative signal
+#    is CachyOS's own reboot-required hook (see the note near the top of this
+#    script); checkrebuild is deliberately not used, since it answers "needs
+#    rebuild against new sonames", a different question from "needs reboot".
 
 step "reboot decision"
-pacman -Q > "\$POST_STATE"
 REBOOT_REASON=""
+
+# Nothing rotates pacman.log on this host today, but logrotate.timer runs daily
+# with up to 1h of jitter, which overlaps this job's window. If a pacman.log
+# stanza were ever added and rotated mid-run, the saved offset would point past
+# the end of the truncated file and this run's lines would be skipped, silently
+# suppressing a needed reboot. A shrunken file is proof that happened, so fall
+# back to scanning the whole file: a false positive costs one extra reboot, a
+# false negative leaves a stale kernel running against a mismatched nvidia.ko.
+
+PACMAN_LOG_NOW=\$({ wc -l < "\$PACMAN_LOG"; } 2>/dev/null || echo 0)
+case "\$PACMAN_LOG_NOW" in ''|*[!0-9]*) PACMAN_LOG_NOW=0 ;; esac
+
+if [ "\$PACMAN_LOG_NOW" -lt "\$PACMAN_LOG_MARK" ]; then
+    log "NOTE: \$PACMAN_LOG appears to have been rotated mid-run; scanning the whole file."
+    PACMAN_LOG_MARK=0
+fi
+
+# Independent safety net first: if the running kernel's modules directory is
+# gone, the kernel package was replaced out from under us. The hook triggers on
+# Upgrade operations only, so this covers cases the hook does not.
 
 if [ ! -d "/usr/lib/modules/\$(uname -r)" ]; then
     REBOOT_REASON="running kernel \$(uname -r) no longer has a modules directory"
-else
-    CHANGED=\$(diff "\$PRE_STATE" "\$POST_STATE" | grep -E '^[<>]' | \\
-        awk '{print \$2}' | sort -u | \\
-        grep -E '^(linux|linux-cachyos|systemd|glibc|dbus|nvidia)' || true)
-    if [ -n "\$CHANGED" ]; then
-        REBOOT_REASON="core packages changed: \$(echo \$CHANGED | tr '\\n' ' ')"
-    fi
+elif tail -n +\$((PACMAN_LOG_MARK + 1)) "\$PACMAN_LOG" 2>/dev/null \\
+        | grep -q 'Reboot is recommended'; then
+    REBOOT_REASON="cachyos-reboot-required hook flagged a core package upgrade"
 fi
 
 if [ -z "\$REBOOT_REASON" ]; then
