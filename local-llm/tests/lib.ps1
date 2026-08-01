@@ -29,16 +29,29 @@ function PS-Summary($name) {
     return ($script:PS_FAIL -eq 0)
 }
 
+# JSON normalisation runs through Python so the output matches the bash side byte for byte. Prefer a
+# native Windows python3; fall back to `wsl python3` only when there isn't one. The WSL round trip was
+# the sole reason these suites needed a working WSL install, and a wedged WSL hangs them indefinitely.
+$script:PS_PY = $null
+foreach ($_c in @('python3', 'python')) {
+    $_cmd = Get-Command $_c -ErrorAction SilentlyContinue
+    if ($_cmd) { $script:PS_PY = $_cmd.Source; break }
+}
+function Invoke-PyJson([string]$code, [string]$stdin) {
+    if ($script:PS_PY) { $stdin | & $script:PS_PY -c $code }
+    else { $stdin | wsl python3 -c $code }
+}
+
 # Normalise a JSON file identically to the bash side (python sort_keys/compact) so goldens match.
 function Norm-Json($path) {
     if (-not $path -or -not (Test-Path $path)) { return "NONE" }
-    (Get-Content $path -Raw) | wsl python3 -c "import json,sys;print(json.dumps(json.load(sys.stdin),sort_keys=True,separators=(',',':')))"
+    Invoke-PyJson "import json,sys;print(json.dumps(json.load(sys.stdin),sort_keys=True,separators=(',',':')))" (Get-Content $path -Raw)
 }
 
 # Like Norm-Json but drops the imagegen-mcp env (covered by the imagegen-context suite, not parity).
 function Norm-CrushJson($path) {
     if (-not $path -or -not (Test-Path $path)) { return "NONE" }
-    (Get-Content $path -Raw) | wsl python3 -c "import json,sys;d=json.load(sys.stdin);d.get('mcp',{}).get('imagegen-mcp',{}).pop('env',None);print(json.dumps(d,sort_keys=True,separators=(',',':')))"
+    Invoke-PyJson "import json,sys;d=json.load(sys.stdin);d.get('mcp',{}).get('imagegen-mcp',{}).pop('env',None);print(json.dumps(d,sort_keys=True,separators=(',',':')))" (Get-Content $path -Raw)
 }
 
 $script:PS_WRAPPER_TMPL = @'

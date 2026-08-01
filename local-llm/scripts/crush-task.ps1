@@ -90,6 +90,7 @@ $LM = Get-Content $LocalModelsFile -Raw | ConvertFrom-Json
 
 function LL-Alias([string]$slot) { $p = $LM.task_alias.PSObject.Properties[$slot]; if ($p) { $p.Value } else { $slot } }
 function LL-Label([string]$alias) { $p = $LM.registry.PSObject.Properties[$alias]; if ($p -and $p.Value.label) { $p.Value.label } else { $alias } }
+function LL-Ctx([string]$alias) { $p = $LM.registry.PSObject.Properties[$alias]; if ($p -and $p.Value.ctx) { [int]$p.Value.ctx } else { 0 } }
 function Model-ForTask([string]$t) {
     switch ($t) { "coding" { LL-Alias 'heavy' } "review" { LL-Alias 'review' } "docs" { LL-Alias 'agentic' } "image" { LL-Alias 'image_llm' } default { LL-Alias 'heavy' } }
 }
@@ -155,11 +156,17 @@ function Write-CrushConfig {
     }
     $config = @{ mcp = $McpOverrides }
     # Output cap + context window. For the server provider these come from the advertised roster
-    # (passed as -ServerCtx / -ServerMax); local Ollama runs roomy windows so a fixed cap is cheap.
+    # (passed as -ServerCtx / -ServerMax). For local picks only the reply cap reaches the config:
+    # $ctxWin rides on the providers block, which is written only when -ActiveLabel is set (server
+    # mode), so crush keeps managing the local window itself. The reply cap is still worth deriving,
+    # since a quarter of a 40K model is not the same budget as a quarter of a 256K one.
     $maxTok = 16384; $ctxWin = 65536
     if ($Provider -eq "server") {
         $ctxWin = if ($ServerCtx) { $ServerCtx } else { 32768 }
         $maxTok = if ($ServerMax) { $ServerMax } else { 8192 }
+    } else {
+        $regCtx = LL-Ctx $Model
+        if ($regCtx -gt 0) { $maxTok = [int][math]::Min(16384, [math]::Floor($regCtx / 4)) }
     }
     $providerBlock = @{}
     # Server provider: expose ONE 'active-model' entry (so /model can't pick a not-yet-loaded model),

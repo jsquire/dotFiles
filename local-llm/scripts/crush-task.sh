@@ -52,11 +52,20 @@ write_crush_config() {
     local models_block=""
 
     # Output cap + context window. For the server provider these come from the advertised roster
-    # (SRV_CTX / SRV_MAX, set by the picker from :4090/models); local Ollama runs roomy windows so a
-    # fixed cap is cheap.
+    # (SRV_CTX / SRV_MAX, set by the picker from :4090/models). For local picks only the reply cap
+    # reaches the config: ctx_win rides on the providers block, which is written only when an
+    # active_label is set (server mode), so crush keeps managing the local window itself. The reply
+    # cap is still worth deriving, since a quarter of a 40K model is not a quarter of a 256K one.
     local max_tok=16384 ctx_win=65536
     if [[ "$provider" == "server" ]]; then
         ctx_win="${SRV_CTX:-32768}"; max_tok="${SRV_MAX:-8192}"
+    elif [[ -n "$model_override" ]]; then
+        local reg_ctx
+        reg_ctx="$(_ll_ctx "$model_override" 2>/dev/null || echo 0)"
+        if [[ "$reg_ctx" =~ ^[0-9]+$ ]] && (( reg_ctx > 0 )); then
+            max_tok=$(( reg_ctx / 4 ))
+            (( max_tok > 16384 )) && max_tok=16384
+        fi
     fi
 
     # Point the imagegen MCP tool at the selected environment's image server: local -> localhost,
@@ -188,12 +197,15 @@ elif cmd == "alias":
     print(ta.get(sys.argv[2], sys.argv[2]))
 elif cmd == "label":
     print(reg.get(sys.argv[2], {}).get("label", sys.argv[2]))
+elif cmd == "ctx":
+    print(reg.get(sys.argv[2], {}).get("ctx", 0))
 elif cmd == "tier":
     print(d.get("tier", ""))
 PY
 }
 _alias() { _ll alias "$1"; }
 _ll_label() { _ll label "$1"; }
+_ll_ctx() { _ll ctx "$1"; }
 
 # Model assignments per task profile (tier-resolved) — used by the direct `crush-task <task>` path.
 model_for_task() {

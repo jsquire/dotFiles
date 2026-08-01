@@ -81,6 +81,7 @@ $LM = Get-Content $LocalModelsFile -Raw | ConvertFrom-Json
 
 function LL-Alias([string]$slot) { $p = $LM.task_alias.PSObject.Properties[$slot]; if ($p) { $p.Value } else { $slot } }
 function LL-Label([string]$alias) { $p = $LM.registry.PSObject.Properties[$alias]; if ($p -and $p.Value.label) { $p.Value.label } else { $alias } }
+function LL-Ctx([string]$alias) { $p = $LM.registry.PSObject.Properties[$alias]; if ($p -and $p.Value.ctx) { [int]$p.Value.ctx } else { 0 } }
 function Row-Detail($row) {
     if ($row.PSObject.Properties['detail']) { return $row.detail }
     $a = LL-Alias $row.slot
@@ -224,6 +225,23 @@ if ($Model -and $Model -match ':') {
 }
 
 if (-not $env:COPILOT_MODEL) { Write-Host "  Invalid selection."; $env:COPILOT_MODEL = (LL-Alias 'heavy') }
+
+# -- Token budget: derive the local caps from the selected model's context window ----------------
+# The squire-server picks advertise their own caps (set in the picker above) and are left alone.
+# Local picks previously inherited one global constant sized for a 64K-era roster, which both
+# over-committed small-context models (Ollama then silently drops the oldest turns to fit) and
+# throttled the 128K-256K models the roster exists to exploit. Reserve a quarter of the window for
+# the reply, capped at the 16K output ceiling. An alias with no registry ctx (e.g. a direct -Model
+# tag that isn't in the roster) keeps the global defaults.
+if (-not $selRemote) {
+    $ctxWin = LL-Ctx $env:COPILOT_MODEL
+    if ($ctxWin -gt 0) {
+        $promptCap = [int][math]::Floor($ctxWin * 0.75)
+        $outputCap = [int][math]::Min(16384, ($ctxWin - $promptCap))
+        $env:COPILOT_PROVIDER_MAX_PROMPT_TOKENS = "$promptCap"
+        $env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS = "$outputCap"
+    }
+}
 
 # ── Flags: MCP (imagegen only on image profiles), git-safety, office skill ────
 $mcpFlags = if ($mcpKeep) { @() } else { @('--disable-mcp-server', 'imagegen-mcp') }
