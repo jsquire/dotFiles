@@ -24,7 +24,7 @@
 .PARAMETER OllamaModels
     Ollama roster GPU tier that determines which models to pull:
       5090 — (default) RTX 5090 (32GB). Pulls the six production models
-             (Qwen3.6 27B+MTP, Qwen3.6 35B-A3B, Gemma 4 31B, Qwen3-Coder 30B,
+             (Qwen3.6 27B+MTP, Qwen3.6 35B-A3B, Fara 1.5 27B, Qwen3-Coder 30B,
              GLM-4.7-Flash, Qwen3 8B) (~100 GB) — coherent with config\crush.json.
     The Windows host is the 5090 gaming desktop; a real 24GB (4090) box runs the
     CachyOS installer, which has its own tier. -TestProfiles installs the same roster
@@ -162,7 +162,7 @@ if ($Help) {
     -OllamaModels 5090      (default) RTX 5090 (32GB) — the six production models, ~100 GB:
                               qwen36-27b-212k     Heavy coding default (Qwen3.6 27B+MTP)
                               qwen36-35b-256k     Heavy coding / multimodal (Qwen3.6 35B-A3B)
-                              gemma4-31b-128k     Heavy coding / general (Gemma 4 31B)
+                              fara15-27b-192k     Computer use / GUI agent (Fara 1.5 27B)
                               qwen3coder-144k     Light coding / review (Qwen3-Coder 30B)
                               glm47-flash-198k    Agentic / all MCP+tools (GLM-4.7-Flash)
                               qwen3:8b            Image-gen companion
@@ -171,9 +171,10 @@ if ($Help) {
     -OllamaHost <url>    Optional extra remote Ollama provider (not required for Client mode)
                          Example: http://192.168.1.100:11434
     -TestProfiles        RTX 5090 side-by-side bench: installs the heavy-coding contenders
-                         (qwen3.6 27B+MTP/35B, gemma4 31B, qwen3-coder, glm-4.7-flash,
+                         (qwen3.6 27B+MTP/35B, fara 1.5 27B, qwen3-coder, glm-4.7-flash,
                          qwen3 8B + the bench additions North Mini Code 1.0, Nemotron 3
-                         Nano 30B-A3B, Ornith-1.0-35B, Devstral Small 2 24B) and their
+                         Nano 30B-A3B, Ornith-1.0-35B, Devstral Small 2 24B, KAT-Coder
+                         V2.5 35B-A3B, XYZ-Aquila-mini 35B, Laguna S 2.1 118B) and their
                          launcher aliases (qwen36-27b-212k/qwen3coder-144k/glm47-flash-198k/
                          northmini-code-256k/nemotron3-nano-256k/ornith-35b-256k/
                          devstral2-24b-128k/etc.). ~195 GB. Use with
@@ -290,7 +291,7 @@ $script:Warnings = @()
 $KnownModelDescriptions = @{
     "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M" = "Qwen3.6 27B (+MTP head) — heavy coding default (212k ctx), ~16 GB"
     "qwen3.6:35b"     = "Qwen3.6 35B-A3B MoE — heavy coding / multimodal (256k ctx), ~22 GB"
-    "gemma4:31b"      = "Gemma 4 31B Dense — heavy coding / general (128k ctx), ~20 GB"
+    "hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M" = "Fara 1.5 27B (Microsoft, MIT): computer-use / GUI agent, vision + tools (192k ctx), ~17 GB"
     "qwen3-coder:30b" = "Qwen3-Coder 30B-A3B MoE — light coding / review (144k ctx), ~18 GB"
     "glm-4.7-flash"   = "GLM-4.7-Flash MoE-lite — agentic / all MCP+tools (198k ctx), ~18 GB"
     "qwen3:8b"        = "Qwen3 8B Dense — image-gen companion (32k ctx), ~5 GB"
@@ -303,7 +304,7 @@ $KnownModelDescriptions = @{
 $ProductionModels = [ordered]@{
     "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M" = $KnownModelDescriptions["hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M"]
     "qwen3.6:35b"     = $KnownModelDescriptions["qwen3.6:35b"]
-    "gemma4:31b"      = $KnownModelDescriptions["gemma4:31b"]
+    "hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M" = $KnownModelDescriptions["hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M"]
     "qwen3-coder:30b" = $KnownModelDescriptions["qwen3-coder:30b"]
     "glm-4.7-flash"   = $KnownModelDescriptions["glm-4.7-flash"]
     "qwen3:8b"        = $KnownModelDescriptions["qwen3:8b"]
@@ -318,17 +319,17 @@ $ProfileDefinitions = @{
     # 5090 side-by-side test profile (-TestProfiles). ~1TB model storage, so every
     # contender is installed at once and exposed through the launcher [H1]-[H5] bench.
     # NOTE: base pull tags below must be validated on the box — exact Ollama tags for
-    # qwen3.6:35b / gemma4:31b / glm-4.7-flash may differ at install time.
+    # qwen3.6:35b / glm-4.7-flash may differ at install time.
     "Test5090" = @{
         Description = "RTX 5090 (32GB) — side-by-side model bench (~1TB model storage)"
-        RequiredGB = 290
+        RequiredGB = 400
         Models = [ordered]@{
             # Qwen3.6 27B heavy-coding default — repointed to the unsloth MTP GGUF (multi-token-prediction
             # head). Same weights/quality as qwen3.6:27b dense; if Ollama's engine drives the MTP head it is
             # a free speculative speedup, otherwise it runs as the standard dense model. Verify on box.
             "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M" = "Qwen3.6 27B (+MTP head) — heavy coding default (256k ctx), ~16 GB"
             "qwen3.6:35b"      = "Qwen3.6 35B-A3B MoE — heavy coding bench / multimodal (262k ctx), ~22 GB"
-            "gemma4:31b"       = "Gemma 4 31B Dense — heavy coding bench / re-test (128k ctx), ~20 GB"
+            "hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M" = "Fara 1.5 27B (Microsoft, MIT): computer-use / GUI agent bench (192k ctx), ~17 GB"
             "qwen3-coder:30b"  = "Qwen3-Coder 30B-A3B MoE — light coding / review (256k ctx), ~18 GB"
             "glm-4.7-flash"    = "GLM-4.7-Flash MoE-lite — agentic / all MCP+tools (198k ctx), ~18 GB"
             # New agentic-coding bench candidates. All fit VRAM-resident at Q4 on the 32 GB 5090; pulled
@@ -341,6 +342,13 @@ $ProfileDefinitions = @{
             "hf.co/bartowski/nvidia_Nemotron-3-Nano-30B-A3B-GGUF:Q4_K_M" = "Nemotron 3 Nano 30B-A3B (NVIDIA) — reasoning/agentic bench (256k ctx), ~18 GB"
             "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M" = "Ornith-1.0-35B (MIT) — agentic-coding reasoning bench (256k ctx), ~20 GB"
             "hf.co/unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF:Q4_K_M" = "Devstral Small 2 24B (Mistral) — agentic-coding bench (128k ctx), ~14 GB"
+            # Added by the 2026-08-01 model sweep. KAT-Coder V2.5 and XYZ-Aquila-mini are both
+            # qwen35moe (the arch Ornith already proves loads here) and stay VRAM-resident at 256k.
+            # Laguna S 2.1 is the offload tier: 118B total but only ~9B active across 256 experts,
+            # so it runs at usable speed with roughly half its weights in system RAM.
+            "hf.co/bartowski/Kwaipilot_KAT-Coder-V2.5-Dev-GGUF:Q4_K_M" = "KAT-Coder V2.5 35B-A3B (Kwaipilot, Apache 2.0): agentic-coding bench (256k ctx), ~20 GB"
+            "hf.co/bartowski/XYZAILab_XYZ-Aquila-mini-GGUF:Q4_K_M" = "XYZ-Aquila-mini 35B-A3B (Apache 2.0): coding bench, unverified provenance (256k ctx), ~21 GB"
+            "hf.co/wimmmm/poolside-Laguna-S-2.1-GGUF:IQ4_XS" = "Laguna S 2.1 118B-A9B (poolside, openmdw-1.1): offload-tier coding bench (128k ctx), ~58 GB"
             "qwen3:8b"         = "Qwen3 8B Dense — image-gen companion (32k ctx), ~5 GB"
         }
     }
@@ -1462,7 +1470,6 @@ if ($ShouldPullModels) {
             # MTP hf.co tag, so the library base is never pulled; its ctx is set on the alias.
             $numCtxSettings = @{
                 "qwen3.6:35b"     = 262144
-                "gemma4:31b"      = 131072
                 "qwen3-coder:30b" = 147456
                 "glm-4.7-flash"   = 202752
                 "qwen3:8b"        = 32768
@@ -1493,7 +1500,10 @@ PARAMETER num_ctx $ctx
                 # live 3x4K rig) as the always-on default. Alias suffix matches the real context.
                 "qwen36-27b-212k"  = @{ From = "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M"; Ctx = 217088; Temp = 0.25 }
                 "qwen36-35b-256k"  = @{ From = "qwen3.6:35b";     Ctx = 262144; Temp = 0.25 }
-                "gemma4-31b-128k"  = @{ From = "gemma4:31b";      Ctx = 131072 }
+                # Calibrated on-box 2026-08-01 (5090, q8 KV): Fara 1.5 is a dense qwen35, so KV is
+                # heavy. 256k=30.7GB leaves only ~1.3GB free; 192k (196608)=28.26GB (~3.7GB free) is
+                # the safe always-on point. Production "Computer Use" slot: vision + tools.
+                "fara15-27b-192k"  = @{ From = "hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M"; Ctx = 196608; Temp = 0.6 }
                 # Calibrated on-box 2026-06-27 (5090, q8 KV): qwen3-coder:30b is 48-layer full-attention
                 # (heaviest KV) — 256k=31.39GB spills (~0.1GB free). User chose 144k (147456) = ~28.8GB
                 # (~3.1GB free). Alias suffix matches the real context.
@@ -1511,6 +1521,13 @@ PARAMETER num_ctx $ctx
                 $aliasModels["nemotron3-nano-256k"]   = @{ From = "hf.co/bartowski/nvidia_Nemotron-3-Nano-30B-A3B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
                 $aliasModels["ornith-35b-256k"]       = @{ From = "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
                 $aliasModels["devstral2-24b-128k"]    = @{ From = "hf.co/unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF:Q4_K_M"; Ctx = 131072; Temp = 0.25 }
+                # 2026-08-01 sweep additions. Both qwen35moe entries calibrated on-box at 256k with
+                # headroom to spare (KAT-Coder 27.11GB, Aquila-mini 28.22GB). Laguna is the offload
+                # tier: measured 725 tok/s prefill and 28.8 tok/s generation at a ~50/50 CPU/GPU
+                # split, so 128k is chosen to keep that split favourable rather than to fit VRAM.
+                $aliasModels["katcoder25-35b-256k"]   = @{ From = "hf.co/bartowski/Kwaipilot_KAT-Coder-V2.5-Dev-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
+                $aliasModels["aquila-mini-35b-256k"]  = @{ From = "hf.co/bartowski/XYZAILab_XYZ-Aquila-mini-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
+                $aliasModels["laguna-s21-118b-128k"]  = @{ From = "hf.co/wimmmm/poolside-Laguna-S-2.1-GGUF:IQ4_XS"; Ctx = 131072; Temp = 0.6 }
             }
             foreach ($entry in $aliasModels.GetEnumerator()) {
                 $alias = $entry.Key

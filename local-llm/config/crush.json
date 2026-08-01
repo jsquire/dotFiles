@@ -21,9 +21,9 @@
           "can_reason": true
         },
         {
-          "name": "Gemma 4 31B dense (Heavy coding bench \u2014 re-test)",
-          "id": "gemma4-31b-128k",
-          "context_window": 131072,
+          "name": "Fara 1.5 27B (Computer use / GUI agent)",
+          "id": "fara15-27b-192k",
+          "context_window": 196608,
           "default_max_tokens": 16384,
           "can_reason": true
         },

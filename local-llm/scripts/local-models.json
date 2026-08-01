@@ -6,7 +6,6 @@
   "registry": {
     "qwen36-27b-212k":       { "label": "Qwen3.6 27B (+MTP)",                 "ctx": 217088 },
     "qwen36-35b-256k":       { "label": "Qwen3.6 35B-A3B",                     "ctx": 262144 },
-    "gemma4-31b-128k":       { "label": "Gemma 4 31B",                        "ctx": 131072 },
     "qwen3coder-144k":       { "label": "Qwen3-Coder 30B-A3B",                "ctx": 147456 },
     "glm47-flash-198k":      { "label": "GLM-4.7-Flash",                       "ctx": 202752 },
     "qwen3:8b":              { "label": "Qwen3 8B",                            "ctx": 40960  },
@@ -14,6 +13,10 @@
     "nemotron3-nano-256k":   { "label": "Nemotron 3 Nano 30B-A3B",            "ctx": 262144 },
     "ornith-35b-256k":       { "label": "Ornith-1.0-35B",                     "ctx": 262144 },
     "devstral2-24b-128k":    { "label": "Devstral Small 2 (24B)",             "ctx": 131072 },
+    "katcoder25-35b-256k":   { "label": "KAT-Coder V2.5 35B-A3B",             "ctx": 262144 },
+    "aquila-mini-35b-256k":  { "label": "XYZ-Aquila-mini 35B-A3B",            "ctx": 262144 },
+    "laguna-s21-118b-128k":  { "label": "Laguna S 2.1 118B-A9B",              "ctx": 131072 },
+    "fara15-27b-192k":       { "label": "Fara 1.5 27B",                       "ctx": 196608 },
     "qwen3-32b-64k":         { "label": "Qwen3 32B (non-thinking)",           "ctx": 65536  },
     "qwen25-32b-32k":        { "label": "Qwen2.5 32B Instruct",               "ctx": 32768  },
     "commandr-35b-64k":      { "label": "Command R 35B (08-2024)",            "ctx": 65536  }
@@ -24,16 +27,19 @@
     "coder":     "qwen3coder-144k",
     "review":    "qwen3coder-144k",
     "agentic":   "glm47-flash-198k",
+    "computer":  "fara15-27b-192k",
     "image_llm": "qwen3:8b",
-    "h1": "qwen36-27b-212k",
-    "h2": "qwen36-35b-256k",
-    "h3": "gemma4-31b-128k",
-    "h4": "qwen3coder-144k",
-    "h5": "glm47-flash-198k",
-    "h6": "northmini-code-256k",
-    "h7": "nemotron3-nano-256k",
-    "h8": "ornith-35b-256k",
-    "h9": "devstral2-24b-128k",
+    "h1":  "qwen36-27b-212k",
+    "h2":  "qwen36-35b-256k",
+    "h3":  "qwen3coder-144k",
+    "h4":  "glm47-flash-198k",
+    "h5":  "northmini-code-256k",
+    "h6":  "nemotron3-nano-256k",
+    "h7":  "ornith-35b-256k",
+    "h8":  "devstral2-24b-128k",
+    "h9":  "katcoder25-35b-256k",
+    "h10": "aquila-mini-35b-256k",
+    "off1": "laguna-s21-118b-128k",
     "cw1": "qwen3-32b-64k",
     "cw2": "qwen25-32b-32k",
     "cw3": "commandr-35b-64k"
@@ -64,6 +70,12 @@
             "rows": [
               { "key": "7", "label": "Image generation", "slot": "image_llm", "note": "+ HiDream (MCP)", "imagegen": true }
             ]
+          },
+          {
+            "heading": "Computer Use",
+            "rows": [
+              { "key": "8", "label": "Screen & GUI agent", "slot": "computer", "note": "vision + tools" }
+            ]
           }
         ]
       },
@@ -73,24 +85,32 @@
             "heading": "Heavy-coding bench",
             "subtitle": "(VRAM-resident; swap model, MCP off)",
             "rows": [
-              { "key": "1", "label": "Qwen3.6 27B+MTP",      "slot": "h1" },
-              { "key": "2", "label": "Qwen3.6 35B-A3B MoE",  "slot": "h2" },
-              { "key": "3", "label": "Gemma 4 31B dense",    "slot": "h3" },
-              { "key": "4", "label": "Qwen3-Coder 30B-A3B",  "slot": "h4" },
-              { "key": "5", "label": "GLM-4.7-Flash",        "slot": "h5" },
-              { "key": "6", "label": "North Mini Code 1.0",  "slot": "h6" },
-              { "key": "7", "label": "Nemotron 3 Nano 30B",  "slot": "h7" },
-              { "key": "8", "label": "Ornith-1.0-35B",       "slot": "h8" },
-              { "key": "9", "label": "Devstral Small 2 24B", "slot": "h9" }
+              { "key": "1",  "label": "Qwen3.6 27B+MTP",        "slot": "h1" },
+              { "key": "2",  "label": "Qwen3.6 35B-A3B MoE",    "slot": "h2" },
+              { "key": "3",  "label": "Qwen3-Coder 30B-A3B",    "slot": "h3" },
+              { "key": "4",  "label": "GLM-4.7-Flash",          "slot": "h4" },
+              { "key": "5",  "label": "North Mini Code 1.0",    "slot": "h5" },
+              { "key": "6",  "label": "Nemotron 3 Nano 30B",    "slot": "h6" },
+              { "key": "7",  "label": "Ornith-1.0-35B",         "slot": "h7" },
+              { "key": "8",  "label": "Devstral Small 2 24B",   "slot": "h8" },
+              { "key": "9",  "label": "KAT-Coder V2.5 35B-A3B", "slot": "h9" },
+              { "key": "10", "label": "XYZ-Aquila-mini 35B",    "slot": "h10" }
+            ]
+          },
+          {
+            "heading": "Offload-tier bench",
+            "subtitle": "(118B; spills to system RAM, ~50% CPU)",
+            "rows": [
+              { "key": "11", "label": "Laguna S 2.1 118B-A9B", "slot": "off1" }
             ]
           },
           {
             "heading": "Creative-writing bench",
             "subtitle": "(VRAM-resident; swap model, MCP off; prose temp 0.7)",
             "rows": [
-              { "key": "10", "label": "Qwen3 32B",     "slot": "cw1" },
-              { "key": "11", "label": "Qwen2.5 32B",   "slot": "cw2" },
-              { "key": "12", "label": "Command R 35B", "slot": "cw3", "note": "(CC-BY-NC: non-commercial only)" }
+              { "key": "12", "label": "Qwen3 32B",     "slot": "cw1" },
+              { "key": "13", "label": "Qwen2.5 32B",   "slot": "cw2" },
+              { "key": "14", "label": "Command R 35B", "slot": "cw3", "note": "(CC-BY-NC: non-commercial only)" }
             ]
           }
         ]
@@ -119,6 +139,12 @@
             "rows": [
               { "key": "5", "label": "Image generation", "slot": "image_llm", "profile": "image", "note": "+ HiDream (MCP)" }
             ]
+          },
+          {
+            "heading": "Computer Use",
+            "rows": [
+              { "key": "6", "label": "Screen & GUI agent", "slot": "computer", "profile": "coding", "note": "vision + tools" }
+            ]
           }
         ]
       },
@@ -128,24 +154,32 @@
             "heading": "Heavy-coding bench",
             "subtitle": "(coding profile, swap model)",
             "rows": [
-              { "key": "1", "label": "Qwen3.6 27B dense",    "slot": "h1", "profile": "coding" },
-              { "key": "2", "label": "Qwen3.6 35B-A3B MoE",  "slot": "h2", "profile": "coding" },
-              { "key": "3", "label": "Gemma 4 31B dense",    "slot": "h3", "profile": "coding" },
-              { "key": "4", "label": "Qwen3-Coder 30B-A3B",  "slot": "h4", "profile": "coding" },
-              { "key": "5", "label": "GLM-4.7-Flash",        "slot": "h5", "profile": "coding" },
-              { "key": "6", "label": "North Mini Code 1.0",  "slot": "h6", "profile": "coding" },
-              { "key": "7", "label": "Nemotron 3 Nano 30B",  "slot": "h7", "profile": "coding" },
-              { "key": "8", "label": "Ornith-1.0-35B",       "slot": "h8", "profile": "coding" },
-              { "key": "9", "label": "Devstral Small 2 24B", "slot": "h9", "profile": "coding" }
+              { "key": "1",  "label": "Qwen3.6 27B dense",      "slot": "h1",  "profile": "coding" },
+              { "key": "2",  "label": "Qwen3.6 35B-A3B MoE",    "slot": "h2",  "profile": "coding" },
+              { "key": "3",  "label": "Qwen3-Coder 30B-A3B",    "slot": "h3",  "profile": "coding" },
+              { "key": "4",  "label": "GLM-4.7-Flash",          "slot": "h4",  "profile": "coding" },
+              { "key": "5",  "label": "North Mini Code 1.0",    "slot": "h5",  "profile": "coding" },
+              { "key": "6",  "label": "Nemotron 3 Nano 30B",    "slot": "h6",  "profile": "coding" },
+              { "key": "7",  "label": "Ornith-1.0-35B",         "slot": "h7",  "profile": "coding" },
+              { "key": "8",  "label": "Devstral Small 2 24B",   "slot": "h8",  "profile": "coding" },
+              { "key": "9",  "label": "KAT-Coder V2.5 35B-A3B", "slot": "h9",  "profile": "coding" },
+              { "key": "10", "label": "XYZ-Aquila-mini 35B",    "slot": "h10", "profile": "coding" }
+            ]
+          },
+          {
+            "heading": "Offload-tier bench",
+            "subtitle": "(coding profile; 118B spills to system RAM, ~50% CPU)",
+            "rows": [
+              { "key": "11", "label": "Laguna S 2.1 118B-A9B", "slot": "off1", "profile": "coding" }
             ]
           },
           {
             "heading": "Creative-writing bench",
             "subtitle": "(docs profile, swap model, temp 0.7)",
             "rows": [
-              { "key": "10", "label": "Qwen3 32B",     "slot": "cw1", "profile": "docs" },
-              { "key": "11", "label": "Qwen2.5 32B",   "slot": "cw2", "profile": "docs" },
-              { "key": "12", "label": "Command R 35B", "slot": "cw3", "profile": "docs", "note": "(CC-BY-NC: non-commercial only)" }
+              { "key": "12", "label": "Qwen3 32B",     "slot": "cw1", "profile": "docs" },
+              { "key": "13", "label": "Qwen2.5 32B",   "slot": "cw2", "profile": "docs" },
+              { "key": "14", "label": "Command R 35B", "slot": "cw3", "profile": "docs", "note": "(CC-BY-NC: non-commercial only)" }
             ]
           }
         ]

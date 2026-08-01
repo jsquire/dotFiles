@@ -24,7 +24,7 @@ Single-user AI assistant on Windows with Ollama, Crush, Copilot CLI, MCP, and lo
 |-------|----------------|----------|------|
 | Qwen3.6 27B (+MTP) | `qwen36-27b-212k` | `hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M` | Heavy coding (default), tech docs, creative |
 | Qwen3.6 35B-A3B MoE | `qwen36-35b-256k` | `qwen3.6:35b` | Heavy coding / multimodal |
-| Gemma 4 31B dense | `gemma4-31b-128k` | `gemma4:31b` | Heavy coding / general |
+| Fara 1.5 27B dense | `fara15-27b-192k` | `hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M` | Computer use / GUI agent (vision + tools) |
 | Qwen3-Coder 30B-A3B | `qwen3coder-144k` | `qwen3-coder:30b` | Light coding / code review |
 | GLM-4.7-Flash 30B MoE | `glm47-flash-198k` | `glm-4.7-flash` | Agentic / all MCP+tools / Office authoring |
 | Qwen3 8B | `qwen3:8b` | `qwen3:8b` | Image-gen companion |

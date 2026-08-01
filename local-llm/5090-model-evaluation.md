@@ -66,8 +66,9 @@ Current plan and corrections (authoritative sources flagged):
   KV-cache math derived from it is unreliable. Treat all KV/VRAM figures below as
   **UNVERIFIED** until measured on the box.
 - **Gemma 4 disappoints locally** in hands-on Crush + Copilot use (verified: the live
-  default is a 3.8B-active MoE at temp 1, context capped at 65K/262K). It stays only as
-  an optional `[H3]` bench slot (`gemma4-31b-128k`), not a default.
+  default is a 3.8B-active MoE at temp 1, context capped at 65K/262K). It was kept for a
+  while as an optional bench slot and was **removed entirely on 2026-08-01** (see the
+  sweep section at the end of this document).
 - **Image: keep HiDream-I1, do NOT adopt FLUX** — FLUX performed noticeably worse than
   HiDream in a prior hands-on install. Verify the deployed "HiDream-O1-Image-Dev"
   identity on the box.
@@ -838,9 +839,13 @@ Two replacements were pulled on 2026-07-29, both verified `completion, tools` be
 
 | Slot | Menu key | Alias | Source tag | Size | License | Alias ctx |
 |---|---|---|---|---|---|---|
-| `cw1` | `[10]` | `qwen3-32b-64k` | `qwen3:32b` | 18.8 GB | Apache-2.0 | 65536 |
-| `cw2` | `[11]` | `qwen25-32b-32k` | `qwen2.5:32b` | 18.5 GB | Apache-2.0 | 32768 |
-| `cw3` | `[12]` | `commandr-35b-64k` | `command-r:35b-08-2024-q4_K_M` | 18.4 GB | **CC-BY-NC-4.0** | 65536 |
+| `cw1` | `[12]` | `qwen3-32b-64k` | `qwen3:32b` | 18.8 GB | Apache-2.0 | 65536 |
+| `cw2` | `[13]` | `qwen25-32b-32k` | `qwen2.5:32b` | 18.5 GB | Apache-2.0 | 32768 |
+| `cw3` | `[14]` | `commandr-35b-64k` | `command-r:35b-08-2024-q4_K_M` | 18.4 GB | **CC-BY-NC-4.0** | 65536 |
+
+> Menu keys updated 2026-08-01: these were `[10]/[11]/[12]` until the sweep below renumbered
+> the experimental menu. The `cw1/cw2/cw3` slot names are unchanged, and the pending A/B is
+> unaffected apart from which number you press.
 
 Notes and traps found while wiring these:
 
@@ -908,3 +913,120 @@ pass.
 One incidental fix: the PowerShell suites shelled out to `wsl python3` purely for JSON
 normalisation, so a wedged WSL hung them indefinitely rather than failing. `tests/lib.ps1` now
 prefers a native Windows `python3` and falls back to WSL only when there is none.
+
+## Model sweep 2026-08-01: three additions, one production category, Gemma 4 removed
+
+A scan of Hugging Face by trending score for everything created since roughly 2026-07-17,
+gated on the four criteria this roster actually cares about: fits the envelope, open license,
+architecture that Ollama can load, and `tools` in `POST /api/show`.
+
+### What went in
+
+| Slot | Menu key | Alias | Source tag | Q4 size | License | Alias ctx | Task profile |
+|---|---|---|---|---|---|---|---|
+| `computer` | production `[8]` / crush `[6]` | `fara15-27b-192k` | `hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M` | 17.2 GB | MIT | 196608 | Computer use / GUI agent |
+| `h9` | `[9]` | `katcoder25-35b-256k` | `hf.co/bartowski/Kwaipilot_KAT-Coder-V2.5-Dev-GGUF:Q4_K_M` | 19.9 GB | Apache-2.0 | 262144 | Agentic coding |
+| `h10` | `[10]` | `aquila-mini-35b-256k` | `hf.co/bartowski/XYZAILab_XYZ-Aquila-mini-GGUF:Q4_K_M` | 20.8 GB | Apache-2.0 | 262144 | Coding, provenance unverified |
+| `off1` | `[11]` | `laguna-s21-118b-128k` | `hf.co/wimmmm/poolside-Laguna-S-2.1-GGUF:IQ4_XS` | 58.4 GB | openmdw-1.1 | 131072 | Coding, offload tier |
+
+All four report `tools` in `POST /api/show` and were verified before wiring. Fara 1.5 and
+Aquila-mini additionally report `vision`; all four report `thinking`.
+
+**Fara 1.5 27B is a new production category, not a bench entry.** It is Microsoft's
+computer-use / GUI agent line, which is a capability nothing else in the roster had. Benching it
+against Devstral on a bugfix would measure the wrong thing. It gets its own "Computer Use"
+heading in both launchers. On the Crush side it uses the existing `coding` profile rather than a
+new one: Crush profiles map to MCP enablement, no computer-use MCP is installed, so a dedicated
+profile would be behaviourally identical today. Add a real profile when there is an MCP to gate.
+
+### Context calibration (on-box, 5090, q8 KV)
+
+| Model | 128k | 192k | 256k | Chosen |
+|---|---|---|---|---|
+| KAT-Coder V2.5 | 25.43 GB | 26.26 GB | 27.11 GB | **262144** (4.9 GB headroom) |
+| XYZ-Aquila-mini | 26.52 GB | 27.37 GB | 28.22 GB | **262144** (3.8 GB headroom) |
+| Fara 1.5 27B | 25.82 GB | 28.26 GB | 30.70 GB | **196608** (256k leaves only 1.3 GB) |
+
+Fara is a dense `qwen35`, so its KV grows far faster than the two `qwen35moe` entries. It is
+capped at 192k for the same reason `qwen36-27b-212k` is capped: 256k technically loads at 100%
+GPU but leaves no room for anything else on a desktop that also drives displays.
+
+### Laguna S 2.1: the offload tier is now real
+
+Laguna is the first model to earn a slot despite not fitting in VRAM, and it is worth recording
+why, because the intuition that "a 118B will crawl under offload" is wrong here.
+
+- **Architecture (authoritative, `config.json` + GGUF metadata):** 117.6B total across **256
+  experts with only 10 active per token** plus one shared expert, `moe_intermediate_size` 1024,
+  48 layers, hidden 3072. Active parameters work out to roughly **9B**. Three of every four
+  layers use `sliding_attention` with a 512 window, so only 12 layers hold full KV.
+- **Measured on-box 2026-08-01** at `num_ctx` 32768, 52%/48% CPU/GPU split, on an 18,320-token
+  prompt: **725 tok/s prefill, 28.8 tok/s generation.** For comparison, the offload measurement
+  already in this document for a **30B** (`qwen3-coder:30b` on the 4090) was 835 prefill /
+  26.9 generation. A 118B is landing in the same range as a 30B because what offload actually
+  punishes is active parameters and KV traffic, not total weight count.
+- Generation sits inside the 20-50 tok/s "good, acceptable for interactive use" band.
+- It loads at every context tested up to 262144 (62%/38% split at 256k). It is set to **131072**,
+  chosen to keep the split nearer 56%/44% rather than because larger contexts fail.
+
+Traps found while wiring it:
+
+- **Ollama cannot pull sharded GGUFs.** The unsloth `UD-*` quants are multi-file directories and
+  fail with `400 ... The specified tag is a sharded GGUF`. A single-file quant is required, hence
+  `wimmmm/poolside-Laguna-S-2.1-GGUF:IQ4_XS`. The official `poolside` single-file `Q4_K_M` is
+  89.4 GB, which does not fit the 96 GB envelope.
+- **The `laguna` architecture is supported by Ollama 0.32.5**, despite the official model card
+  still directing users to poolside's llama.cpp fork. Upstream merged it (`ggml-org/llama.cpp`
+  #25165 on 2026-07-22, #26233 on 2026-07-28) and the vendored engine carries it: `libllama.dll`
+  contains `src/models/laguna.cpp` and `ollama.exe` has a native `laguna.Model` implementation.
+  This is the opposite outcome to Kimi K3 and worth checking directly rather than assuming.
+- **Not yet exploited:** poolside ships a `DFlash` speculative-decoding draft model (2.1 GB) with
+  a recommended 15 speculative tokens. Ollama has no Modelfile path to wire it, so the measured
+  numbers above leave that on the table.
+
+### Licensing
+
+`openmdw-1.1` (Laguna) is the Open Model Definition and Weights licence and has not been read in
+full. It is fine for the bench. **Read it before Laguna is promoted to any production slot**, the
+same standing caution applied to Command R's CC-BY-NC.
+
+`XYZ-Aquila-mini` is Apache-2.0 and clean, but its Hugging Face signal is odd: 356 likes against
+650 downloads, where Qwen3.6-35B runs 2,605 likes against 5.9M downloads. XYZAILab is an unknown
+lab. It is wired as a bench entry only and its ratio should be treated as promotion, not signal.
+
+### Gemma 4 31B removed
+
+Deleted from the registry, `task_alias`, both launcher menus, `config/crush.json`, the Windows
+installer, and Ollama itself (`gemma4-31b-128k` and `gemma4:31b`). Three independent reasons had
+accumulated: it disappointed in hands-on use (recorded in the banner at the top of this document
+since 2026-06), it was the slowest entry in its class at roughly 25 tok/s, and it was the only
+bench model with no VRAM headroom (31.17 GB at 256k, effectively at the ceiling). The CachyOS
+4090 tier still references it and was deliberately left alone; that is a different envelope.
+
+### Menu renumbering
+
+The experimental menu is now contiguous 1 to 14 in both launchers: coding `[1]`-`[10]`, offload
+`[11]`, creative writing `[12]`-`[14]`. The creative-writing entries moved from `[10]/[11]/[12]`.
+Slot names (`cw1/cw2/cw3`) did not change.
+
+### Rejected in this sweep
+
+- **On license:** `amd/Instella-MoE-16B-A3B-Think` (15.9B) is `researchrail`, not an open
+  commercial licence. It would have fit trivially.
+- **On size, against the 96 GB envelope:** Inkling-Small 266B (only a 2-bit quant fits),
+  DeepSeek-V4-Flash-0731 304B, Solar-Open2 250B, XYZ-Aquila-pro 396B, `skt/A.X-K2` 691B (no GGUF
+  exists at all), K-EXAONE-2.0 749B, Inkling 952B.
+- **On tooling:** `mindlab-research/Macaron-V1-Tall` (36B, MIT, tools present) has no GGUF from a
+  trusted quantiser yet. Recheck later; the architecture and licence are both acceptable.
+
+### Still open
+
+Nothing released in this window targets prose. Every arrival was coding, computer use, or
+frontier-scale general. **The creative-writing A/B is not superseded** and the existing
+`cw1/cw2/cw3` shortlist stands on its own merits.
+
+Separately, this sweep did not resolve a contradiction it surfaced: **GLM-4.7-Flash occupies the
+production `agentic` slot while failing the thresholds in this document.** It timed out at 180s
+on the bugfix test, runs at 16-17 tok/s (this document classifies 10-20 as "marginal"), and is
+one of the two models whose prose failures started the creative-writing work. Devstral Small 2 or
+KAT-Coder may simply be better production picks. That is a larger win than any model added here.
