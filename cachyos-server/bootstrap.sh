@@ -315,10 +315,27 @@ sudo pacman -S --needed --noconfirm \
 #   System Settings -> Remote Desktop -> enable it, set a username/password
 #   (or "Use system credentials"), then Apply. KRDP then listens on TCP 3389.
 #
-# KRDP needs a running Plasma Wayland session to share, so this server should
-# auto-login to that session at boot (configured in the login manager). Do NOT
-# also install/enable xrdp: it would bind TCP 3389 first and prevent KRDP from
-# starting.
+# Do NOT also install/enable xrdp: it would bind TCP 3389 first and prevent KRDP
+# from starting.
+
+# Autologin — KRDP is a per-user service (WantedBy=plasma-workspace.target). No
+# Plasma session means no RDP. There is no system-level KRDP in Plasma 6.7 (it is
+# listed under "what we want" in plasma-login-manager's README). The fix: autologin
+# so a session exists from boot. Plasma 6.8 adds explicit unlock-on-connect; until
+# then the lock screen is rendered over the RDP stream and KRDP accepts keyboard
+# input through it (tested on 6.7.3: lock screen visible, password input works).
+#
+# Schema source: plasma-login-manager src/common/mainconfig.kcfg (keys: User,
+# Session, Relogin). kwriteconfig6 writes only the targeted keys, preserving the
+# wallpaper and other sections already managed by the login manager.
+
+sudo kwriteconfig6 --file /etc/plasmalogin.conf --group Autologin --key User    "$USER"
+sudo kwriteconfig6 --file /etc/plasmalogin.conf --group Autologin --key Session plasma
+sudo kwriteconfig6 --file /etc/plasmalogin.conf --group Autologin --key Relogin false
+
+# Lock the session as soon as autologin starts, so the physical console is not left
+# open. KRDP captures the lock screen and routes input to kscreenlocker (tested).
+kwriteconfig6 --file kscreenlockerrc --group Daemon --key LockOnStart true
 
 # CachyOS ships the arch-update (cachy-update) notifier, which enables a per-user
 # tray icon + periodic update-check timer. On a headless, SSH-driven server that
@@ -910,9 +927,9 @@ fi
 
 log "Reboot required (\$REBOOT_REASON)."
 
-# Never strand the box with no remote access. SSH is the only recovery path
-# after an unattended reboot, because there is no autologin and KRDP only
-# exists inside a logged-in session.
+# Never strand the box with no remote access. KRDP starts with the autologin
+# session, so RDP recovers once the session is up; but during early boot (before
+# plasmalogin starts the session) and if Plasma crashes, SSH is the only path.
 
 if ! systemctl is-active --quiet sshd; then
     log "ERROR: sshd is not active; refusing to reboot. Resolve sshd, then reboot manually."
@@ -1188,8 +1205,9 @@ if [ "$FULL_INSTALL" = true ]; then
 
     service_unit="[Unit]
 Description=Squire Server Container Services
-After=docker.service
+After=docker.service mnt-plex\\x2dmedia.automount
 Requires=docker.service
+Wants=mnt-plex\\x2dmedia.automount
 
 [Service]
 Environment=ADGUARD_BASE=${INSTALL_DIR}/adguard
