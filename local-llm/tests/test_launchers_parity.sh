@@ -32,6 +32,14 @@ crush_tuple() {     # <src> <providers> <input> <args>
     printf 'json=%s' "$js"
 }
 
+# Blank the three token-budget values on BOTH sides of the comparison. They are intentionally
+# different from the baseline now (local caps derive from the roster's registry ctx), so the frozen
+# golden can no longer be the authority on them; test_token_budgets.sh asserts them instead. The
+# value is masked rather than the key removed, so a field disappearing entirely is still a failure.
+mask_budget() {
+    printf '%s' "$1" | sed -E 's/ prompt=[^[:space:]]+/ prompt=X/; s/ out=[^[:space:]]+/ out=X/; s/"max_tokens":[0-9]+/"max_tokens":X/g'
+}
+
 do_copilot() {      # <mode> <name> <src> <providers> <input> <args>
     local mode="$1" name="$2"; shift 2
     local t; t="$(copilot_tuple "$@")"
@@ -39,7 +47,7 @@ do_copilot() {      # <mode> <name> <src> <providers> <input> <args>
         printf '%s\t%s\n' "$name" "$t" >> "$GOLDEN_COPILOT"
     else
         local exp; exp="$(grep -m1 -F "$name"$'\t' "$GOLDEN_COPILOT" | cut -f2-)"
-        assert_eq "copilot/$name" "$exp" "$t"
+        assert_eq "copilot/$name" "$(mask_budget "$exp")" "$(mask_budget "$t")"
     fi
 }
 do_crush() {        # <mode> <name> <src> <providers> <input> <args>
@@ -49,7 +57,7 @@ do_crush() {        # <mode> <name> <src> <providers> <input> <args>
         printf '%s\t%s\n' "$name" "$t" >> "$GOLDEN_CRUSH"
     else
         local exp; exp="$(grep -m1 -F "$name"$'\t' "$GOLDEN_CRUSH" | cut -f2-)"
-        assert_eq "crush/$name" "$exp" "$t"
+        assert_eq "crush/$name" "$(mask_budget "$exp")" "$(mask_budget "$t")"
     fi
 }
 

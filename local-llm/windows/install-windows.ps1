@@ -1268,7 +1268,7 @@ TIMESTEP_TOKEN_NUM = 1
             }
         }
     } else {
-        Write-Info "ollama-host.exe not found at $ollamaHostSource — skipping (the python proxy covers the content:null fix)."
+        Write-Warn "ollama-host.exe not found at $ollamaHostSource. Skipping; the launchers will fall back to Ollama direct on :11434 (content:null 400s possible). The python compat proxy is CachyOS-only and must not be used on Windows."
     }
 
     # ── Step: Deploy crush-task launcher ──────────────────────────────────

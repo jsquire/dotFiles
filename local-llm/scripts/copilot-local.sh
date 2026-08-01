@@ -73,11 +73,32 @@ elif cmd == "resolve":
     sys.exit(1)
 elif cmd == "label":
     print(reg.get(sys.argv[2], {}).get("label", sys.argv[2]))
+elif cmd == "ctx":
+    print(reg.get(sys.argv[2], {}).get("ctx", 0))
 elif cmd == "tier":
     print(d.get("tier", ""))
 PY
 }
 model_label() { _ll label "$1"; }
+model_ctx() { _ll ctx "$1"; }
+
+# Derive the local token caps from the selected model's context window. The squire-server picks
+# advertise their own caps and are left alone. Local picks previously inherited one global constant
+# sized for a 64K-era roster, which both over-committed small-context models (Ollama then silently
+# drops the oldest turns to fit) and throttled the 128K-256K models the roster exists to exploit.
+# Reserve a quarter of the window for the reply, capped at the 16K output ceiling. An alias with no
+# registry ctx (e.g. a direct model tag that isn't in the roster) keeps the global defaults.
+apply_local_token_caps() {
+    local ctx_win prompt_cap output_cap
+    ctx_win="$(model_ctx "$1" 2>/dev/null || echo 0)"
+    [[ "$ctx_win" =~ ^[0-9]+$ ]] || return 0
+    (( ctx_win > 0 )) || return 0
+    prompt_cap=$(( ctx_win * 3 / 4 ))
+    output_cap=$(( ctx_win - prompt_cap ))
+    (( output_cap > 16384 )) && output_cap=16384
+    export COPILOT_PROVIDER_MAX_PROMPT_TOKENS="$prompt_cap"
+    export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS="$output_cap"
+}
 
 # Fetch the server roster: live from the switch daemon, else the bundled fallback file.
 _srv_json() {
@@ -156,6 +177,7 @@ if [[ "${1:-}" == *":"* ]]; then
     COPILOT_MODEL="$1"
     shift
     echo "  ▶ $(model_label "$COPILOT_MODEL")  ·  alias=$COPILOT_MODEL"
+    apply_local_token_caps "$COPILOT_MODEL"
     export COPILOT_PROVIDER_BASE_URL="$(local_ollama_base)"
     exec copilot --model "$COPILOT_MODEL" "$@"
 fi
@@ -234,6 +256,7 @@ while true; do
             if res="$(_ll resolve copilot "$pg_which" "$sel")"; then
                 IFS=$'\x1f' read -r a_alias a_flags a_profile <<<"$res"
                 export COPILOT_MODEL="$a_alias"
+                apply_local_token_caps "$a_alias"
                 SEL_MODEL="$a_alias"; SEL_LABEL="$(_ll label "$a_alias")"; SEL_REMOTE=0
                 [[ ",$a_flags," == *",imagegen,"* ]] && SEL_IMAGEGEN=1 || SEL_IMAGEGEN=0
                 [[ ",$a_flags," == *",office,"* ]] && SEL_OFFICE=1 || SEL_OFFICE=0

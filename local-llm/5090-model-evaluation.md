@@ -809,3 +809,102 @@ no winner is declared yet.
 Still pending (needs real cover-letter drafting, not a benchmark): pick the winner, then promote
 it into a dedicated `creative` `task_alias`, repoint copilot key 5 off `heavy`, add the winner to
 the installer pull list, and trim the bench. Production is unchanged until then.
+
+### Bench round 2: tool-calling is now a hard gate (2026-07-29)
+
+Round 1 lost two of its three entries to hands-on use, and one of the two failures exposed a
+selection criterion the round-1 research missed entirely.
+
+- **Gemma 3 27B: rejected, structurally incompatible.** Key `[11]` appeared to hang the CLI.
+  It was not slow and it was not resource-starved (the host log shows a clean `63/63` layer GPU
+  offload at ~64 tok/s). `POST /api/show` reports its capabilities as `completion, vision`
+  with **no `tools`**. Both Copilot CLI and Crush send a `tools` array on every chat request, so
+  Ollama rejects the call with `HTTP 400 {"error":"... does not support tools"}` in about 0.2s,
+  which the client surfaces as an apparent hang. Prose quality was never the issue and is
+  irrelevant here: a model that cannot accept a tools array cannot be driven by this stack.
+- **Mistral-Small-3.2 24B: rejected on quality.** It could not reliably carry out a basic
+  file-writing task in real use, despite the flattering round-1 demo.
+- Both were deleted from Ollama and removed from the registry, `task_alias`, and both launcher
+  menus. `qwen3-32b-64k` survived and moved to key `[10]` / slot `cw1`.
+
+**The gate, going forward:** every creative-writing candidate must report `tools` in
+`POST /api/show` **before** it is wired into a menu. Check this first; it is cheap, it is
+authoritative, and it invalidates otherwise excellent prose models. This rules out Phi-4 14B
+(its chat template has no `tools` variable at all) and EXAONE 3.5 32B (no tools, plus a
+proprietary LG license and an exotic architecture), both of which would otherwise have ranked
+well on writing.
+
+Two replacements were pulled on 2026-07-29, both verified `completion, tools` before wiring:
+
+| Slot | Menu key | Alias | Source tag | Size | License | Alias ctx |
+|---|---|---|---|---|---|---|
+| `cw1` | `[10]` | `qwen3-32b-64k` | `qwen3:32b` | 18.8 GB | Apache-2.0 | 65536 |
+| `cw2` | `[11]` | `qwen25-32b-32k` | `qwen2.5:32b` | 18.5 GB | Apache-2.0 | 32768 |
+| `cw3` | `[12]` | `commandr-35b-64k` | `command-r:35b-08-2024-q4_K_M` | 18.4 GB | **CC-BY-NC-4.0** | 65536 |
+
+Notes and traps found while wiring these:
+
+- The working hypothesis behind both picks is that the failures share a cause: GLM-4.7-Flash,
+  Qwen3.6, and Qwen3 are all reasoning-tuned, and that training mix pushes their default voice
+  toward a stiff analytical register. Qwen2.5 32B predates that shift, and Command R was tuned
+  for instruction-heavy synthesis over supplied source material, which is exactly the
+  "resume + job description + style brief" shape of the task. Both are older models; that is a
+  real risk, but recency is what has been failing.
+- **Qwen2.5 32B is 32K context, not 128K.** The GGUF reports `qwen2.context_length = 32768`.
+  The 128K figure requires YaRN extension, which is not configured in the Ollama build, so the
+  alias is capped at `32768` rather than forcing un-configured rope extension. Ample for a
+  cover letter.
+- **The `command-r:08-2024` tag does not exist** and fails with `pull model manifest: file does
+  not exist`. The correct tag is `command-r:35b-08-2024-q4_K_M`. Command R also gets its tools
+  capability from Ollama's built-in `command-r.gotmpl` Go template rather than the GGUF's own
+  embedded Jinja template, so it must be pulled from the Ollama library; a raw GGUF sideload
+  may not pick up tool support.
+- **Command R is CC-BY-NC-4.0, non-commercial.** Fine for personal drafting on this box. It
+  must not be promoted into a production slot used for commercial work, and that constraint is
+  a tiebreaker against it if the A/B is close. The `cw3` rows carry a roster `note`, so both
+  pickers render "(CC-BY-NC: non-commercial only)" in the detail column: the constraint is visible
+  at the point of use rather than only here.
+
+### Token budgets are now derived from the roster, not a constant (2026-07-29)
+
+Wiring Qwen2.5 exposed a defect affecting the whole local roster. The launchers hardcoded
+`COPILOT_PROVIDER_MAX_PROMPT_TOKENS = 51200` and a 16384 reply cap for **every** local model,
+and the registry's `ctx` field was documentation only, never read. Two failures fell out of that:
+
+- **Over-commitment.** Qwen2.5 32B holds 32768 tokens but was being handed a 51200 prompt cap.
+  The `image_llm` slot was already worse: `qwen3:8b` holds 40960 and had the same 51200 cap, so
+  this was live in production, not a new risk. Ollama does not error on an over-long prompt.
+  Per `server/prompt.go`, `chatPrompt` "truncates any messages that exceed the context window of
+  the model, making sure to always include 1) the latest message and 2) system messages", so the
+  system prompt and the newest turn survive while the middle of the conversation is silently
+  dropped. The client never learns. It presents as a model that keeps forgetting earlier detail
+  and drifting back to generic output, which is easy to misread as poor model quality. In a
+  bench that is actively confounding.
+- **Under-use.** The 128K-256K models the roster exists to exploit were all throttled to a
+  64K-era constant.
+
+The rule now applied to local picks in all four launchers:
+
+| | Formula | 40960 ctx | 65536 ctx | 262144 ctx |
+|---|---|---|---|---|
+| copilot prompt | `floor(ctx * 0.75)` | 30720 | 49152 | 196608 |
+| copilot output | `min(16384, ctx - prompt)` | 10240 | 16384 | 16384 |
+| crush `max_tokens` | `min(16384, floor(ctx / 4))` | 10240 | 16384 | 16384 |
+
+The squire-server provider is untouched: it keeps the caps advertised by `:4090/models`. An alias
+with no registry `ctx` (for example a direct `-Model` tag that is not in the roster) keeps the old
+global defaults. Crush receives only the reply cap locally, because its `context_window` rides on
+the providers block that the launcher writes in server mode only.
+
+Testing: this is a deliberate post-baseline behaviour change, so the frozen parity goldens can no
+longer be the authority on those values. Rather than re-baselining (which would have destroyed the
+"identical to pre-refactor `cf852ee^`" guarantee, and is impossible anyway since `-RebuildGolden`
+regenerates from the old ref), the three affected values are **masked on both sides** of the parity
+comparison and asserted explicitly by a new `tests/test_token_budgets.ps1`. Masking the value rather
+than removing the key means a field vanishing entirely is still caught. Parity still proves every
+other aspect of resolution against the true baseline: 45 parity + 8 imagegen + 14 budget assertions
+pass.
+
+One incidental fix: the PowerShell suites shelled out to `wsl python3` purely for JSON
+normalisation, so a wedged WSL hung them indefinitely rather than failing. `tests/lib.ps1` now
+prefers a native Windows `python3` and falls back to WSL only when there is none.

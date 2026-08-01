@@ -27,6 +27,15 @@
 *.tsv      text
 *.sql      text
 
+## SHELL SCRIPTS
+# These must stay LF even on a Windows checkout. "* text=auto" alone normalises to LF in the repo
+# but still converts to CRLF on checkout when core.autocrlf=true (the Windows default), and bash
+# rejects a CRLF script outright ("syntax error near unexpected token $'{\r'"). eol=lf pins them.
+*.sh    text eol=lf
+*.bash  text eol=lf
+# The launcher test stubs are executable shell scripts with no extension.
+local-llm/tests/stubs/*  text eol=lf
+
 ## DOCKER
 *.dockerignore  text
 Dockerfile      text

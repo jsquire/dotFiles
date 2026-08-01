@@ -3,6 +3,13 @@
 # resolution on Windows. (bash and PowerShell have two documented pre-existing behavioural differences —
 # the office-skill file guard and the direct-model MCP handling — so each platform has its own golden.)
 #
+# EXCLUSIONS. Two fields are deliberately not compared, because they were intentionally changed
+# after the baseline: the copilot prompt=/out= caps and models.*.max_tokens in .crush.json. Local
+# token budgets are now derived from the roster's registry ctx instead of one global constant, so
+# the baseline can no longer be the authority on them. They are asserted by test_token_budgets.ps1.
+# Note that -RebuildGolden regenerates from BaselineRef via `git show`, so it reproduces the OLD
+# behaviour by design and cannot be used to absorb an intentional change.
+#
 #   test_launchers_parity.ps1                 # check current vs frozen golden
 #   test_launchers_parity.ps1 -RebuildGolden  # regenerate golden from the baseline
 param([switch]$RebuildGolden, [string]$BaselineRef = "cf852ee^")
@@ -28,17 +35,24 @@ function Golden-Lookup($file, $name) {
     $line = Get-Content $file | Where-Object { $_ -like ($name + "`t*") } | Select-Object -First 1
     if ($line) { ($line -split "`t", 2)[1] } else { "<no-golden:$name>" }
 }
+# Blank the three token-budget values on BOTH sides of the comparison. They are intentionally
+# different from the baseline now (local caps derive from the roster's registry ctx), so the frozen
+# golden can no longer be the authority on them; test_token_budgets.ps1 asserts them instead. The
+# value is masked rather than the key removed, so a field disappearing entirely is still a failure.
+function Mask-Budget([string]$s) {
+    $s -replace '(?<= )prompt=\S+', 'prompt=X' -replace '(?<= )out=\S+', 'out=X' -replace '"max_tokens":\d+', '"max_tokens":X'
+}
 
 $script:GoldRows = @()
 function Do-Copilot($mode, $name, $src, $prov, $inputs, $modelArg) {
     $t = Copilot-Tuple $src $prov $inputs $modelArg
     if ($mode -eq 'golden') { $script:GoldRows += ("$name`t$t") }
-    else { Assert-Eq "copilot/$name" (Golden-Lookup $goldenC $name) $t }
+    else { Assert-Eq "copilot/$name" (Mask-Budget (Golden-Lookup $goldenC $name)) (Mask-Budget $t) }
 }
 function Do-Crush($mode, $name, $src, $prov, $inputs, $taskArg) {
     $t = Crush-Tuple $src $prov $inputs $taskArg
     if ($mode -eq 'golden') { $script:GoldRows += ("$name`t$t") }
-    else { Assert-Eq "crush/$name" (Golden-Lookup $goldenK $name) $t }
+    else { Assert-Eq "crush/$name" (Mask-Budget (Golden-Lookup $goldenK $name)) (Mask-Budget $t) }
 }
 function Run-CopilotMatrix($mode, $src) {
     $script:GoldRows = @()
