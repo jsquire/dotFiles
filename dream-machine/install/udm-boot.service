@@ -1,0 +1,33 @@
+# Vendored from unifi-utilities/unifi-common @ 216dee314248afb5a3c279e5b25112eff083c107
+# (2026-07-10), which is what `remote_install.sh` downloads and installs.
+#
+# It is vendored rather than fetched because the upstream installer is a
+# `curl | bash` of a moving HEAD, executed as root on the router, and it does
+# exactly one thing that matters: write this file and enable it. Shipping the
+# file removes the supply-chain exposure and the install-time network
+# dependency without giving anything up.
+#
+# The unit name is deliberately identical to upstream's. /data/on_boot.d is a
+# shared convention — if a second unit under a different name were installed,
+# every hook in that directory would run twice. Same name means installing
+# unifi-common later simply overwrites this with an equivalent file.
+#
+# Every directive is identical to upstream's; the only difference is this
+# comment header. Upstream's file carries no comments at all, so stripping
+# `^#` lines from this one reproduces it byte for byte — which is asserted
+# mechanically, and offline, by tests/test-hardening.sh. If you update this
+# file, diff against upstream rather than improving it locally: a divergence
+# here is invisible until boot, which is the worst time to discover one.
+[Unit]
+Description=UniFi Common
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=bash -c 'mkdir -p /data/on_boot.d && find -L /data/on_boot.d -mindepth 1 -maxdepth 1 -type f -print0 | sort -z | xargs -0 -r -n 1 -- sh -c '\''if test -x "$0"; then echo "%n: running $0"; "$0"; else case "$0" in *.sh) echo "%n: sourcing $0"; . "$0";; *) echo "%n: ignoring $0";; esac; fi'\'
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target

@@ -135,3 +135,10 @@ project.lock.json
 .secrets
 appsettings.json
 local.settings.json
+
+####################
+## dream-machine  ##
+####################
+
+# Local, per-environment config. Copy from config.env.example.
+dream-machine/scripts/config.env
