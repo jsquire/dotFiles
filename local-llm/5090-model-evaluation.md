@@ -979,7 +979,7 @@ Traps found while wiring it:
   still directing users to poolside's llama.cpp fork. Upstream merged it (`ggml-org/llama.cpp`
   #25165 on 2026-07-22, #26233 on 2026-07-28) and the vendored engine carries it: `libllama.dll`
   contains `src/models/laguna.cpp` and `ollama.exe` has a native `laguna.Model` implementation.
-  This is the opposite outcome to Kimi K3 and worth checking directly rather than assuming.
+  This is worth checking directly rather than assuming.
 - **Not yet exploited:** poolside ships a `DFlash` speculative-decoding draft model (2.1 GB) with
   a recommended 15 speculative tokens. Ollama has no Modelfile path to wire it, so the measured
   numbers above leave that on the table.
@@ -1543,3 +1543,44 @@ the swap and is recorded as such.
   suggests it can go higher. That branch is code-only config that no current hardware runs.
 - Q6_K_XL (24.5 GB) is worth a prose bench given the ~11 GB of spare VRAM at Q4.
 - Ollama 0.32.11 is a pre-release. Revisit when a stable release supersedes it.
+## §BW. Creative-writing bench retired (2026-08-13)
+
+The `cw1`/`cw2`/`cw3` shortlist opened in §BP has been resolved and dismantled. This supersedes
+the "Still open" note in the 2026-08-01 sweep, which stated that the creative-writing A/B was not
+superseded. It now is.
+
+### What decided it
+
+The A/B never got a hands-on verdict on real cover letters, so it was resolved mechanically
+instead. A scored cover-letter bench was run against @jsquire's own accepted Riot Games letter and
+job description as the reference target, over two rounds at 20000 predict tokens. Ornith-1.0-35B
+won on best score and average, at roughly 3.5x the generation speed of the nearest contender, with
+zero em-dashes and zero unsupported claims.
+
+| Model | Best | Avg | tok/s | Em-dash | Unsupported |
+|---|---|---|---|---|---|
+| ornith-35b-256k | 100 | 97.5 | 245.8 | 0 | 0 |
+| muse-glimmer:30b | 95 | 95 | 68.6 | 0 | 0 |
+| glm47-flash-198k | 94 | 87 | 181.1 | 2 | 1 |
+
+@jsquire confirmed the result in use and blessed Ornith as the production creative model.
+
+### What was removed
+
+None of the three shortlist entries won, so all three were retired rather than kept as a standing
+bench. Removed from `scripts/local-models.json`: registry entries `qwen3-32b-64k`,
+`qwen25-32b-32k`, `commandr-35b-64k`, the `cw1`/`cw2`/`cw3` aliases, and the "Creative-writing
+bench" category from both the copilot and crush experimental menus. The experimental menu is now
+contiguous 1 to 10 in both launchers, so no renumbering was needed. The six Ollama artifacts
+(three aliases plus the three base pulls) were deleted from the model store.
+
+None of the three ever appeared in `windows/install-windows.ps1`, so fresh installs never
+provisioned them and the installer needed no change.
+
+The `creative` slot and copilot key 5 continue to point at `ornith-35b-256k`.
+
+### Note on the licence gate
+
+The standing caution about Command R's CC-BY-NC-4.0 licence is now moot for this roster, since the
+model is gone. It is retained in the §BP and Laguna licensing text as history. Ornith-1.0-35B is
+MIT, so the production creative slot carries no non-commercial restriction.

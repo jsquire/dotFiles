@@ -15,10 +15,7 @@
     "katcoder25-35b-256k":   { "label": "KAT-Coder V2.5 35B-A3B",             "ctx": 262144 },
     "aquila-mini-35b-256k":  { "label": "XYZ-Aquila-mini 35B-A3B",            "ctx": 262144 },
     "laguna-s21-118b-128k":  { "label": "Laguna S 2.1 118B-A9B",              "ctx": 131072 },
-    "fara15-27b-192k":       { "label": "Fara 1.5 27B",                       "ctx": 196608 },
-    "qwen3-32b-64k":         { "label": "Qwen3 32B (non-thinking)",           "ctx": 65536  },
-    "qwen25-32b-32k":        { "label": "Qwen2.5 32B Instruct",               "ctx": 32768  },
-    "commandr-35b-64k":      { "label": "Command R 35B (08-2024)",            "ctx": 65536  }
+    "fara15-27b-192k":       { "label": "Fara 1.5 27B",                       "ctx": 196608 }
   },
 
   "task_alias": {
@@ -39,10 +36,7 @@
     "h7":  "devstral2-24b-128k",
     "h8":  "katcoder25-35b-256k",
     "h9":  "aquila-mini-35b-256k",
-    "off1": "laguna-s21-118b-128k",
-    "cw1": "qwen3-32b-64k",
-    "cw2": "qwen25-32b-32k",
-    "cw3": "commandr-35b-64k"
+    "off1": "laguna-s21-118b-128k"
   },
 
   "launchers": {
@@ -107,15 +101,6 @@
             "subtitle": "(118B; spills to system RAM, ~50% CPU)",
             "rows": [
               { "key": "10", "label": "Laguna S 2.1 118B-A9B", "slot": "off1" }
-            ]
-          },
-          {
-            "heading": "Creative-writing bench",
-            "subtitle": "(VRAM-resident; swap model, MCP off; prose temp 0.7)",
-            "rows": [
-              { "key": "11", "label": "Qwen3 32B",     "slot": "cw1" },
-              { "key": "12", "label": "Qwen2.5 32B",   "slot": "cw2" },
-              { "key": "13", "label": "Command R 35B", "slot": "cw3" }
             ]
           }
         ]
@@ -182,15 +167,6 @@
             "subtitle": "(coding profile; 118B spills to system RAM, ~50% CPU)",
             "rows": [
               { "key": "10", "label": "Laguna S 2.1 118B-A9B", "slot": "off1", "profile": "coding" }
-            ]
-          },
-          {
-            "heading": "Creative-writing bench",
-            "subtitle": "(docs profile, swap model, temp 0.7)",
-            "rows": [
-              { "key": "11", "label": "Qwen3 32B",     "slot": "cw1", "profile": "docs" },
-              { "key": "12", "label": "Qwen2.5 32B",   "slot": "cw2", "profile": "docs" },
-              { "key": "13", "label": "Command R 35B", "slot": "cw3", "profile": "docs" }
             ]
           }
         ]
