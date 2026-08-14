@@ -252,7 +252,7 @@ populate_ollama_tier() {
     local q36_35b="qwen3.6:35b"
     local gemma4="gemma4:31b"
     local coder="qwen3-coder:30b"
-    local glm="glm-4.7-flash"
+    local muse="muse-glimmer:30b"
     local img="qwen3:8b"
     local northmini="hf.co/unsloth/North-Mini-Code-1.0-GGUF:UD-Q4_K_M"
     local nemotron="hf.co/bartowski/nvidia_Nemotron-3-Nano-30B-A3B-GGUF:Q4_K_M"
@@ -260,20 +260,22 @@ populate_ollama_tier() {
     local devstral="hf.co/unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF:Q4_K_M"
 
     # Production roster (always). Experimental/bench models are added only with --test-profiles.
-    OLLAMA_PULL_TAGS=("$mtp" "$q36_35b" "$gemma4" "$coder" "$glm" "$img")
+    # Ornith is production: it holds the creative-writing slot after winning the cover-letter
+    # bench on 2026-08-13. See 5090-model-evaluation.md.
+    OLLAMA_PULL_TAGS=("$mtp" "$q36_35b" "$gemma4" "$coder" "$muse" "$img" "$ornith")
     if [[ "$TEST_PROFILES" == true ]]; then
-        OLLAMA_PULL_TAGS+=("$northmini" "$nemotron" "$ornith" "$devstral")
+        OLLAMA_PULL_TAGS+=("$northmini" "$nemotron" "$devstral")
     fi
 
     # Per-tier alias names + contexts (24GB-safe on 4090; full on 5090).
-    local a_heavy a_q3635 a_gemma a_coder a_glm a_north a_nemo a_ornith a_devstral
-    local c_heavy c_q3635 c_gemma c_coder c_glm c_north c_nemo c_ornith c_devstral
+    local a_heavy a_q3635 a_gemma a_coder a_muse a_north a_nemo a_ornith a_devstral
+    local c_heavy c_q3635 c_gemma c_coder c_muse c_north c_nemo c_ornith c_devstral
     if [[ "$tier" == "5090" ]]; then
         a_heavy=qwen36-27b-212k;   c_heavy=217088
         a_q3635=qwen36-35b-256k;   c_q3635=262144
         a_gemma=gemma4-31b-128k;   c_gemma=131072
         a_coder=qwen3coder-144k;   c_coder=147456
-        a_glm=glm47-flash-198k;    c_glm=202752
+        a_muse=museglimmer-30b-128k; c_muse=131072
         a_north=northmini-code-256k; c_north=262144
         a_nemo=nemotron3-nano-256k; c_nemo=262144
         a_ornith=ornith-35b-256k;  c_ornith=262144
@@ -283,7 +285,10 @@ populate_ollama_tier() {
         a_q3635=qwen36-35b-96k;    c_q3635=98304
         a_gemma=gemma4-31b-64k;    c_gemma=65536
         a_coder=qwen3coder-64k;    c_coder=65536
-        a_glm=glm47-flash-45k;     c_glm=46080
+        # NOT measured on a 24 GB card. Conservative placeholder: Muse Glimmer has far
+        # cheaper KV than GLM did (2 KV heads, 2048 sliding window), so this is likely
+        # raisable, but it needs a real calibration run on 4090 hardware first.
+        a_muse=museglimmer-30b-64k; c_muse=65536
         a_north=northmini-code-96k; c_north=98304
         a_nemo=nemotron3-nano-96k; c_nemo=98304
         a_ornith=ornith-35b-96k;   c_ornith=98304
@@ -294,26 +299,38 @@ populate_ollama_tier() {
     OLLAMA_ALIAS_FROM["$a_q3635"]="$q36_35b";    OLLAMA_ALIAS_CTX["$a_q3635"]="$c_q3635"
     OLLAMA_ALIAS_FROM["$a_gemma"]="$gemma4";     OLLAMA_ALIAS_CTX["$a_gemma"]="$c_gemma"
     OLLAMA_ALIAS_FROM["$a_coder"]="$coder";      OLLAMA_ALIAS_CTX["$a_coder"]="$c_coder"
-    OLLAMA_ALIAS_FROM["$a_glm"]="$glm";          OLLAMA_ALIAS_CTX["$a_glm"]="$c_glm"
+    OLLAMA_ALIAS_FROM["$a_muse"]="$muse";        OLLAMA_ALIAS_CTX["$a_muse"]="$c_muse"
+    OLLAMA_ALIAS_FROM["$a_ornith"]="$ornith";    OLLAMA_ALIAS_CTX["$a_ornith"]="$c_ornith"
 
     # Task->alias SLOT map (drives the launcher tier config).
-    OLLAMA_SLOT[heavy]="$a_heavy"
+    # Heavy-coding slot. On the 5090 the MoE 35B beat the dense 27B head-to-head on
+    # 2026-08-13 (quality tied when scored by executing generated code against hidden
+    # tests; 231 tok/s against 70, double the prefill, 256k against 212k). The 4090 keeps
+    # the dense 27B: qwen3.6:35b is ~23 GB and will not hold useful context on a 24 GB
+    # card. See 5090-model-evaluation.md section BT.
+    if [[ "$tier" == "5090" ]]; then
+        OLLAMA_SLOT[heavy]="$a_q3635"
+    else
+        OLLAMA_SLOT[heavy]="$a_heavy"
+    fi
     OLLAMA_SLOT[coder]="$a_coder"
     OLLAMA_SLOT[review]="$a_coder"
-    OLLAMA_SLOT[agentic]="$a_glm"
+    OLLAMA_SLOT[agentic]="$a_muse"
+    OLLAMA_SLOT[creative]="$a_ornith"
     OLLAMA_SLOT[image_llm]="$img"
     OLLAMA_SLOT[h1]="$a_heavy"
     OLLAMA_SLOT[h2]="$a_q3635"
     OLLAMA_SLOT[h3]="$a_gemma"
     OLLAMA_SLOT[h4]="$a_coder"
-    OLLAMA_SLOT[h5]="$a_glm"
+    OLLAMA_SLOT[h5]="$a_muse"
 
     # Friendly labels (identity is tier-independent).
     OLLAMA_ALIAS_LABEL["$a_heavy"]="Qwen3.6 27B (+MTP)"
     OLLAMA_ALIAS_LABEL["$a_q3635"]="Qwen3.6 35B-A3B"
     OLLAMA_ALIAS_LABEL["$a_gemma"]="Gemma 4 31B"
     OLLAMA_ALIAS_LABEL["$a_coder"]="Qwen3-Coder 30B-A3B"
-    OLLAMA_ALIAS_LABEL["$a_glm"]="GLM-4.7-Flash"
+    OLLAMA_ALIAS_LABEL["$a_muse"]="Muse Glimmer 30B"
+    OLLAMA_ALIAS_LABEL["$a_ornith"]="Ornith-1.0-35B"
     OLLAMA_ALIAS_LABEL["$img"]="Qwen3 8B"
 
     # Experimental/bench models - registered only with --test-profiles (aliases, bench task slots
@@ -322,7 +339,6 @@ populate_ollama_tier() {
     if [[ "$TEST_PROFILES" == true ]]; then
         OLLAMA_ALIAS_FROM["$a_north"]="$northmini";   OLLAMA_ALIAS_CTX["$a_north"]="$c_north"
         OLLAMA_ALIAS_FROM["$a_nemo"]="$nemotron";     OLLAMA_ALIAS_CTX["$a_nemo"]="$c_nemo"
-        OLLAMA_ALIAS_FROM["$a_ornith"]="$ornith";     OLLAMA_ALIAS_CTX["$a_ornith"]="$c_ornith"
         OLLAMA_ALIAS_FROM["$a_devstral"]="$devstral"; OLLAMA_ALIAS_CTX["$a_devstral"]="$c_devstral"
         OLLAMA_SLOT[h6]="$a_north"
         OLLAMA_SLOT[h7]="$a_nemo"
@@ -330,7 +346,6 @@ populate_ollama_tier() {
         OLLAMA_SLOT[h9]="$a_devstral"
         OLLAMA_ALIAS_LABEL["$a_north"]="North Mini Code 1.0"
         OLLAMA_ALIAS_LABEL["$a_nemo"]="Nemotron 3 Nano 30B-A3B"
-        OLLAMA_ALIAS_LABEL["$a_ornith"]="Ornith-1.0-35B"
         OLLAMA_ALIAS_LABEL["$a_devstral"]="Devstral Small 2 (24B)"
     fi
 }
@@ -1379,8 +1394,10 @@ VLLM_GPU_MEMORY_UTILIZATION=0.90
 VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
             # Image companion: 1.7B AWQ (quant auto-detected), low util to co-reside with HiDream
-            # (imagegen.service). Single tier: 16K served desktop-up AND headless (validated 942 MiB free
-            # desktop-up, 3x 1024 gens PASS; headless frees only ~530 MiB so no larger tier warrants a swap).
+            # (imagegen.service). Single tier: 16K, validated 942 MiB free with 3x 1024 gens PASS.
+            # That validation predates moving the Plasma session and UI to the integrated graphics
+            # card; the 4090 is now compute-only, so the old desktop-up vs headless distinction (and
+            # the ~530 MiB it used to free) no longer applies and no larger tier warrants a swap.
             # served-name stays qwen3-4b so crush/copilot are unchanged. hermes tool parser + qwen3 reasoning
             # parser are REQUIRED: crush's image flow sends the imagegen MCP tools with tool_choice=auto, which
             # vLLM rejects with HTTP 400 unless --enable-auto-tool-choice + --tool-call-parser are set; the

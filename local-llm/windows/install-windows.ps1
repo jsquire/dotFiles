@@ -23,9 +23,9 @@
 
 .PARAMETER OllamaModels
     Ollama roster GPU tier that determines which models to pull:
-      5090 — (default) RTX 5090 (32GB). Pulls the six production models
-             (Qwen3.6 27B+MTP, Qwen3.6 35B-A3B, Fara 1.5 27B, Qwen3-Coder 30B,
-             GLM-4.7-Flash, Qwen3 8B) (~100 GB) — coherent with config\crush.json.
+      5090 — (default) RTX 5090 (32GB). Pulls the seven production models
+             (Qwen3.6 35B-A3B, Fara 1.5 27B, Qwen3-Coder 30B, Muse Glimmer 30B,
+             Nemotron 3.5 Lightning, Ornith-1.0-35B, Qwen3 8B) (~135 GB) — coherent with config\crush.json.
     The Windows host is the 5090 gaming desktop; a real 24GB (4090) box runs the
     CachyOS installer, which has its own tier. -TestProfiles installs the same roster
     PLUS the heavy-coding bench contenders. Ignored in Client mode.
@@ -159,25 +159,26 @@ if ($Help) {
     -SquireServerIP <ip>     vLLM server address (default: 192.168.1.99)
 
   GPU TIER:
-    -OllamaModels 5090      (default) RTX 5090 (32GB) — the six production models, ~100 GB:
-                              qwen36-27b-212k     Heavy coding default (Qwen3.6 27B+MTP)
-                              qwen36-35b-256k     Heavy coding / multimodal (Qwen3.6 35B-A3B)
-                              fara15-27b-192k     Computer use / GUI agent (Fara 1.5 27B)
-                              qwen3coder-144k     Light coding / review (Qwen3-Coder 30B)
-                              glm47-flash-198k    Agentic / all MCP+tools (GLM-4.7-Flash)
-                              qwen3:8b            Image-gen companion
+    -OllamaModels 5090      (default) RTX 5090 (32GB) — the seven production models, ~135 GB:
+                              qwen36-35b-256k       Heavy coding default (Qwen3.6 35B-A3B)
+                              fara15-27b-192k       Computer use / GUI agent (Fara 1.5 27B)
+                              qwen3coder-144k       Light coding / review (Qwen3-Coder 30B)
+                              museglimmer-30b-128k  Agentic / all MCP+tools (Muse Glimmer 30B)
+                              nemotron35-light-256k General & research (Nemotron 3.5 Lightning)
+                              ornith-35b-256k       Creative writing (Ornith-1.0-35B)
+                              qwen3:8b              Image-gen companion
 
   OPTIONS:
     -OllamaHost <url>    Optional extra remote Ollama provider (not required for Client mode)
                          Example: http://192.168.1.100:11434
     -TestProfiles        RTX 5090 side-by-side bench: installs the heavy-coding contenders
-                         (qwen3.6 27B+MTP/35B, fara 1.5 27B, qwen3-coder, glm-4.7-flash,
-                         qwen3 8B + the bench additions North Mini Code 1.0, Nemotron 3
-                         Nano 30B-A3B, Ornith-1.0-35B, Devstral Small 2 24B, KAT-Coder
+                         (qwen3.6 35B-A3B, fara 1.5 27B, qwen3-coder, muse-glimmer 30B,
+                         qwen3 8B + the bench additions North Mini Code 1.0, Nemotron 3.5
+                         Lightning 30B-A3B, Ornith-1.0-35B, Devstral Small 2 24B, KAT-Coder
                          V2.5 35B-A3B, XYZ-Aquila-mini 35B, Laguna S 2.1 118B) and their
-                         launcher aliases (qwen36-27b-212k/qwen3coder-144k/glm47-flash-198k/
-                         northmini-code-256k/nemotron3-nano-256k/ornith-35b-256k/
-                         devstral2-24b-128k/etc.). ~195 GB. Use with
+                         launcher aliases (qwen36-35b-256k/qwen3coder-144k/museglimmer-30b-128k/
+                         northmini-code-256k/nemotron35-light-256k/ornith-35b-256k/
+                         devstral2-24b-128k/etc.). ~400 GB. Use with
                          -ModelPath to put the models off the OS drive.
     -ModelPath <path>    Custom model storage directory (sets OLLAMA_MODELS env var)
     -DataRoot <path>     Put ALL large AI-stack data off the OS drive under one root:
@@ -289,57 +290,56 @@ $script:Warnings = @()
 
 # Known model descriptions for progress display
 $KnownModelDescriptions = @{
-    "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M" = "Qwen3.6 27B (+MTP head) — heavy coding default (212k ctx), ~16 GB"
-    "qwen3.6:35b"     = "Qwen3.6 35B-A3B MoE — heavy coding / multimodal (256k ctx), ~22 GB"
+    "qwen3.6:35b"     = "Qwen3.6 35B-A3B MoE, heavy coding default (256k ctx), ~22 GB"
     "hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M" = "Fara 1.5 27B (Microsoft, MIT): computer-use / GUI agent, vision + tools (192k ctx), ~17 GB"
     "qwen3-coder:30b" = "Qwen3-Coder 30B-A3B MoE — light coding / review (144k ctx), ~18 GB"
-    "glm-4.7-flash"   = "GLM-4.7-Flash MoE-lite — agentic / all MCP+tools (198k ctx), ~18 GB"
+    "muse-glimmer:30b" = "Muse Glimmer 30B (Meta, Apache 2.0), agentic / all MCP+tools, vision + tools + thinking (128k ctx), ~18 GB"
+    "nemotron-3.5-lightning:30b-a3b-q4_K_M" = "Nemotron 3.5 Lightning 30B-A3B (NVIDIA), general conversation + grounded research (256k ctx), ~25 GB"
+    "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M" = "Ornith-1.0-35B (MIT), creative writing / cover letters (256k ctx), ~20 GB"
     "qwen3:8b"        = "Qwen3 8B Dense — image-gen companion (32k ctx), ~5 GB"
 }
 
-# Production roster — the six daily models exposed in config\crush.json + the launcher
+# Production roster — the seven daily models exposed in config\crush.json + the launcher
 # Tier-1 profiles. The default (non -TestProfiles) install pulls exactly these and builds
-# the matching aliases (see $ProductionAliases below), so a generic install is coherent
+# the matching aliases (see $aliasModels below), so a generic install is coherent
 # with crush.json. -TestProfiles is a SUPERSET that adds the bench contenders.
 $ProductionModels = [ordered]@{
-    "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M" = $KnownModelDescriptions["hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M"]
     "qwen3.6:35b"     = $KnownModelDescriptions["qwen3.6:35b"]
     "hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M" = $KnownModelDescriptions["hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M"]
     "qwen3-coder:30b" = $KnownModelDescriptions["qwen3-coder:30b"]
-    "glm-4.7-flash"   = $KnownModelDescriptions["glm-4.7-flash"]
+    "muse-glimmer:30b" = $KnownModelDescriptions["muse-glimmer:30b"]
+    "nemotron-3.5-lightning:30b-a3b-q4_K_M" = $KnownModelDescriptions["nemotron-3.5-lightning:30b-a3b-q4_K_M"]
+    "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M" = $KnownModelDescriptions["hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"]
     "qwen3:8b"        = $KnownModelDescriptions["qwen3:8b"]
 }
 
 $ProfileDefinitions = @{
     "5090" = @{
-        Description = "RTX 5090 (32GB) — the six production models (coherent with crush.json + launchers)"
-        RequiredGB = 100
+        Description = "RTX 5090 (32GB) — the seven production models (coherent with crush.json + launchers)"
+        RequiredGB = 135
         Models = $ProductionModels
     }
     # 5090 side-by-side test profile (-TestProfiles). ~1TB model storage, so every
     # contender is installed at once and exposed through the launcher [H1]-[H5] bench.
     # NOTE: base pull tags below must be validated on the box — exact Ollama tags for
-    # qwen3.6:35b / glm-4.7-flash may differ at install time.
+    # qwen3.6:35b / muse-glimmer:30b may differ at install time.
     "Test5090" = @{
         Description = "RTX 5090 (32GB) — side-by-side model bench (~1TB model storage)"
         RequiredGB = 400
         Models = [ordered]@{
-            # Qwen3.6 27B heavy-coding default — repointed to the unsloth MTP GGUF (multi-token-prediction
-            # head). Same weights/quality as qwen3.6:27b dense; if Ollama's engine drives the MTP head it is
-            # a free speculative speedup, otherwise it runs as the standard dense model. Verify on box.
-            "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M" = "Qwen3.6 27B (+MTP head) — heavy coding default (256k ctx), ~16 GB"
-            "qwen3.6:35b"      = "Qwen3.6 35B-A3B MoE — heavy coding bench / multimodal (262k ctx), ~22 GB"
+            "qwen3.6:35b"      = "Qwen3.6 35B-A3B MoE, heavy coding default / multimodal (262k ctx), ~22 GB"
             "hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M" = "Fara 1.5 27B (Microsoft, MIT): computer-use / GUI agent bench (192k ctx), ~17 GB"
             "qwen3-coder:30b"  = "Qwen3-Coder 30B-A3B MoE — light coding / review (256k ctx), ~18 GB"
-            "glm-4.7-flash"    = "GLM-4.7-Flash MoE-lite — agentic / all MCP+tools (198k ctx), ~18 GB"
+            "muse-glimmer:30b" = "Muse Glimmer 30B (Meta, Apache 2.0), agentic / all MCP+tools, vision + tools + thinking (128k ctx), ~18 GB"
             # New agentic-coding bench candidates. All fit VRAM-resident at Q4 on the 32 GB 5090; pulled
             # via Ollama's HF passthrough. North Mini Code = Cohere coding specialist (cohere2moe, Apache
-            # 2.0). Nemotron 3 Nano = NVIDIA Mamba-2 + Transformer hybrid MoE (NemotronHForCausalLM, NVIDIA
-            # Open License) — verify the hybrid arch loads in Ollama's engine at bring-up. Ornith-1.0-35B =
+            # 2.0). Nemotron 3.5 Lightning = NVIDIA Mamba-2 + Transformer hybrid MoE (nemotron_h_moe,
+            # NVIDIA Open License) — requires Ollama >= 0.32.9, which added the Nemotron 3 architecture.
+            # Ornith-1.0-35B =
             # MIT agentic-coding specialist (qwen35moe). Devstral Small 2 = Mistral dense 24B coding
             # specialist (Apache 2.0); dense KV so capped at 128k to stay resident on 32 GB.
             "hf.co/unsloth/North-Mini-Code-1.0-GGUF:UD-Q4_K_M" = "North Mini Code 1.0 (Cohere) — agentic-coding bench (256k ctx), ~18 GB"
-            "hf.co/bartowski/nvidia_Nemotron-3-Nano-30B-A3B-GGUF:Q4_K_M" = "Nemotron 3 Nano 30B-A3B (NVIDIA) — reasoning/agentic bench (256k ctx), ~18 GB"
+            "nemotron-3.5-lightning:30b-a3b-q4_K_M" = "Nemotron 3.5 Lightning 30B-A3B (NVIDIA) — reasoning/agentic bench (1M native ctx, capped 256k), ~25 GB"
             "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M" = "Ornith-1.0-35B (MIT) — agentic-coding reasoning bench (256k ctx), ~20 GB"
             "hf.co/unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF:Q4_K_M" = "Devstral Small 2 24B (Mistral) — agentic-coding bench (128k ctx), ~14 GB"
             # Added by the 2026-08-01 model sweep. KAT-Coder V2.5 and XYZ-Aquila-mini are both
@@ -1471,7 +1471,7 @@ if ($ShouldPullModels) {
             $numCtxSettings = @{
                 "qwen3.6:35b"     = 262144
                 "qwen3-coder:30b" = 147456
-                "glm-4.7-flash"   = 202752
+                "muse-glimmer:30b" = 131072
                 "qwen3:8b"        = 32768
             }
             foreach ($entry in $numCtxSettings.GetEnumerator()) {
@@ -1491,14 +1491,15 @@ PARAMETER num_ctx $ctx
 
             # Create named alias models used by launcher scripts
             Write-Host "  Creating launcher model aliases..." -ForegroundColor White
-            # Production launcher aliases (the six daily models in crush.json + the Tier-1
+            # Production launcher aliases (the seven daily models in crush.json + the Tier-1
             # menus). Built on EVERY install — default AND -TestProfiles — so a generic
-            # install is coherent with crush.json. Coders get lower temp; GLM slightly higher.
+            # install is coherent with crush.json. Coders get lower temp; the agentic and
+            # prose models sit slightly higher.
             $aliasModels = @{
-                # Calibrated on-box 2026-06-27 (5090, q8 KV): this dense Qwen3.6-27B-MTP has heavy KV.
-                # 256k=29.24GB (only 2.6GB free); user chose 212k (217088) = ~27.9GB (~3.9GB free on the
-                # live 3x4K rig) as the always-on default. Alias suffix matches the real context.
-                "qwen36-27b-212k"  = @{ From = "hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M"; Ctx = 217088; Temp = 0.25 }
+                # Production "Heavy coding" slot as of 2026-08-13. Replaced the dense
+                # Qwen3.6-27B-MTP after a head-to-head scored by executing generated code
+                # against hidden tests: quality tied, but this MoE build prefills at twice
+                # the rate, generates at 231 tok/s against 70, and carries 256k against 212k.
                 "qwen36-35b-256k"  = @{ From = "qwen3.6:35b";     Ctx = 262144; Temp = 0.25 }
                 # Calibrated on-box 2026-08-01 (5090, q8 KV): Fara 1.5 is a dense qwen35, so KV is
                 # heavy. 256k=30.7GB leaves only ~1.3GB free; 192k (196608)=28.26GB (~3.7GB free) is
@@ -1508,18 +1509,33 @@ PARAMETER num_ctx $ctx
                 # (heaviest KV) — 256k=31.39GB spills (~0.1GB free). User chose 144k (147456) = ~28.8GB
                 # (~3.1GB free). Alias suffix matches the real context.
                 "qwen3coder-144k"  = @{ From = "qwen3-coder:30b"; Ctx = 147456; Temp = 0.25 }
-                "glm47-flash-198k" = @{ From = "glm-4.7-flash";   Ctx = 202752; Temp = 0.30 }
+                # Production "Agentic / all MCP+tools" slot as of 2026-08-14. Replaced
+                # GLM-4.7-Flash, which was retired for fabricating sources: it invented a
+                # whole consensus protocol and its citations under a system prompt that
+                # explicitly forbade speculation, matching the failure that already got it
+                # retired from the CachyOS server roster. Muse Glimmer abstained cleanly on
+                # the same bench. Measured on-box: 16 GB at the full 131072 ctx, 100% GPU,
+                # leaving ~11 GB VRAM free, the roomiest model in the roster. Native tool
+                # calling verified. Cost is speed, ~70 tok/s against GLM's ~195.
+                "museglimmer-30b-128k" = @{ From = "muse-glimmer:30b"; Ctx = 131072; Temp = 0.30 }
+                # Production "General & Research" slot. Calibrated on-box 2026-08-13 (5090, CUDA,
+                # q8 KV): hybrid Mamba-2 + MoE keeps full KV on few layers, so 32k costs 29.53 GB
+                # and 256k costs only 30.75 GB. Context is nearly free; the 25 GB of weights is the
+                # real cost. Requires Ollama >= 0.32.9 (added the Nemotron 3 architecture).
+                "nemotron35-light-256k" = @{ From = "nemotron-3.5-lightning:30b-a3b-q4_K_M"; Ctx = 262144; Temp = 0.6 }
+                # Production "Creative writing" slot. Won the cover-letter bench on 2026-08-13,
+                # scored against @jsquire's own accepted letters. Reasoning model (<think>), so it
+                # needs a generous output budget or it returns empty content.
+                "ornith-35b-256k"  = @{ From = "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
             }
             if ($TestProfiles) {
                 # -TestProfiles SUPERSET: heavy-coding bench ([H6]-[H9]). Native context is larger
                 # (North 500k, Nemotron 1M, Ornith 256k, Devstral 256k) but capped for a controlled
                 # bench + KV sanity on 32 GB VRAM. North Mini Code and Devstral are instruct coders
-                # (low temp); Nemotron 3 Nano and Ornith are reasoning models (<think>) tuned warmer
+                # (low temp); Nemotron 3.5 Lightning and Ornith are reasoning models (<think>) tuned warmer
                 # per their cards. Devstral is a DENSE 24B (heavier KV) so it is capped at 128k to
                 # stay resident on 32 GB, whereas the MoE/hybrid bench models hold 256k.
                 $aliasModels["northmini-code-256k"]   = @{ From = "hf.co/unsloth/North-Mini-Code-1.0-GGUF:UD-Q4_K_M"; Ctx = 262144; Temp = 0.25 }
-                $aliasModels["nemotron3-nano-256k"]   = @{ From = "hf.co/bartowski/nvidia_Nemotron-3-Nano-30B-A3B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
-                $aliasModels["ornith-35b-256k"]       = @{ From = "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
                 $aliasModels["devstral2-24b-128k"]    = @{ From = "hf.co/unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF:Q4_K_M"; Ctx = 131072; Temp = 0.25 }
                 # 2026-08-01 sweep additions. Both qwen35moe entries calibrated on-box at 256k with
                 # headroom to spare (KAT-Coder 27.11GB, Aquila-mini 28.22GB). Laguna is the offload

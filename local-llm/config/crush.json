@@ -7,14 +7,7 @@
       "type": "openai",
       "models": [
         {
-          "name": "Qwen3.6 27B dense (Heavy coding \u2014 default)",
-          "id": "qwen36-27b-212k",
-          "context_window": 217088,
-          "default_max_tokens": 16384,
-          "can_reason": true
-        },
-        {
-          "name": "Qwen3.6 35B-A3B MoE (Heavy coding bench)",
+          "name": "Qwen3.6 35B-A3B MoE (Heavy coding \u2014 default)",
           "id": "qwen36-35b-256k",
           "context_window": 262144,
           "default_max_tokens": 16384,
@@ -35,9 +28,23 @@
           "can_reason": true
         },
         {
-          "name": "GLM-4.7-Flash (Agentic / all MCP+tools)",
-          "id": "glm47-flash-198k",
-          "context_window": 202752,
+          "name": "Muse Glimmer 30B (Agentic / all MCP+tools)",
+          "id": "museglimmer-30b-128k",
+          "context_window": 131072,
+          "default_max_tokens": 16384,
+          "can_reason": true
+        },
+        {
+          "name": "Nemotron 3.5 Lightning (General & Research)",
+          "id": "nemotron35-light-256k",
+          "context_window": 262144,
+          "default_max_tokens": 16384,
+          "can_reason": true
+        },
+        {
+          "name": "Ornith-1.0-35B (Creative writing)",
+          "id": "ornith-35b-256k",
+          "context_window": 262144,
           "default_max_tokens": 16384,
           "can_reason": true
         },
@@ -170,7 +177,7 @@
   },
   "models": {
     "large": {
-      "model": "qwen36-27b-212k",
+      "model": "qwen36-35b-256k",
       "provider": "ollama",
       "max_tokens": 16384
     },

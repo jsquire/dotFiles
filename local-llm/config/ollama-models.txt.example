@@ -1,14 +1,14 @@
 # Ollama Model Pull List (OPTIONAL OVERRIDE)
 #
 # This is an EXAMPLE/template. By default the installer uses the built-in model
-# roster (-OllamaModels 5090 = the six production models, coherent with
+# roster (-OllamaModels 5090 = the seven production models, coherent with
 # config\crush.json + the launcher aliases). You do NOT need this file.
 #
 # To override the profile's pull list, copy this file to `ollama-models.txt`
 # (drop the .example suffix) and list one Ollama tag per line. When that file
 # exists, the installer pulls THESE tags instead of the profile's models.
 #
-# IMPORTANT: the launcher aliases (qwen36-27b-212k, qwen3coder-144k, etc.) are
+# IMPORTANT: the launcher aliases (qwen36-35b-256k, qwen3coder-144k, etc.) are
 # built FROM specific base tags in install-windows.ps1. If you change the pull
 # list here, make sure the base tags the aliases reference are still pulled, or
 # those aliases (and the crush.json / launcher entries that use them) will break.
@@ -18,9 +18,10 @@
 
 # ── Production roster (the default profile; shown here as a reference) ──────────
 
-# hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M   # Heavy coding default (Qwen3.6 27B+MTP), ~16 GB
-# qwen3.6:35b        # Heavy coding / multimodal (Qwen3.6 35B-A3B), ~22 GB
-# gemma4:31b         # Heavy coding / general (Gemma 4 31B), ~20 GB
+# qwen3.6:35b        # Heavy coding default (Qwen3.6 35B-A3B), ~22 GB
 # qwen3-coder:30b    # Light coding / review (Qwen3-Coder 30B-A3B), ~18 GB
-# glm-4.7-flash      # Agentic / all MCP+tools (GLM-4.7-Flash), ~18 GB
+# muse-glimmer:30b     # Agentic / all MCP+tools (Muse Glimmer 30B), ~18 GB
+# hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M     # Computer use / GUI agent (Fara 1.5 27B), ~17 GB
+# nemotron-3.5-lightning:30b-a3b-q4_K_M       # General & research (Nemotron 3.5 Lightning), ~25 GB
+# hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M  # Creative writing (Ornith-1.0-35B), ~20 GB
 # qwen3:8b           # Image-gen companion, ~5 GB

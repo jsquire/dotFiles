@@ -18,15 +18,16 @@ Single-user AI assistant on Windows with Ollama, Crush, Copilot CLI, MCP, and lo
 | **copilot-local** | Task picker launcher for Copilot CLI | `~/Documents/CLI/` + PATH |
 | **imagegen MCP** | Image-generation tool for Crush/Copilot (Office authoring is a skill, not MCP) | Isolated Python venv |
 
-### Models — RTX 5090 (~100 GB disk)
+### Models — RTX 5090 (~135 GB disk)
 
 | Model | Launcher alias | Base tag | Task |
 |-------|----------------|----------|------|
-| Qwen3.6 27B (+MTP) | `qwen36-27b-212k` | `hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M` | Heavy coding (default), tech docs, creative |
-| Qwen3.6 35B-A3B MoE | `qwen36-35b-256k` | `qwen3.6:35b` | Heavy coding / multimodal |
+| Qwen3.6 35B-A3B MoE | `qwen36-35b-256k` | `qwen3.6:35b` | Heavy coding (default), tech docs |
 | Fara 1.5 27B dense | `fara15-27b-192k` | `hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M` | Computer use / GUI agent (vision + tools) |
 | Qwen3-Coder 30B-A3B | `qwen3coder-144k` | `qwen3-coder:30b` | Light coding / code review |
-| GLM-4.7-Flash 30B MoE | `glm47-flash-198k` | `glm-4.7-flash` | Agentic / all MCP+tools / Office authoring |
+| Muse Glimmer 30B (Meta) | `museglimmer-30b-128k` | `muse-glimmer:30b` | Agentic / all MCP+tools / Office authoring (vision + tools + thinking) |
+| Nemotron 3.5 Lightning 30B-A3B | `nemotron35-light-256k` | `nemotron-3.5-lightning:30b-a3b-q4_K_M` | General conversation / grounded research (abstains when unsourced) |
+| Ornith-1.0-35B | `ornith-35b-256k` | `hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M` | Creative writing / cover letters |
 | Qwen3 8B | `qwen3:8b` | `qwen3:8b` | Image-gen companion |
 
 ## Install
@@ -44,7 +45,7 @@ cd local-llm\windows
 .\install-windows.ps1 -Help
 ```
 
-> **Note:** The default 5090 roster downloads ~100GB of models. Use `-ModelPath` to store them on a fast secondary drive (SSD/NVMe) instead of filling your OS drive. The script sets `OLLAMA_MODELS` environment variable and restarts Ollama automatically.
+> **Note:** The default 5090 roster downloads ~135 GB of models. Use `-ModelPath` to store them on a fast secondary drive (SSD/NVMe) instead of filling your OS drive. The script sets `OLLAMA_MODELS` environment variable and restarts Ollama automatically.
 
 ### Install Options
 
@@ -149,27 +150,33 @@ alias to skip the picker entirely.
 
 ```
 copilot-local                    # Interactive picker
-copilot-local qwen36-27b-212k    # Skip picker, use a specific model
+copilot-local qwen36-35b-256k    # Skip picker, use a specific model
 ```
 
 **Local — task profiles (RTX 5090):**
 ```
   Coding
-    [1] Heavy coding       qwen36-27b-212k
+    [1] Heavy coding       qwen36-35b-256k
     [2] Light coding       qwen3coder-144k
     [3] Code review        qwen3coder-144k
     
   Writing & Documents
-    [4] Technical docs     qwen36-27b-212k
-    [5] Creative writing   qwen36-27b-212k
-    [6] Office documents   glm47-flash-198k   (office skill)
+    [4] Technical docs     qwen36-35b-256k
+    [5] Creative writing   ornith-35b-256k
+    [6] Office documents   museglimmer-30b-128k   (office skill)
     
   Visual
     [7] Image generation   qwen3:8b + HiDream (MCP)
+
+  Computer Use
+    [8] Screen & GUI agent fara15-27b-192k    (vision + tools)
+
+  General & Research
+    [9] Conversation & research  nemotron35-light-256k
 ```
 
-**Local — Experimental** swaps in the heavy-coding bench (Qwen3.6 35B-A3B, Gemma 4 31B, North Mini
-Code, Nemotron 3 Nano, Ornith-1.0-35B, Devstral Small 2, …) with MCP off. **Squire-Server** appears
+**Local — Experimental** swaps in the heavy-coding bench (Qwen3-Coder 30B-A3B, Muse Glimmer 30B, North Mini
+Code, Nemotron 3.5 Lightning, Ornith-1.0-35B, Devstral Small 2, …) with MCP off. **Squire-Server** appears
 when the `server` provider is enabled and targets the CachyOS vLLM box.
 
 The Squire-Server page also advertises the on-demand vLLM evaluation modes in their task
@@ -223,7 +230,7 @@ result = client.images.generate(prompt="a sunset over mountains", size="1024x102
 ```powershell
 ollama list                      # Installed models
 ollama ps                        # Loaded models + VRAM
-ollama pull glm-4.7-flash        # Add a model
+ollama pull muse-glimmer:30b     # Add a model
 ollama rm qwen3-coder:30b        # Remove a model
 nvidia-smi                       # GPU VRAM usage
 ```

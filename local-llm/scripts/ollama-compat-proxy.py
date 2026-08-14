@@ -5,7 +5,7 @@ strictness bug.
 
 Ollama's /v1/chat/completions (and /api/chat) REJECTS any message with content:null
 ("400 invalid message content type: <nil>"), even though OpenAI's real API accepts it.
-Reasoning models (Ornith / GLM / Nemotron) produce turns whose final text is empty (all
+Reasoning models (Ornith / Muse Glimmer / Nemotron) produce turns whose final text is empty (all
 output went to the separate `reasoning` field); the client (copilot / crush) then replays
 that turn with content:null and Ollama 400s. The bad turn is persisted, so every later
 request AND every session restore fails permanently. Upstream: pydantic-ai#5206. The

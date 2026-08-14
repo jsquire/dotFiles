@@ -68,7 +68,7 @@ for a, e in reg.items():
     ok("label" in e and "ctx" in e, f"registry {a} missing label/ctx")
 ok("copilot" in d.get("launchers", {}) and "crush" in d.get("launchers", {}), "launcher menus not preserved")
 # tier-specific spot check
-if tier == "5090": ok(ta.get("heavy") == "qwen36-27b-212k", f"5090 heavy alias {ta.get('heavy')}")
+if tier == "5090": ok(ta.get("heavy") == "qwen36-35b-256k", f"5090 heavy alias {ta.get('heavy')}")
 if tier == "4090": ok(ta.get("heavy") == "qwen36-27b-96k",  f"4090 heavy alias {ta.get('heavy')}")
 print(f"{label}: {P} passed, {F} failed")
 sys.exit(1 if F else 0)
