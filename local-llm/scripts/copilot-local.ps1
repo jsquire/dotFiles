@@ -64,8 +64,8 @@ function Show-Center { param([string]$s)
 }
 function Show-Row { param([string]$k, [string]$l, [string]$d)
     $kf = ("[$k]").PadRight(5)
-    if ($l.Length -gt 26) { $l = $l.Substring(0, 26) }
-    Show-Line ("       $kf " + $l.PadRight(26) + " $d")
+    if ($l.Length -gt 44) { $l = $l.Substring(0, 44) }
+    Show-Line ("       $kf " + $l.PadRight(44) + " $d")
 }
 
 # ── Data-driven model roster ─────────────────────────────────────────────────
@@ -186,7 +186,10 @@ if ($Model -and $Model -match ':') {
                         if (-not $first) { Show-Line ""; Show-Line "" }
                         $first = $false
                         Show-Line "     $($c.heading)"; Show-Line ("     " + ("-" * $c.heading.Length)); Show-Line ""
-                        foreach ($r in $c.rows) { Show-Row $r.key $r.label "" }
+                        foreach ($r in $c.rows) {
+                            $detail = if ($r.PSObject.Properties['detail']) { $r.detail } else { "" }
+                            Show-Row $r.key $r.label $detail
+                        }
                     }
                 } else {
                     foreach ($m in $sm.modes) { Show-Row $m.key $m.label $m.task }

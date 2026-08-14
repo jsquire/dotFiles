@@ -43,6 +43,8 @@ VLLM_SWITCH_USER="vllm-model-control"
 # vllm.service comment for the gghfez-weights + jeffcookio-tokenizer rationale. On-demand switch modes
 # (cachyos-switch-model): coder = Qwen3-Coder (coding + office document authoring, the reliable tool-use
 # model), coder-alt = Devstral-2 (agentic coding / review), image = HiDream + Qwen3-4B.
+# Experimental on-demand modes: Nemotron 3.5 Lightning (general / office), Ornith 1.0
+# (agentic coding / review), and KAT-Coder V2.5 (coding).
 VLLM_DEFAULT_MODEL="gghfez/Mistral-Small-3.2-24B-Instruct-hf-AWQ"
 VLLM_DEFAULT_TOKENIZER="jeffcookio/Mistral-Small-3.2-24B-Instruct-2506-awq-sym"
 VLLM_DEFAULT_SERVED_NAME="mistral-small"
@@ -213,6 +215,9 @@ model_description() {
         Qwen/Qwen3.6-27B-Instruct-GPTQ) printf '%s' 'Qwen3.6 27B GPTQ — primary model (32k ctx, FP8 KV), ~15 GB' ;;
         Qwen/Qwen2.5-Coder-32B-Instruct-GPTQ-Int4) printf '%s' 'Qwen2.5-Coder 32B GPTQ — heavy coding, ~18 GB' ;;
         btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit) printf '%s' 'Qwen3-Coder 30B MoE GPTQ — heavy coding (agentic), ~19 GB' ;;
+        useful-quants/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-W4A16) printf '%s' 'Nemotron 3.5 Lightning W4A16 — EXPERIMENTAL general / office mode, ~16.6 GiB' ;;
+        XReyRobert/Ornith-1.0-35B-GPTQ-Pro-FOEM-4bit-g128-ns256) printf '%s' 'Ornith 1.0 35B GPTQ-Pro — EXPERIMENTAL agentic coding / review mode, ~19.2 GiB' ;;
+        Ar4ikov/KAT-Coder-V2.5-Dev-AWQ-W4A16-ASYM) printf '%s' 'KAT-Coder V2.5 asymmetric AWQ — EXPERIMENTAL coding mode, ~20.2 GiB' ;;
         Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4) printf '%s' 'Qwen2.5-Coder 14B GPTQ — light coding, ~8 GB' ;;
         deepseek-ai/DeepSeek-R1-Distill-Qwen-32B-GPTQ-Int4) printf '%s' 'DeepSeek R1 Distill 32B GPTQ — code review, ~18 GB' ;;
         mistralai/Mistral-Small-3.2-24B-Instruct-2503-GPTQ-Int4) printf '%s' 'Mistral Small 3.2 GPTQ — docs/creative/chat, ~13 GB' ;;
@@ -1138,7 +1143,7 @@ WantedBy=multi-user.target
                 success "Created vLLM service at $local_vllm_service"
                 info "Default model: ${VLLM_DEFAULT_MODEL} (served as '${VLLM_DEFAULT_SERVED_NAME}')"
                 info "Listening on: 0.0.0.0:${VLLM_PORT}"
-                info "To switch modes: cachyos-switch-model {mistral|coder|coder-alt|image}"
+                info "To switch modes: cachyos-switch-model {mistral|coder|coder-alt|image|nemotron|ornith|kat-coder}"
             else
                 add_failure "Failed to create vLLM systemd service."
             fi
@@ -1278,7 +1283,7 @@ WantedBy=multi-user.target
 
             step "Configure model-switch mechanism (cachyos-switch-model)"
             # vLLM holds ONE model at a time in 24GB. Mistral-Small-3.2 (vllm.service) is the
-            # standing default; coder/coder-alt/image modes are loaded on demand via templated
+            # standing default; all other modes are loaded on demand via templated
             # vllm@<mode>.service instances + the existing imagegen.service (HiDream).
             VLLM_VENV="${HOME}/.local/share/vllm-env"
             run_privileged mkdir -p /etc/vllm/modes
@@ -1302,6 +1307,12 @@ args=(
 )
 if [[ -n \"\${VLLM_QUANTIZATION:-}\" ]]; then
     args+=(--quantization \"\${VLLM_QUANTIZATION}\")
+fi
+if [[ -n \"\${VLLM_DTYPE:-}\" ]]; then
+    args+=(--dtype \"\${VLLM_DTYPE}\")
+fi
+if [[ \"\${VLLM_LANGUAGE_MODEL_ONLY:-false}\" == \"true\" ]]; then
+    args+=(--language-model-only)
 fi
 if [[ -n \"\${VLLM_TOOL_PARSER:-}\" ]]; then
     args+=(--enable-auto-tool-choice --tool-call-parser \"\${VLLM_TOOL_PARSER}\")
@@ -1385,10 +1396,62 @@ VLLM_MAX_NUM_SEQS=8
 VLLM_GPU_MEMORY_UTILIZATION=0.16
 VLLM_KV_CACHE_DTYPE=fp8_e5m2
 "
+            # Experimental general/office candidate. This exact W4A16 artifact was validated
+            # on a 24 GB RTX 3090 with compressed-tensors and BF16. Keep the initial server
+            # profile at the current Mistral context until this 4090 is calibrated directly.
+            local nemotron_env="VLLM_MODEL=useful-quants/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-W4A16
+VLLM_SERVED_NAME=nemotron-3.5-lightning
+VLLM_QUANTIZATION=compressed-tensors
+VLLM_DTYPE=bfloat16
+VLLM_TOOL_PARSER=qwen3_coder
+VLLM_REASONING_PARSER=nemotron_v3
+VLLM_HOST=0.0.0.0
+VLLM_PORT=${VLLM_PORT}
+VLLM_MAX_MODEL_LEN=65536
+VLLM_MAX_NUM_SEQS=32
+VLLM_GPU_MEMORY_UTILIZATION=0.96
+VLLM_KV_CACHE_DTYPE=auto
+"
+            # Experimental agentic-coding candidate. The quant publisher validated this exact
+            # GPTQ-Marlin artifact on one RTX 3090 with FP8 KV and text-only loading.
+            local ornith_env="VLLM_MODEL=XReyRobert/Ornith-1.0-35B-GPTQ-Pro-FOEM-4bit-g128-ns256
+VLLM_SERVED_NAME=ornith-1.0-35b
+VLLM_QUANTIZATION=gptq_marlin
+VLLM_DTYPE=float16
+VLLM_LANGUAGE_MODEL_ONLY=true
+VLLM_TOOL_PARSER=qwen3_xml
+VLLM_REASONING_PARSER=qwen3
+VLLM_HOST=0.0.0.0
+VLLM_PORT=${VLLM_PORT}
+VLLM_MAX_MODEL_LEN=57344
+VLLM_MAX_NUM_SEQS=1
+VLLM_GPU_MEMORY_UTILIZATION=0.96
+VLLM_KV_CACHE_DTYPE=fp8_e5m2
+"
+            # Experimental coding candidate. The asymmetric compressed-tensors quant requires
+            # vLLM 0.24.0 or newer. Its single-GPU fit is unmeasured, so start conservatively
+            # at 16K context with one sequence.
+            local kat_coder_env="VLLM_MODEL=Ar4ikov/KAT-Coder-V2.5-Dev-AWQ-W4A16-ASYM
+VLLM_SERVED_NAME=kat-coder-v2.5
+VLLM_QUANTIZATION=compressed-tensors
+VLLM_DTYPE=bfloat16
+VLLM_LANGUAGE_MODEL_ONLY=true
+VLLM_TOOL_PARSER=qwen3_coder
+VLLM_REASONING_PARSER=qwen3
+VLLM_HOST=0.0.0.0
+VLLM_PORT=${VLLM_PORT}
+VLLM_MAX_MODEL_LEN=16384
+VLLM_MAX_NUM_SEQS=1
+VLLM_GPU_MEMORY_UTILIZATION=0.96
+VLLM_KV_CACHE_DTYPE=fp8_e5m2
+"
             printf '%s' "$coder_env"     | run_privileged tee /etc/vllm/modes/coder.env     >/dev/null
             printf '%s' "$coder_alt_env" | run_privileged tee /etc/vllm/modes/coder-alt.env >/dev/null
             printf '%s' "$image_env"     | run_privileged tee /etc/vllm/modes/image.env     >/dev/null
-            success "Wrote mode env-files (coder, coder-alt, image) to /etc/vllm/modes"
+            printf '%s' "$nemotron_env"   | run_privileged tee /etc/vllm/modes/nemotron.env   >/dev/null
+            printf '%s' "$ornith_env"     | run_privileged tee /etc/vllm/modes/ornith.env     >/dev/null
+            printf '%s' "$kat_coder_env"  | run_privileged tee /etc/vllm/modes/kat-coder.env  >/dev/null
+            success "Wrote production and experimental mode env-files to /etc/vllm/modes"
 
             # The switch CLI (also invoked over ssh by the client launchers).
             local switch_script="#!/usr/bin/env bash
@@ -1397,7 +1460,7 @@ mode=\"\${1:-mistral}\"
 SUDO=\"\"
 [[ \$EUID -ne 0 ]] && SUDO=\"sudo\"
 stop_all() {
-    for u in vllm.service vllm@coder.service vllm@coder-alt.service vllm@image.service imagegen.service; do
+    for u in vllm.service vllm@coder.service vllm@coder-alt.service vllm@image.service vllm@nemotron.service vllm@ornith.service vllm@kat-coder.service imagegen.service; do
         \$SUDO systemctl stop \"\$u\" 2>/dev/null || true
     done
 }
@@ -1406,7 +1469,10 @@ case \"\$mode\" in
     coder)     stop_all; \$SUDO systemctl start vllm@coder.service ;;
     coder-alt) stop_all; \$SUDO systemctl start vllm@coder-alt.service ;;
     image)     stop_all; \$SUDO systemctl start imagegen.service; \$SUDO systemctl start vllm@image.service ;;
-    *) echo \"Unknown mode: \$mode (use: mistral|coder|coder-alt|image)\" >&2; exit 1 ;;
+    nemotron)  stop_all; \$SUDO systemctl start vllm@nemotron.service ;;
+    ornith)    stop_all; \$SUDO systemctl start vllm@ornith.service ;;
+    kat-coder) stop_all; \$SUDO systemctl start vllm@kat-coder.service ;;
+    *) echo \"Unknown mode: \$mode (use: mistral|coder|coder-alt|image|nemotron|ornith|kat-coder)\" >&2; exit 1 ;;
 esac
 echo \"cachyos-switch-model: now in '\$mode' mode\"
 "
@@ -1419,7 +1485,7 @@ echo \"cachyos-switch-model: now in '\$mode' mode\"
 
             # Passwordless sudo for the switch (so client ssh can flip modes non-interactively).
             local switch_user; switch_user="$(whoami)"
-            local sudoers_line="${switch_user} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@coder-alt.service, /usr/bin/systemctl stop vllm@coder-alt.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
+            local sudoers_line="${switch_user} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@coder-alt.service, /usr/bin/systemctl stop vllm@coder-alt.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start vllm@nemotron.service, /usr/bin/systemctl stop vllm@nemotron.service, /usr/bin/systemctl start vllm@ornith.service, /usr/bin/systemctl stop vllm@ornith.service, /usr/bin/systemctl start vllm@kat-coder.service, /usr/bin/systemctl stop vllm@kat-coder.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
             if printf '%s\n' "$sudoers_line" | run_privileged tee /etc/sudoers.d/cachyos-vllm-switch >/dev/null; then
                 run_privileged chmod 0440 /etc/sudoers.d/cachyos-vllm-switch
                 if run_privileged visudo -c -f /etc/sudoers.d/cachyos-vllm-switch >/dev/null 2>&1; then
@@ -1466,7 +1532,7 @@ esac
             fi
 
             run_privileged systemctl daemon-reload
-            info "Standing default: Mistral-Small-3.2 (vllm.service). Switch with: cachyos-switch-model {mistral|coder|coder-alt|image}"
+            info "Standing default: Mistral-Small-3.2 (vllm.service). Experimental modes: nemotron, ornith, kat-coder."
 
             # ── Model-switch web service (LAN, port ${VLLM_SWITCH_WEB_PORT}) ──────────────
             # Dependency-free browser button page so LAN users (esp. Windows / non-technical)
@@ -1514,7 +1580,7 @@ esac
             if [[ "$web_daemon_ok" == true ]]; then
             # Passwordless sudo for the service account (same narrow unit whitelist as the CLI switch).
             local sw_sudoers="Defaults:${VLLM_SWITCH_USER} !requiretty
-${VLLM_SWITCH_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@coder-alt.service, /usr/bin/systemctl stop vllm@coder-alt.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
+${VLLM_SWITCH_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start vllm.service, /usr/bin/systemctl stop vllm.service, /usr/bin/systemctl start vllm@coder.service, /usr/bin/systemctl stop vllm@coder.service, /usr/bin/systemctl start vllm@coder-alt.service, /usr/bin/systemctl stop vllm@coder-alt.service, /usr/bin/systemctl start vllm@image.service, /usr/bin/systemctl stop vllm@image.service, /usr/bin/systemctl start vllm@nemotron.service, /usr/bin/systemctl stop vllm@nemotron.service, /usr/bin/systemctl start vllm@ornith.service, /usr/bin/systemctl stop vllm@ornith.service, /usr/bin/systemctl start vllm@kat-coder.service, /usr/bin/systemctl stop vllm@kat-coder.service, /usr/bin/systemctl start imagegen.service, /usr/bin/systemctl stop imagegen.service"
             if printf '%s\n' "$sw_sudoers" | run_privileged tee /etc/sudoers.d/vllm-model-control >/dev/null; then
                 run_privileged chmod 0440 /etc/sudoers.d/vllm-model-control
                 if run_privileged visudo -c -f /etc/sudoers.d/vllm-model-control >/dev/null 2>&1; then
@@ -2149,7 +2215,7 @@ elif [[ "$IS_SERVER_MODE" == true ]]; then
     printf '%b\n' ""
     printf '%b\n' "  Switch model (one mode at a time — Mistral is the standing default):"
     printf '%b\n' "    Browser (any LAN device, no login):  http://${local_ip}:${VLLM_SWITCH_WEB_PORT}/"
-    printf '%b\n' "    CLI on server:  cachyos-switch-model mistral | coder | coder-alt | image"
+    printf '%b\n' "    CLI on server:  cachyos-switch-model mistral | coder | coder-alt | image | nemotron | ornith | kat-coder"
     printf '%b\n' ""
     printf '%b\n' "${COLOR_CYAN}──────────────────────────────────────────────────────────────${COLOR_RESET}"
     echo

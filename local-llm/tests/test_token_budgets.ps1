@@ -69,5 +69,8 @@ Assert-Eq "crush exp 3 128K"         "16384" (Crush-Budget @("2", "3"))
 # -- the squire-server provider keeps its roster-advertised caps, unchanged by this rule -------
 # 54272/8192 comes from server-models.json, not from any registry ctx, and must stay that way.
 Assert-Eq "copilot server keeps roster caps" "54272/8192" (Copilot-Budget @("3", "1") "")
+Assert-Eq "copilot server Nemotron caps"      "54272/8192" (Copilot-Budget @("3", "6") "")
+Assert-Eq "copilot server KAT caps"           "10240/4096" (Copilot-Budget @("3", "7") "")
+Assert-Eq "copilot server Ornith caps"        "46080/8192" (Copilot-Budget @("3", "8") "")
 
 if (PS-Summary "token-budgets-ps") { exit 0 } else { exit 1 }

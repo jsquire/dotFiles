@@ -172,6 +172,21 @@ copilot-local qwen36-27b-212k    # Skip picker, use a specific model
 Code, Nemotron 3 Nano, Ornith-1.0-35B, Devstral Small 2, …) with MCP off. **Squire-Server** appears
 when the `server` provider is enabled and targets the CachyOS vLLM box.
 
+The Squire-Server page also advertises the on-demand vLLM evaluation modes in their task
+categories:
+
+```
+  Writing & Documents
+    [6] Nemotron 3.5 Lightning (Experimental)    general / office docs
+
+  Coding
+    [7] KAT-Coder V2.5 (Experimental)            coding
+    [8] Ornith 1.0 35B (Experimental)            agentic coding / review
+```
+
+The Windows launchers read this list from the live server and fall back to the bundled
+`~/.config/local-llm/server-models.json` copy when the switch service is unavailable.
+
 ### Crush (agentic tasks)
 
 ```powershell

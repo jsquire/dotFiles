@@ -52,14 +52,29 @@ menu = (sm.get("menu") or {}).get("categories")
 ok(menu is not None, "server-models.json missing menu.categories")
 if menu:
     mkeys = []
+    menu_by_mode = {}
     for cat in menu:
         ok("heading" in cat, "menu category missing heading")
         for r in cat.get("rows", []):
             mkeys.append(r["key"])
+            menu_by_mode[r.get("mode")] = r
             ok(r.get("mode") in modes_set, f"menu row [{r.get('key')}] mode '{r.get('mode')}' not a real mode")
             ok("label" in r, f"menu row [{r.get('key')}] missing label")
+            if "(Experimental)" in r.get("label", ""):
+                ok(bool(r.get("detail")), f"experimental menu row [{r.get('key')}] missing role detail")
     ok(len(mkeys) == len(set(mkeys)), f"menu duplicate keys: {mkeys}")
+    expected_experimental = {
+        "nemotron": "general / office docs",
+        "ornith": "agentic coding / review",
+        "kat-coder": "coding",
+    }
+    for mode, detail in expected_experimental.items():
+        row = menu_by_mode.get(mode, {})
+        ok("(Experimental)" in row.get("label", ""), f"menu row '{mode}' missing Experimental marker")
+        ok(row.get("detail") == detail, f"menu row '{mode}' detail {row.get('detail')!r} != {detail!r}")
 ok("glm" not in modes_set, "GLM was retired from the server roster but is still present in modes")
+for mode in ("nemotron", "ornith", "kat-coder"):
+    ok(mode in modes_set, f"experimental server mode '{mode}' missing")
 
 for f in (sys.argv[1], sys.argv[2]):
     ok("__" not in open(f).read(), f"{f} contains a residual __placeholder__")

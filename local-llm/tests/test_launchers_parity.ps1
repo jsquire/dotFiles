@@ -58,7 +58,7 @@ function Run-CopilotMatrix($mode, $src) {
     $script:GoldRows = @()
     foreach ($k in 1..7)  { Do-Copilot $mode "cl-$k" $src "local,server" @("1", "$k") "" }
     foreach ($k in 1..9)  { Do-Copilot $mode "ce-$k" $src "local,server" @("2", "$k") "" }
-    foreach ($k in 1..5)  { Do-Copilot $mode "cs-$k" $src "local,server" @("3", "$k") "" }
+    foreach ($k in 1..8)  { Do-Copilot $mode "cs-$k" $src "local,server" @("3", "$k") "" }
     Do-Copilot $mode "cdirect" $src "local,server" @() "qwen3:8b"
     if ($mode -eq 'golden') { Set-Content $goldenC ($script:GoldRows -join "`n") -Encoding ASCII }
 }
@@ -66,7 +66,7 @@ function Run-CrushMatrix($mode, $src) {
     $script:GoldRows = @()
     foreach ($k in 1..5)  { Do-Crush $mode "kl-$k" $src "local,server" @("1", "$k") "" }
     foreach ($k in 1..9)  { Do-Crush $mode "ke-$k" $src "local,server" @("2", "$k") "" }
-    foreach ($k in 1..5)  { Do-Crush $mode "ks-$k" $src "local,server" @("3", "$k") "" }
+    foreach ($k in 1..8)  { Do-Crush $mode "ks-$k" $src "local,server" @("3", "$k") "" }
     foreach ($t in 'coding', 'review', 'docs', 'image') { Do-Crush $mode "karg-$t" $src "local,server" @() $t }
     if ($mode -eq 'golden') { Set-Content $goldenK ($script:GoldRows -join "`n") -Encoding ASCII }
 }

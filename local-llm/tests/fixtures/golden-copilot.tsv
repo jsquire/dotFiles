@@ -19,4 +19,7 @@ cs-2	model=qwen3-coder base=http://127.0.0.1:8000/v1 prompt=46080 out=8192 image
 cs-3	model=qwen3-coder base=http://127.0.0.1:8000/v1 prompt=46080 out=8192 imagegen=off office=no
 cs-4	model=devstral base=http://127.0.0.1:8000/v1 prompt=46080 out=8192 imagegen=off office=no
 cs-5	model=qwen3-4b base=http://127.0.0.1:8000/v1 prompt=28672 out=2048 imagegen=on office=no
+cs-6	model=nemotron-3.5-lightning base=http://127.0.0.1:8000/v1 prompt=54272 out=8192 imagegen=off office=no
+cs-7	model=kat-coder-v2.5 base=http://127.0.0.1:8000/v1 prompt=10240 out=4096 imagegen=off office=no
+cs-8	model=ornith-1.0-35b base=http://127.0.0.1:8000/v1 prompt=46080 out=8192 imagegen=off office=no
 cdirect	model=qwen3:8b base=http://localhost:11435/v1 prompt=51200 out=16384 imagegen=on office=no

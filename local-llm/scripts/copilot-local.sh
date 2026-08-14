@@ -123,10 +123,11 @@ if cmd == "page":
         for cat in menu:
             print("CAT\x1f%s" % cat.get("heading", ""))
             for r in cat.get("rows", []):
-                print("ROW\x1f%s\x1f%s" % (r["key"], r["label"]))
+                print("ROW\x1f%s\x1f%s\x1f%s" %
+                      (r["key"], r["label"], r.get("detail", "")))
     else:
         for m in modes:
-            print("ROW\x1f%s\x1f%s" % (m["key"], m["label"]))
+            print("ROW\x1f%s\x1f%s\x1f%s" % (m["key"], m["label"], m.get("task", "")))
 elif cmd == "resolve":
     key = sys.argv[2]
     m = None
@@ -191,7 +192,7 @@ box_mid() { printf '  %s╠%s╣%s\n' "$FRAME" "$bar" "$RST"; }
 box_bot() { printf '  %s╚%s╝%s\n' "$FRAME" "$bar" "$RST"; }
 box_line() { printf '  %s║%s%-*.*s%s║%s\n' "$FRAME" "$TEXT" "$W" "$W" "$1" "$FRAME" "$RST"; }
 box_center() { local s="$1"; local p=$(( (W - ${#s}) / 2 )); (( p < 0 )) && p=0; box_line "$(printf '%*s%s' "$p" '' "$s")"; }
-box_row() { box_line "$(printf '       %-5s %-26.26s %s' "[$1]" "$2" "$3")"; }
+box_row() { box_line "$(printf '       %-5s %-44.44s %s' "[$1]" "$2" "$3")"; }
 rule() { box_line "     $(printf -- '-%.0s' $(seq 1 "$1"))"; }
 
 # Render a data-driven local page (production|experimental) with computed underlines + spacing.
@@ -275,14 +276,14 @@ while true; do
             box_line ""
             box_center "(picking a task switches the served model)"
             srv_first=1
-            while IFS=$'\x1f' read -r typ a b; do
+            while IFS=$'\x1f' read -r typ a b c; do
                 case "$typ" in
                     CAT)
                         if [[ $srv_first -eq 0 ]]; then box_line ""; box_line ""; else box_line ""; fi
                         srv_first=0
                         box_line "     $a"; rule "${#a}"; box_line ""
                         ;;
-                    ROW) box_row "$a" "$b" "" ;;
+                    ROW) box_row "$a" "$b" "$c" ;;
                 esac
             done < <(_srv "$SRVJSON" page)
             box_line ""; box_line ""; box_line ""

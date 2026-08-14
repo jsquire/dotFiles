@@ -65,14 +65,14 @@ run_copilot_matrix() {  # <mode> <src>
     local mode="$1" src="$2" k
     for k in 1 2 3 4 5 6 7;            do do_copilot "$mode" "cl-$k" "$src" "local,server" "$(printf '1\n%s' "$k")" ""; done
     for k in 1 2 3 4 5 6 7 8 9;        do do_copilot "$mode" "ce-$k" "$src" "local,server" "$(printf '2\n%s' "$k")" ""; done
-    for k in 1 2 3 4 5;                do do_copilot "$mode" "cs-$k" "$src" "local,server" "$(printf '3\n%s' "$k")" ""; done
+    for k in 1 2 3 4 5 6 7 8;          do do_copilot "$mode" "cs-$k" "$src" "local,server" "$(printf '3\n%s' "$k")" ""; done
     do_copilot "$mode" "cdirect" "$src" "local,server" "" "qwen3:8b"
 }
 run_crush_matrix() {    # <mode> <src>
     local mode="$1" src="$2" k t
     for k in 1 2 3 4 5;                do do_crush "$mode" "kl-$k" "$src" "local,server" "$(printf '1\n%s' "$k")" ""; done
     for k in 1 2 3 4 5 6 7 8 9;        do do_crush "$mode" "ke-$k" "$src" "local,server" "$(printf '2\n%s' "$k")" ""; done
-    for k in 1 2 3 4 5;                do do_crush "$mode" "ks-$k" "$src" "local,server" "$(printf '3\n%s' "$k")" ""; done
+    for k in 1 2 3 4 5 6 7 8;          do do_crush "$mode" "ks-$k" "$src" "local,server" "$(printf '3\n%s' "$k")" ""; done
     for t in coding review docs image; do do_crush "$mode" "karg-$t" "$src" "local,server" "" "$t"; done
 }
 

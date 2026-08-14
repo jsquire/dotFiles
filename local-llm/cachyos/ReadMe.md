@@ -31,7 +31,7 @@ Clients connect via `http://server-ip:8000/v1` — same OpenAI API as Ollama.
 | **copilot-local** | Task picker launcher | `~/.local/bin/` |
 | **MCP servers** | Office document editing | Isolated Python venvs |
 
-### Models (HuggingFace 4-bit AWQ/GPTQ, ~50 GB disk + ~35 GB image gen)
+### Models (HuggingFace 4-bit AWQ/GPTQ, ~105 GB disk + ~35 GB image gen)
 
 > **vLLM serves ONE model at a time** on the 24 GB card. **Mistral-Small-3.2-24B is the standing
 > default** (basic chat / general, 64K); the specialist coding and image roles are on-demand
@@ -45,6 +45,9 @@ Clients connect via `http://server-ip:8000/v1` — same OpenAI API as Ollama.
 | Devstral-2 24B AWQ | `cyankiwi/Devstral-Small-2-24B-Instruct-2512-AWQ-4bit` | `devstral` | ~14 GB | `coder-alt` — agentic coding / review (56K) |
 | Qwen3 1.7B AWQ | `Orion-zhen/Qwen3-1.7B-AWQ` | `qwen3-4b` | ~2 GB | `image` companion (co-resides with HiDream) |
 | HiDream-O1-Image-Dev | `HiDream-ai/HiDream-O1-Image-Dev` | — | ~35 GB | `image` generation (SGLang-Diffusion) |
+| Nemotron 3.5 Lightning W4A16 | `useful-quants/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-W4A16` | `nemotron-3.5-lightning` | ~16.6 GiB | `nemotron` - **Experimental**, general / office docs (64K initial) |
+| Ornith 1.0 35B GPTQ-Pro | `XReyRobert/Ornith-1.0-35B-GPTQ-Pro-FOEM-4bit-g128-ns256` | `ornith-1.0-35b` | ~19.2 GiB | `ornith` - **Experimental**, agentic coding / review (56K initial) |
+| KAT-Coder V2.5 AWQ | `Ar4ikov/KAT-Coder-V2.5-Dev-AWQ-W4A16-ASYM` | `kat-coder-v2.5` | ~20.2 GiB | `kat-coder` - **Experimental**, coding (16K initial) |
 
 ## Install
 
@@ -221,7 +224,13 @@ cachyos-switch-model mistral     # Mistral-Small-3.2 24B (default: basic chat / 
 cachyos-switch-model coder       # Qwen3-Coder 30B-A3B (coding + office docs)
 cachyos-switch-model coder-alt   # Devstral-2 24B (dense agentic-SWE coder / review)
 cachyos-switch-model image       # HiDream image gen + Qwen3 companion
+cachyos-switch-model nemotron    # Nemotron 3.5 Lightning (Experimental: general / office)
+cachyos-switch-model ornith      # Ornith 1.0 35B (Experimental: agentic coding / review)
+cachyos-switch-model kat-coder   # KAT-Coder V2.5 (Experimental: coding)
 ```
+
+The experimental context values are conservative bring-up profiles, not measured
+ceilings on this RTX 4090. They remain on-demand and are not enabled at boot.
 
 The switch CLI stops the other modes first (one model owns the 24 GB card), and is passwordless via a
 sudoers drop-in so the client launchers can flip modes over SSH. To change the model *within* a mode,

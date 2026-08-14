@@ -55,6 +55,45 @@
       "unit": "vllm@image.service",
       "imagegen_disabled": false,
       "default": false
+    },
+    {
+      "mode": "nemotron",
+      "key": "5",
+      "label": "Nemotron 3.5 Lightning (Experimental)",
+      "task": "general / office docs",
+      "model_id": "nemotron-3.5-lightning",
+      "ctx": 65536,
+      "max_output": 8192,
+      "max_prompt": 54272,
+      "unit": "vllm@nemotron.service",
+      "imagegen_disabled": true,
+      "default": false
+    },
+    {
+      "mode": "ornith",
+      "key": "6",
+      "label": "Ornith 1.0 35B (Experimental)",
+      "task": "agentic coding / review",
+      "model_id": "ornith-1.0-35b",
+      "ctx": 57344,
+      "max_output": 8192,
+      "max_prompt": 46080,
+      "unit": "vllm@ornith.service",
+      "imagegen_disabled": true,
+      "default": false
+    },
+    {
+      "mode": "kat-coder",
+      "key": "7",
+      "label": "KAT-Coder V2.5 (Experimental)",
+      "task": "coding",
+      "model_id": "kat-coder-v2.5",
+      "ctx": 16384,
+      "max_output": 4096,
+      "max_prompt": 10240,
+      "unit": "vllm@kat-coder.service",
+      "imagegen_disabled": true,
+      "default": false
     }
   ],
   "menu": {
@@ -63,14 +102,17 @@
         "heading": "Writing & Documents",
         "rows": [
           { "key": "1", "label": "Chat / general", "mode": "mistral" },
-          { "key": "2", "label": "Office documents", "mode": "coder" }
+          { "key": "2", "label": "Office documents", "mode": "coder" },
+          { "key": "6", "label": "Nemotron 3.5 Lightning (Experimental)", "detail": "general / office docs", "mode": "nemotron" }
         ]
       },
       {
         "heading": "Coding",
         "rows": [
           { "key": "3", "label": "Coding", "mode": "coder" },
-          { "key": "4", "label": "Code review / agentic", "mode": "coder-alt" }
+          { "key": "4", "label": "Code review / agentic", "mode": "coder-alt" },
+          { "key": "7", "label": "KAT-Coder V2.5 (Experimental)", "detail": "coding", "mode": "kat-coder" },
+          { "key": "8", "label": "Ornith 1.0 35B (Experimental)", "detail": "agentic coding / review", "mode": "ornith" }
         ]
       },
       {

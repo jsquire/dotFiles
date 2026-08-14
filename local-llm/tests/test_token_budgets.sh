@@ -75,5 +75,8 @@ assert_eq "crush exp 3 128K"        "16384" "$(crush_budget "$(printf '2\n3')")"
 # -- the squire-server provider keeps its roster-advertised caps, unchanged by this rule -------
 # 54272/8192 comes from server-models.json, not from any registry ctx, and must stay that way.
 assert_eq "copilot server keeps roster caps" "54272/8192" "$(copilot_budget "$(printf '3\n1')")"
+assert_eq "copilot server Nemotron caps"      "54272/8192" "$(copilot_budget "$(printf '3\n6')")"
+assert_eq "copilot server KAT caps"           "10240/4096" "$(copilot_budget "$(printf '3\n7')")"
+assert_eq "copilot server Ornith caps"        "46080/8192" "$(copilot_budget "$(printf '3\n8')")"
 
 ll_summary "token-budgets-sh"
