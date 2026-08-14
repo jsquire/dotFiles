@@ -1205,9 +1205,10 @@ if [ "$FULL_INSTALL" = true ]; then
 
     service_unit="[Unit]
 Description=Squire Server Container Services
-After=docker.service mnt-plex\\x2dmedia.automount
+After=network-online.target docker.service mnt-plex\\x2dmedia.automount
 Requires=docker.service
-Wants=mnt-plex\\x2dmedia.automount
+Wants=network-online.target mnt-plex\\x2dmedia.automount
+RequiresMountsFor=${NAS_MEDIA_MOUNT}
 
 [Service]
 Environment=ADGUARD_BASE=${INSTALL_DIR}/adguard
