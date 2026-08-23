@@ -14,6 +14,12 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
   * **home/.config/alacritty**  
     _Alacritty terminal emulator configuration with a custom Nord-inspired dark theme._
 
+  * **home/.config/ghostty**  
+    _Ghostty terminal emulator configuration matching the Alacritty theme and controls, with native tabs, splits, and shell integration. GTK client-side decorations are forced so the tab controls and application menu remain consistent across Plasma and COSMIC. Installation and deployment remain manual while Ghostty is being evaluated._
+
+  * **home/.config/cosmic/com.system76.CosmicTerm**  
+    _COSMIC Terminal settings and the custom Jesse color scheme matching the Alacritty palette, font size, opacity, bright-bold colors, and supported shortcuts. COSMIC Terminal does not currently expose equivalent settings for the underline cursor, fixed initial dimensions, copy-on-select, mouse hiding, or line-based scrollback._
+
   * **home/.config/zed/themes**  
     _Custom Zed editor theme._
 

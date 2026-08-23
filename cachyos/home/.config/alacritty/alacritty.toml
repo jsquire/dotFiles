@@ -52,15 +52,15 @@ white = "#ECEFF4"
 size = 12
 
 [font.normal]
-family = "monospace"
+family = "FantasqueSansM Nerd Font Mono"
 style = "Regular"
 
 [font.bold]
-family = "monospace"
+family = "FantasqueSansM Nerd Font Mono"
 style = "Bold"
 
 [font.italic]
-family = "monospace"
+family = "FantasqueSansM Nerd Font Mono"
 style = "Italic"
 
 [font.bold_italic]

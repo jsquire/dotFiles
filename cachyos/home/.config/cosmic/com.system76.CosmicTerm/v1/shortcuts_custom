@@ -1,0 +1,18 @@
+{
+    (
+        modifiers: [Ctrl],
+        key: "c",
+    ): Copy,
+    (
+        modifiers: [Ctrl],
+        key: "v",
+    ): Paste,
+    (
+        modifiers: [Ctrl],
+        key: "x",
+    ): CopyOrSigint,
+    (
+        modifiers: [Ctrl, Shift],
+        key: "B",
+    ): Find,
+}
