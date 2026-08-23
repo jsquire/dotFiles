@@ -3,13 +3,109 @@
 set -euo pipefail
 
 WORKDIR=$(pwd)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APPLY_PLASMA_CUSTOMIZATION=false
+PLASMA_WALLPAPER=""
+ENABLE_FIREWALL=false
+SSH_PORT=""
+RUN_PACKAGE_MAINTENANCE=false
+
+usage() {
+    cat <<'EOF'
+Usage: bootstrap.sh [options]
+
+Options:
+  --plasma-customization       Apply the optional tracked Plasma appearance profile.
+  --plasma-wallpaper <path>    Use a personal wallpaper with the Plasma profile.
+                               Implies --plasma-customization.
+  --enable-firewall            Configure UFW rules and enable the firewall.
+  --ssh-port <port>            TCP port to allow for SSH. Required with
+                               --enable-firewall.
+  --package-maintenance        Remove orphaned dependencies and prune package caches.
+  -h, --help                   Show this help.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --plasma-customization)
+            APPLY_PLASMA_CUSTOMIZATION=true
+            ;;
+        --plasma-wallpaper)
+            [ "$#" -ge 2 ] || {
+                echo "ERROR: --plasma-wallpaper requires a path." >&2
+                exit 2
+            }
+            APPLY_PLASMA_CUSTOMIZATION=true
+            PLASMA_WALLPAPER="$2"
+            shift
+            ;;
+        --enable-firewall)
+            ENABLE_FIREWALL=true
+            ;;
+        --ssh-port)
+            [ "$#" -ge 2 ] || {
+                echo "ERROR: --ssh-port requires a port number." >&2
+                exit 2
+            }
+            SSH_PORT="$2"
+            shift
+            ;;
+        --package-maintenance)
+            RUN_PACKAGE_MAINTENANCE=true
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "ERROR: unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
+
+if [ "$EUID" -eq 0 ]; then
+    echo "ERROR: run this script as the target desktop user, not as root." >&2
+    exit 1
+fi
+
+if [ -n "$SSH_PORT" ] &&
+    { ! [[ "$SSH_PORT" =~ ^[0-9]+$ ]] || [ "$SSH_PORT" -lt 1 ] || [ "$SSH_PORT" -gt 65535 ]; }; then
+    echo "ERROR: --ssh-port must be an integer from 1 through 65535." >&2
+    exit 2
+fi
+
+if [ "$ENABLE_FIREWALL" = true ] && [ -z "$SSH_PORT" ]; then
+    echo "ERROR: --enable-firewall requires an explicit --ssh-port." >&2
+    exit 2
+fi
+
+if [ "$ENABLE_FIREWALL" = false ] && [ -n "$SSH_PORT" ]; then
+    echo "ERROR: --ssh-port requires --enable-firewall." >&2
+    exit 2
+fi
+
+if [ -n "$PLASMA_WALLPAPER" ]; then
+    [ -f "$PLASMA_WALLPAPER" ] || {
+        echo "ERROR: Plasma wallpaper not found: $PLASMA_WALLPAPER" >&2
+        exit 2
+    }
+    PLASMA_WALLPAPER="$(realpath "$PLASMA_WALLPAPER")"
+fi
+
+if [ "$APPLY_PLASMA_CUSTOMIZATION" = true ]; then
+    bash "${SCRIPT_DIR}/customize-plasma.sh" --check
+fi
 
 ############################################
 # Helper functions
 ############################################
 
 service_enable_now() {
-    systemctl is-enabled "$1" &>/dev/null || sudo systemctl enable "$1" --now
+    sudo systemctl enable "$1" --now
 }
 
 ############################################
@@ -206,38 +302,49 @@ flatpak install -y --or-update flathub org.onlyoffice.desktopeditors
 
 
 ############################################
-# Firewall (UFW)
+# Optional firewall (UFW)
 ############################################
 
-sudo pacman -S --needed --noconfirm ufw
+if [ "$ENABLE_FIREWALL" = true ]; then
+    sudo pacman -S --needed --noconfirm ufw
 
-service_enable_now ufw
+    sudo ufw default deny incoming
+    sudo ufw default allow outgoing
+    sudo ufw allow "${SSH_PORT}/tcp"
+    sudo ufw allow 5353/udp    # Avahi / mDNS
 
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-
-sudo ufw allow ssh
-sudo ufw allow 5353/udp    # Avahi / mDNS
-
-sudo ufw --force enable
-
-
-############################################
-# Final cleanup (safe)
-############################################
-
-ORPHANS=$(pacman -Qtdq || true)
-
-if [ -n "$ORPHANS" ]; then
-    sudo pacman -Rns --noconfirm $ORPHANS
+    sudo ufw --force enable
+    service_enable_now ufw
 fi
 
-# Use paccache for cleaner cache management (keeps last 3 versions)
-# Falls back to pacman -Sc if paccache not available
 
-if command -v paccache &>/dev/null; then
-    sudo paccache -r
-else
-    sudo rm -f /var/cache/pacman/pkg/download-* 2>/dev/null || true
-    sudo pacman -Sc --noconfirm
+############################################
+# Optional package maintenance
+############################################
+
+if [ "$RUN_PACKAGE_MAINTENANCE" = true ]; then
+    ORPHANS=$(pacman -Qtdq || true)
+
+    if [ -n "$ORPHANS" ]; then
+        sudo pacman -Rns --noconfirm $ORPHANS
+    fi
+
+    if command -v paccache &>/dev/null; then
+        sudo paccache -r
+    else
+        sudo rm -f /var/cache/pacman/pkg/download-* 2>/dev/null || true
+        sudo pacman -Sc --noconfirm
+    fi
+fi
+
+############################################
+# Optional Plasma customization
+############################################
+
+if [ "$APPLY_PLASMA_CUSTOMIZATION" = true ]; then
+    plasma_args=()
+    if [ -n "$PLASMA_WALLPAPER" ]; then
+        plasma_args+=(--wallpaper "$PLASMA_WALLPAPER")
+    fi
+    bash "${SCRIPT_DIR}/customize-plasma.sh" "${plasma_args[@]}"
 fi

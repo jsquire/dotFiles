@@ -3,6 +3,11 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+if [ "$EUID" -eq 0 ]; then
+    echo "ERROR: run this script as the target desktop user, not as root." >&2
+    exit 1
+fi
+
 ############################################
 # ZSH Shell
 ############################################
@@ -58,4 +63,3 @@ if grep -q 'ADD EMAIL HERE\|ADD KEY HERE\|ADD TOKEN HERE' "$HOME/.gitconfig" 2>/
     echo "    git config --global tag.gpgsign false"
     echo ""
 fi
-

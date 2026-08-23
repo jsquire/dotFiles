@@ -2,6 +2,41 @@
 
 set -euo pipefail
 
+RUN_PACKAGE_MAINTENANCE=false
+
+usage() {
+    cat <<'EOF'
+Usage: install-development.sh [options]
+
+Options:
+  --package-maintenance  Remove orphaned dependencies and prune package caches.
+  -h, --help             Show this help.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --package-maintenance)
+            RUN_PACKAGE_MAINTENANCE=true
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "ERROR: unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
+
+if [ "$EUID" -eq 0 ]; then
+    echo "ERROR: run this script as the target desktop user, not as root." >&2
+    exit 1
+fi
+
 ############################################
 # Version Targets
 ############################################
@@ -152,18 +187,19 @@ sudo pacman -S --needed --noconfirm \
 
 
 ############################################
-# Final System Cleanup
+# Optional package maintenance
 ############################################
 
-ORPHANS=$(pacman -Qtdq || true)
+if [ "$RUN_PACKAGE_MAINTENANCE" = true ]; then
+    ORPHANS=$(pacman -Qtdq || true)
 
-if [ -n "$ORPHANS" ]; then
-    sudo pacman -Rns --noconfirm $ORPHANS
-fi
+    if [ -n "$ORPHANS" ]; then
+        sudo pacman -Rns --noconfirm $ORPHANS
+    fi
 
-# Use paccache if available
-if command -v paccache &>/dev/null; then
-    sudo paccache -r
-else
-    sudo pacman -Sc --noconfirm
+    if command -v paccache &>/dev/null; then
+        sudo paccache -r
+    else
+        sudo pacman -Sc --noconfirm
+    fi
 fi

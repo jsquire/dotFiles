@@ -2,7 +2,7 @@
 
 ### Overview
 
-Included in this section are the artifacts and references used for building and configuring a multi-purpose environment for a CachyOS or a compatible Arch-flavored distribution.  
+Included in this section are the artifacts and references used for building and configuring a multi-purpose CachyOS environment. Some individual home configuration assets may also work on Arch-derived distributions, but the provisioning and Plasma scripts depend on CachyOS packages and repositories.
 
 In some cases, the artifacts may be a subset of functionality, requiring use in a specific way or order to be helpful, where others may be a fully automated and self-contained process.  Please remember that these were written for practical personal use and are not intended to be examples of best practice, nor polished and production-ready.
 
@@ -23,19 +23,66 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
   * **home/.config/zed/themes**  
     _Custom Zed editor theme._
 
+  The tracked `home/.config` and `home/.gnupg` assets are an inventory, not a
+  promise that the bootstrap or shell installer deploys them. Terminal,
+  editor, COSMIC, and GPG agent settings remain manually deployed unless an
+  item explicitly says otherwise. Their applications, fonts, and other runtime
+  dependencies are likewise outside the Plasma appearance profile.
+
 * **surface-laptop**  
   _Authored in 2026, this directory contains scripts specific to configuring Microsoft Surface laptop hardware, including kernel installation and hardware service enablement._
 
 ### Items
   
 * **bootstrap.sh**  
-  _Authored in 2026, this script automates the initial bootstrapping of the environment, including patching the distribution, installing/removing the default software bed, and performing configuration.  The actions performed by this script are intended to be general-purpose and suitable for both server and desktop uses, without assuming specialization._
+  _Authored in 2026, this script performs full CachyOS workstation provisioning. It updates the system, installs repository and AUR software, and configures services, groups, and Flatpak. It is not the appearance-only entry point. Firewall setup requires both `--enable-firewall` and an explicit `--ssh-port <port>`. Orphan removal and cache pruning are enabled only with `--package-maintenance`. Pass `--plasma-customization` only when the appearance profile should run after the complete bootstrap, and optionally pass `--plasma-wallpaper /path/to/image` to use a personal wallpaper._
+
+* **customize-plasma.sh**  
+  _Applies the reproducible parts of the current CachyOS Plasma profile: Breeze Dark colors and application style, Breeze window decorations, reduced animations, Slot Gradient Dark icons, Capitaine cursors, file-dialog preferences, GTK theme integration, and desktop/lock-screen wallpapers. The script installs its package dependencies. The Slot icon archive is resolved through the OpenDesktop JSON API, then accepted only when its filename, SHA-256 digest, and archive layout match the reviewed artifact pinned in the script. A personal wallpaper is copied into the user's local wallpaper directory when supplied. Hardware-specific input IDs, display scaling, activity IDs, panel containment IDs, and lock timeout policy are deliberately excluded._
+
+  Run the appearance profile directly from a terminal inside the target user's
+  active Plasma session. Do not run it as root, through SSH without the
+  graphical user session, from a TTY, or from another desktop.
+  `./customize-plasma.sh --check` validates that execution context without
+  installing packages, downloading assets, or changing settings. The full
+  bootstrap performs this check before any provisioning when Plasma
+  customization is requested.
+
+  ```bash
+  ./customize-plasma.sh
+  ```
+
+  Reproduce the current desktop with a separately supplied personal wallpaper:
+
+  ```bash
+  ./customize-plasma.sh \
+      --wallpaper "$HOME/Pictures/wolverine-2560-x1600.png"
+  ```
+
+  The personal wallpaper is intentionally not stored in this repository. The
+  customization script copies the supplied image into
+  `~/.local/share/wallpapers/Jesse/` before applying it. An existing Slot theme
+  is reused only when its provenance marker, complete content manifest, and
+  `index.theme` match the pinned artifact. Otherwise the script stops with instructions to use
+  `--refresh-icons`, which stages and validates the reviewed theme before
+  atomically replacing and backing up the installed copy. Updating the
+  reviewed icon version requires changing its expected filename and SHA-256 in
+  the script. Log out and back in after applying the profile.
+
+  On a fresh CachyOS installation where full workstation provisioning is also
+  intended, the profile can instead run as the final bootstrap phase:
+
+  ```bash
+  ./bootstrap.sh \
+      --plasma-customization \
+      --plasma-wallpaper "$HOME/Pictures/wolverine-2560-x1600.png"
+  ```
 
 * **init-shell.sh**  
-  _Authored in 2026, this script installs ZSH and sets it as the default shell, then copies the home directory configuration files from this repository.  It is intended to be run after bootstrapping to establish the shell environment and user preferences._
+  _Authored in 2026, this script installs ZSH and sets it as the default shell, then deploys only the explicitly listed top-level shell and Git files. It does not deploy tracked terminal, editor, COSMIC, or GPG agent configuration. It is intended to be run after bootstrapping to establish the shell environment._
 
 * **install-development.sh**  
-  _Authored in 2026, this script automates installing and configuring of a set of development tools, focusing on Azure, .NET, and Node.js.  The actions performed by this script are intended to be general-purpose, but are targeted at a development workstation._
+  _Authored in 2026, this script automates installing and configuring of a set of development tools, focusing on Azure, .NET, and Node.js. The actions performed by this script are intended to be general-purpose, but are targeted at a development workstation. Orphan removal and cache pruning run only when `--package-maintenance` is supplied._
 
 * **backups/**  
   _Backup and restore setup, configuration, and scripts.  See `backups/ReadMe.md` for details._
