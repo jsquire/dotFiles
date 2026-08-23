@@ -57,18 +57,18 @@ except Exception as e:
     print(f"  FAIL[{label}]: invalid JSON ({e})"); print(f"{label}: 0 passed, 1 failed"); sys.exit(1)
 ok(d.get("tier") == tier, f"tier {d.get('tier')} != {tier}")
 ta = d.get("task_alias", {}); reg = d.get("registry", {})
-for s in ("heavy", "coder", "review", "agentic", "image_llm", "h1", "h5"):
+for s in ("heavy", "coder", "review", "agentic", "image_llm", "h1"):
     ok(s in ta, f"missing production/base slot '{s}'")
-for s in ("h6", "h9"):
+for s in ("h5", "h6", "h9"):
     if tp == "true": ok(s in ta, f"expected experimental slot '{s}' with --test-profiles")
-    else:            ok(s not in ta, f"slot '{s}' should be gated off without --test-profiles")
+    elif tier == "5090": ok(s not in ta, f"slot '{s}' should be gated off without --test-profiles")
 for s, a in ta.items():
     ok(a in reg, f"task_alias {s}={a} not in registry")
 for a, e in reg.items():
     ok("label" in e and "ctx" in e, f"registry {a} missing label/ctx")
 ok("copilot" in d.get("launchers", {}) and "crush" in d.get("launchers", {}), "launcher menus not preserved")
 # tier-specific spot check
-if tier == "5090": ok(ta.get("heavy") == "qwen36-35b-256k", f"5090 heavy alias {ta.get('heavy')}")
+if tier == "5090": ok(ta.get("heavy") == "qwen38-27b-192k", f"5090 heavy alias {ta.get('heavy')}")
 if tier == "4090": ok(ta.get("heavy") == "qwen36-27b-96k",  f"4090 heavy alias {ta.get('heavy')}")
 print(f"{label}: {P} passed, {F} failed")
 sys.exit(1 if F else 0)

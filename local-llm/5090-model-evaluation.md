@@ -1584,3 +1584,37 @@ The `creative` slot and copilot key 5 continue to point at `ornith-35b-256k`.
 The standing caution about Command R's CC-BY-NC-4.0 licence is now moot for this roster, since the
 model is gone. It is retained in the §BP and Laguna licensing text as history. Ornith-1.0-35B is
 MIT, so the production creative slot carries no non-commercial restriction.
+
+---
+
+## §BX. Qwen3.8 promoted at 192K; Qwen3.6 moved to rollback bench (2026-08-23)
+
+Qwen3.8 27B replaces Qwen3.6 35B-A3B in the local `heavy` slot, which serves heavy coding
+and technical documents. The production alias is `qwen38-27b-192k`, backed by
+`qwen3.8:27b`. The 192K limit is deliberate: measured whole-card use was 29.14 GiB at
+196608 context and 31.16 GiB at 262144, leaving only about 0.7 GiB at the native maximum.
+
+The promotion is based on the 2026-08-22 candidate bench:
+
+| Measurement | Qwen3.8 27B | Qwen3.6 35B-A3B |
+|---|---:|---:|
+| Executed coding tasks | **6/6** | 4/6 |
+| Exact retention through 192K | pass | not rerun in this round |
+| Tool, recovery, vision, technical document | pass | pass |
+| Grounded abstention | clean | pass |
+| Office workflow | valid, 27 seconds | not rerun |
+| 24K prefill | 3035 tok/s | **6444 tok/s** |
+| Warm generation | 115 tok/s | **224 tok/s** |
+
+The accepted regression is throughput. Qwen3.8 was materially slower, but it completed all
+coding tasks, gave the cleanest candidate abstentions, and completed the real Copilot Office
+workflow with the fewest corrections.
+
+`qwen36-35b-256k` is now experimental H1 and remains installed as the rollback comparison.
+Its launcher row explicitly records that it is scheduled for formal retirement during the
+next monthly sweep. It is no longer part of the default production pull set. If Qwen3.8
+remains stable through that sweep, remove the Qwen3.6 alias, base weights, H1 row, and
+installer test-profile entry.
+
+The CachyOS 4090 vLLM server roster is unchanged. The CachyOS local 5090 path follows the
+new Qwen3.8 production selection; the 4090 Ollama tier retains its existing model choice.

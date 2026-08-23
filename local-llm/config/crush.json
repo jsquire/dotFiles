@@ -7,9 +7,9 @@
       "type": "openai",
       "models": [
         {
-          "name": "Qwen3.6 35B-A3B MoE (Heavy coding \u2014 default)",
-          "id": "qwen36-35b-256k",
-          "context_window": 262144,
+          "name": "Qwen3.8 27B (Heavy coding, technical docs)",
+          "id": "qwen38-27b-192k",
+          "context_window": 196608,
           "default_max_tokens": 16384,
           "can_reason": true
         },
@@ -177,7 +177,7 @@
   },
   "models": {
     "large": {
-      "model": "qwen36-35b-256k",
+      "model": "qwen38-27b-192k",
       "provider": "ollama",
       "max_tokens": 16384
     },

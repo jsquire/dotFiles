@@ -18,11 +18,11 @@ Single-user AI assistant on Windows with Ollama, Crush, Copilot CLI, MCP, and lo
 | **copilot-local** | Task picker launcher for Copilot CLI | `~/Documents/CLI/` + PATH |
 | **imagegen MCP** | Image-generation tool for Crush/Copilot (Office authoring is a skill, not MCP) | Isolated Python venv |
 
-### Models — RTX 5090 (~135 GB disk)
+### Models — RTX 5090 (~130 GB disk)
 
 | Model | Launcher alias | Base tag | Task |
 |-------|----------------|----------|------|
-| Qwen3.6 35B-A3B MoE | `qwen36-35b-256k` | `qwen3.6:35b` | Heavy coding (default), tech docs |
+| Qwen3.8 27B dense | `qwen38-27b-192k` | `qwen3.8:27b` | Heavy coding (default), tech docs |
 | Fara 1.5 27B dense | `fara15-27b-192k` | `hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M` | Computer use / GUI agent (vision + tools) |
 | Qwen3-Coder 30B-A3B | `qwen3coder-144k` | `qwen3-coder:30b` | Light coding / code review |
 | Muse Glimmer 30B (Meta) | `museglimmer-30b-128k` | `muse-glimmer:30b` | Agentic / all MCP+tools / Office authoring (vision + tools + thinking) |
@@ -150,18 +150,18 @@ alias to skip the picker entirely.
 
 ```
 copilot-local                    # Interactive picker
-copilot-local qwen36-35b-256k    # Skip picker, use a specific model
+copilot-local qwen38-27b-192k    # Skip picker, use a specific model
 ```
 
 **Local — task profiles (RTX 5090):**
 ```
   Coding
-    [1] Heavy coding       qwen36-35b-256k
+    [1] Heavy coding       qwen38-27b-192k
     [2] Light coding       qwen3coder-144k
     [3] Code review        qwen3coder-144k
     
   Writing & Documents
-    [4] Technical docs     qwen36-35b-256k
+    [4] Technical docs     qwen38-27b-192k
     [5] Creative writing   ornith-35b-256k
     [6] Office documents   museglimmer-30b-128k   (office skill)
     
@@ -175,7 +175,8 @@ copilot-local qwen36-35b-256k    # Skip picker, use a specific model
     [9] Conversation & research  nemotron35-light-256k
 ```
 
-**Local — Experimental** swaps in the heavy-coding bench (Qwen3-Coder 30B-A3B, Muse Glimmer 30B, North Mini
+**Local — Experimental** swaps in the heavy-coding bench (Qwen3.6 35B-A3B, scheduled for retirement
+during the next monthly sweep; Qwen3-Coder 30B-A3B, Muse Glimmer 30B, North Mini
 Code, Nemotron 3.5 Lightning, Ornith-1.0-35B, Devstral Small 2, …) with MCP off. **Squire-Server** appears
 when the `server` provider is enabled and targets the CachyOS vLLM box.
 

@@ -24,8 +24,8 @@
 .PARAMETER OllamaModels
     Ollama roster GPU tier that determines which models to pull:
       5090 — (default) RTX 5090 (32GB). Pulls the seven production models
-             (Qwen3.6 35B-A3B, Fara 1.5 27B, Qwen3-Coder 30B, Muse Glimmer 30B,
-             Nemotron 3.5 Lightning, Ornith-1.0-35B, Qwen3 8B) (~135 GB) — coherent with config\crush.json.
+             (Qwen3.8 27B, Fara 1.5 27B, Qwen3-Coder 30B, Muse Glimmer 30B,
+             Nemotron 3.5 Lightning, Ornith-1.0-35B, Qwen3 8B) (~130 GB) — coherent with config\crush.json.
     The Windows host is the 5090 gaming desktop; a real 24GB (4090) box runs the
     CachyOS installer, which has its own tier. -TestProfiles installs the same roster
     PLUS the heavy-coding bench contenders. Ignored in Client mode.
@@ -159,8 +159,8 @@ if ($Help) {
     -SquireServerIP <ip>     vLLM server address (default: 192.168.1.99)
 
   GPU TIER:
-    -OllamaModels 5090      (default) RTX 5090 (32GB) — the seven production models, ~135 GB:
-                              qwen36-35b-256k       Heavy coding default (Qwen3.6 35B-A3B)
+    -OllamaModels 5090      (default) RTX 5090 (32GB) — the seven production models, ~130 GB:
+                              qwen38-27b-192k       Heavy coding / technical docs (Qwen3.8 27B)
                               fara15-27b-192k       Computer use / GUI agent (Fara 1.5 27B)
                               qwen3coder-144k       Light coding / review (Qwen3-Coder 30B)
                               museglimmer-30b-128k  Agentic / all MCP+tools (Muse Glimmer 30B)
@@ -172,11 +172,11 @@ if ($Help) {
     -OllamaHost <url>    Optional extra remote Ollama provider (not required for Client mode)
                          Example: http://192.168.1.100:11434
     -TestProfiles        RTX 5090 side-by-side bench: installs the heavy-coding contenders
-                         (qwen3.6 35B-A3B, fara 1.5 27B, qwen3-coder, muse-glimmer 30B,
+                         (qwen3.8 27B, qwen3.6 35B-A3B, fara 1.5 27B, qwen3-coder, muse-glimmer 30B,
                          qwen3 8B + the bench additions North Mini Code 1.0, Nemotron 3.5
                          Lightning 30B-A3B, Ornith-1.0-35B, Devstral Small 2 24B, KAT-Coder
                          V2.5 35B-A3B, XYZ-Aquila-mini 35B, Laguna S 2.1 118B) and their
-                         launcher aliases (qwen36-35b-256k/qwen3coder-144k/museglimmer-30b-128k/
+                         launcher aliases (qwen38-27b-192k/qwen36-35b-256k/qwen3coder-144k/museglimmer-30b-128k/
                          northmini-code-256k/nemotron35-light-256k/ornith-35b-256k/
                          devstral2-24b-128k/etc.). ~400 GB. Use with
                          -ModelPath to put the models off the OS drive.
@@ -270,7 +270,7 @@ if (-not [string]::IsNullOrWhiteSpace($DataRoot)) {
     $priorModels  = [Environment]::GetEnvironmentVariable('OLLAMA_MODELS', 'User')
     if (-not [string]::IsNullOrWhiteSpace($priorAiTools)) {
         $AiToolsRoot = Split-Path $priorAiTools -Parent   # AI_TOOLS_DIR = <root>\ai-tools
-        Write-Info "Reusing prior data root from AI_TOOLS_DIR: $AiToolsRoot (pass -DataRoot to override)."
+        Write-Host "  Reusing prior data root from AI_TOOLS_DIR: $AiToolsRoot (pass -DataRoot to override)." -ForegroundColor Cyan
     } else {
         $AiToolsRoot = $LocalAppData
     }
@@ -290,7 +290,8 @@ $script:Warnings = @()
 
 # Known model descriptions for progress display
 $KnownModelDescriptions = @{
-    "qwen3.6:35b"     = "Qwen3.6 35B-A3B MoE, heavy coding default (256k ctx), ~22 GB"
+    "qwen3.8:27b"     = "Qwen3.8 27B, heavy coding / technical docs (192k ctx), ~17 GB"
+    "qwen3.6:35b"     = "Qwen3.6 35B-A3B MoE, experimental pending retirement at the next monthly sweep (256k ctx), ~22 GB"
     "hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M" = "Fara 1.5 27B (Microsoft, MIT): computer-use / GUI agent, vision + tools (192k ctx), ~17 GB"
     "qwen3-coder:30b" = "Qwen3-Coder 30B-A3B MoE — light coding / review (144k ctx), ~18 GB"
     "muse-glimmer:30b" = "Muse Glimmer 30B (Meta, Apache 2.0), agentic / all MCP+tools, vision + tools + thinking (128k ctx), ~18 GB"
@@ -304,7 +305,7 @@ $KnownModelDescriptions = @{
 # the matching aliases (see $aliasModels below), so a generic install is coherent
 # with crush.json. -TestProfiles is a SUPERSET that adds the bench contenders.
 $ProductionModels = [ordered]@{
-    "qwen3.6:35b"     = $KnownModelDescriptions["qwen3.6:35b"]
+    "qwen3.8:27b"     = $KnownModelDescriptions["qwen3.8:27b"]
     "hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M" = $KnownModelDescriptions["hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M"]
     "qwen3-coder:30b" = $KnownModelDescriptions["qwen3-coder:30b"]
     "muse-glimmer:30b" = $KnownModelDescriptions["muse-glimmer:30b"]
@@ -316,7 +317,7 @@ $ProductionModels = [ordered]@{
 $ProfileDefinitions = @{
     "5090" = @{
         Description = "RTX 5090 (32GB) — the seven production models (coherent with crush.json + launchers)"
-        RequiredGB = 135
+        RequiredGB = 130
         Models = $ProductionModels
     }
     # 5090 side-by-side test profile (-TestProfiles). ~1TB model storage, so every
@@ -327,7 +328,8 @@ $ProfileDefinitions = @{
         Description = "RTX 5090 (32GB) — side-by-side model bench (~1TB model storage)"
         RequiredGB = 400
         Models = [ordered]@{
-            "qwen3.6:35b"      = "Qwen3.6 35B-A3B MoE, heavy coding default / multimodal (262k ctx), ~22 GB"
+            "qwen3.8:27b"      = "Qwen3.8 27B, heavy coding / technical docs (192k ctx), ~17 GB"
+            "qwen3.6:35b"      = "Qwen3.6 35B-A3B MoE, experimental pending retirement at the next monthly sweep (256k ctx), ~22 GB"
             "hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M" = "Fara 1.5 27B (Microsoft, MIT): computer-use / GUI agent bench (192k ctx), ~17 GB"
             "qwen3-coder:30b"  = "Qwen3-Coder 30B-A3B MoE — light coding / review (256k ctx), ~18 GB"
             "muse-glimmer:30b" = "Muse Glimmer 30B (Meta, Apache 2.0), agentic / all MCP+tools, vision + tools + thinking (128k ctx), ~18 GB"
@@ -1469,6 +1471,7 @@ if ($ShouldPullModels) {
             # qwen3.6:27b base tag is intentionally absent — the Models map repoints it to the
             # MTP hf.co tag, so the library base is never pulled; its ctx is set on the alias.
             $numCtxSettings = @{
+                "qwen3.8:27b"     = 196608
                 "qwen3.6:35b"     = 262144
                 "qwen3-coder:30b" = 147456
                 "muse-glimmer:30b" = 131072
@@ -1496,11 +1499,10 @@ PARAMETER num_ctx $ctx
             # install is coherent with crush.json. Coders get lower temp; the agentic and
             # prose models sit slightly higher.
             $aliasModels = @{
-                # Production "Heavy coding" slot as of 2026-08-13. Replaced the dense
-                # Qwen3.6-27B-MTP after a head-to-head scored by executing generated code
-                # against hidden tests: quality tied, but this MoE build prefills at twice
-                # the rate, generates at 231 tok/s against 70, and carries 256k against 212k.
-                "qwen36-35b-256k"  = @{ From = "qwen3.6:35b";     Ctx = 262144; Temp = 0.25 }
+                # Production heavy-coding and technical-document slot as of 2026-08-23.
+                # Qwen3.8 passed 6/6 coding tasks and gave the cleanest candidate abstentions.
+                # It is capped at 192k because 256k leaves only about 0.7 GiB VRAM free.
+                "qwen38-27b-192k"  = @{ From = "qwen3.8:27b";     Ctx = 196608; Temp = 0.25 }
                 # Calibrated on-box 2026-08-01 (5090, q8 KV): Fara 1.5 is a dense qwen35, so KV is
                 # heavy. 256k=30.7GB leaves only ~1.3GB free; 192k (196608)=28.26GB (~3.7GB free) is
                 # the safe always-on point. Production "Computer Use" slot: vision + tools.
@@ -1529,6 +1531,9 @@ PARAMETER num_ctx $ctx
                 "ornith-35b-256k"  = @{ From = "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"; Ctx = 262144; Temp = 0.6 }
             }
             if ($TestProfiles) {
+                # Former production heavy model. Keep for one monthly sweep as the H1 rollback
+                # comparison, then retire if Qwen3.8 remains stable.
+                $aliasModels["qwen36-35b-256k"] = @{ From = "qwen3.6:35b"; Ctx = 262144; Temp = 0.25 }
                 # -TestProfiles SUPERSET: heavy-coding bench ([H6]-[H9]). Native context is larger
                 # (North 500k, Nemotron 1M, Ornith 256k, Devstral 256k) but capped for a controlled
                 # bench + KV sanity on 32 GB VRAM. North Mini Code and Devstral are instruct coders

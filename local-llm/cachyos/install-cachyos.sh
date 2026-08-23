@@ -249,6 +249,7 @@ populate_ollama_tier() {
 
     # Base GGUF tags (identical across tiers).
     local mtp="hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M"
+    local q38_27b="qwen3.8:27b"
     local q36_35b="qwen3.6:35b"
     local gemma4="gemma4:31b"
     local coder="qwen3-coder:30b"
@@ -258,20 +259,32 @@ populate_ollama_tier() {
     local nemotron="hf.co/bartowski/nvidia_Nemotron-3-Nano-30B-A3B-GGUF:Q4_K_M"
     local ornith="hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"
     local devstral="hf.co/unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF:Q4_K_M"
+    local katcoder="hf.co/bartowski/Kwaipilot_KAT-Coder-V2.5-Dev-GGUF:Q4_K_M"
+    local aquila="hf.co/bartowski/XYZAILab_XYZ-Aquila-mini-GGUF:Q4_K_M"
+    local laguna="hf.co/wimmmm/poolside-Laguna-S-2.1-GGUF:IQ4_XS"
 
     # Production roster (always). Experimental/bench models are added only with --test-profiles.
     # Ornith is production: it holds the creative-writing slot after winning the cover-letter
     # bench on 2026-08-13. See 5090-model-evaluation.md.
     OLLAMA_PULL_TAGS=("$mtp" "$q36_35b" "$gemma4" "$coder" "$muse" "$img" "$ornith")
+    if [[ "$tier" == "5090" ]]; then
+        OLLAMA_PULL_TAGS+=("$q38_27b")
+    fi
     if [[ "$TEST_PROFILES" == true ]]; then
         OLLAMA_PULL_TAGS+=("$northmini" "$nemotron" "$devstral")
+        if [[ "$tier" == "5090" ]]; then
+            OLLAMA_PULL_TAGS+=("$katcoder" "$aquila" "$laguna")
+        fi
     fi
 
     # Per-tier alias names + contexts (24GB-safe on 4090; full on 5090).
-    local a_heavy a_q3635 a_gemma a_coder a_muse a_north a_nemo a_ornith a_devstral
-    local c_heavy c_q3635 c_gemma c_coder c_muse c_north c_nemo c_ornith c_devstral
+    local a_heavy a_q3827 a_q3635 a_gemma a_coder a_muse a_north a_nemo a_ornith a_devstral
+    local a_kat a_aquila a_laguna
+    local c_heavy c_q3827 c_q3635 c_gemma c_coder c_muse c_north c_nemo c_ornith c_devstral
+    local c_kat c_aquila c_laguna
     if [[ "$tier" == "5090" ]]; then
         a_heavy=qwen36-27b-212k;   c_heavy=217088
+        a_q3827=qwen38-27b-192k;   c_q3827=196608
         a_q3635=qwen36-35b-256k;   c_q3635=262144
         a_gemma=gemma4-31b-128k;   c_gemma=131072
         a_coder=qwen3coder-144k;   c_coder=147456
@@ -280,6 +293,9 @@ populate_ollama_tier() {
         a_nemo=nemotron3-nano-256k; c_nemo=262144
         a_ornith=ornith-35b-256k;  c_ornith=262144
         a_devstral=devstral2-24b-128k; c_devstral=131072
+        a_kat=katcoder25-35b-256k; c_kat=262144
+        a_aquila=aquila-mini-35b-256k; c_aquila=262144
+        a_laguna=laguna-s21-118b-128k; c_laguna=131072
     else
         a_heavy=qwen36-27b-96k;    c_heavy=98304
         a_q3635=qwen36-35b-96k;    c_q3635=98304
@@ -296,6 +312,9 @@ populate_ollama_tier() {
     fi
 
     OLLAMA_ALIAS_FROM["$a_heavy"]="$mtp";        OLLAMA_ALIAS_CTX["$a_heavy"]="$c_heavy"
+    if [[ "$tier" == "5090" ]]; then
+        OLLAMA_ALIAS_FROM["$a_q3827"]="$q38_27b"; OLLAMA_ALIAS_CTX["$a_q3827"]="$c_q3827"
+    fi
     OLLAMA_ALIAS_FROM["$a_q3635"]="$q36_35b";    OLLAMA_ALIAS_CTX["$a_q3635"]="$c_q3635"
     OLLAMA_ALIAS_FROM["$a_gemma"]="$gemma4";     OLLAMA_ALIAS_CTX["$a_gemma"]="$c_gemma"
     OLLAMA_ALIAS_FROM["$a_coder"]="$coder";      OLLAMA_ALIAS_CTX["$a_coder"]="$c_coder"
@@ -303,13 +322,11 @@ populate_ollama_tier() {
     OLLAMA_ALIAS_FROM["$a_ornith"]="$ornith";    OLLAMA_ALIAS_CTX["$a_ornith"]="$c_ornith"
 
     # Task->alias SLOT map (drives the launcher tier config).
-    # Heavy-coding slot. On the 5090 the MoE 35B beat the dense 27B head-to-head on
-    # 2026-08-13 (quality tied when scored by executing generated code against hidden
-    # tests; 231 tok/s against 70, double the prefill, 256k against 212k). The 4090 keeps
-    # the dense 27B: qwen3.6:35b is ~23 GB and will not hold useful context on a 24 GB
-    # card. See 5090-model-evaluation.md section BT.
+    # Heavy-coding slot. The 5090 uses Qwen3.8 at its measured safe 192k ceiling.
+    # Qwen3.6 35B remains H1 for rollback and is scheduled for retirement during the next
+    # monthly sweep. The 4090 local tier is unchanged and keeps Qwen3.6 27B.
     if [[ "$tier" == "5090" ]]; then
-        OLLAMA_SLOT[heavy]="$a_q3635"
+        OLLAMA_SLOT[heavy]="$a_q3827"
     else
         OLLAMA_SLOT[heavy]="$a_heavy"
     fi
@@ -318,14 +335,23 @@ populate_ollama_tier() {
     OLLAMA_SLOT[agentic]="$a_muse"
     OLLAMA_SLOT[creative]="$a_ornith"
     OLLAMA_SLOT[image_llm]="$img"
-    OLLAMA_SLOT[h1]="$a_heavy"
-    OLLAMA_SLOT[h2]="$a_q3635"
-    OLLAMA_SLOT[h3]="$a_gemma"
-    OLLAMA_SLOT[h4]="$a_coder"
-    OLLAMA_SLOT[h5]="$a_muse"
+    if [[ "$tier" == "5090" ]]; then
+        OLLAMA_SLOT[h1]="$a_q3635"
+        OLLAMA_SLOT[h2]="$a_coder"
+        OLLAMA_SLOT[h3]="$a_muse"
+    else
+        OLLAMA_SLOT[h1]="$a_heavy"
+        OLLAMA_SLOT[h2]="$a_q3635"
+        OLLAMA_SLOT[h3]="$a_gemma"
+        OLLAMA_SLOT[h4]="$a_coder"
+        OLLAMA_SLOT[h5]="$a_muse"
+    fi
 
     # Friendly labels (identity is tier-independent).
     OLLAMA_ALIAS_LABEL["$a_heavy"]="Qwen3.6 27B (+MTP)"
+    if [[ "$tier" == "5090" ]]; then
+        OLLAMA_ALIAS_LABEL["$a_q3827"]="Qwen3.8 27B"
+    fi
     OLLAMA_ALIAS_LABEL["$a_q3635"]="Qwen3.6 35B-A3B"
     OLLAMA_ALIAS_LABEL["$a_gemma"]="Gemma 4 31B"
     OLLAMA_ALIAS_LABEL["$a_coder"]="Qwen3-Coder 30B-A3B"
@@ -340,13 +366,29 @@ populate_ollama_tier() {
         OLLAMA_ALIAS_FROM["$a_north"]="$northmini";   OLLAMA_ALIAS_CTX["$a_north"]="$c_north"
         OLLAMA_ALIAS_FROM["$a_nemo"]="$nemotron";     OLLAMA_ALIAS_CTX["$a_nemo"]="$c_nemo"
         OLLAMA_ALIAS_FROM["$a_devstral"]="$devstral"; OLLAMA_ALIAS_CTX["$a_devstral"]="$c_devstral"
-        OLLAMA_SLOT[h6]="$a_north"
-        OLLAMA_SLOT[h7]="$a_nemo"
-        OLLAMA_SLOT[h8]="$a_ornith"
-        OLLAMA_SLOT[h9]="$a_devstral"
         OLLAMA_ALIAS_LABEL["$a_north"]="North Mini Code 1.0"
         OLLAMA_ALIAS_LABEL["$a_nemo"]="Nemotron 3 Nano 30B-A3B"
         OLLAMA_ALIAS_LABEL["$a_devstral"]="Devstral Small 2 (24B)"
+        if [[ "$tier" == "5090" ]]; then
+            OLLAMA_ALIAS_FROM["$a_kat"]="$katcoder";   OLLAMA_ALIAS_CTX["$a_kat"]="$c_kat"
+            OLLAMA_ALIAS_FROM["$a_aquila"]="$aquila"; OLLAMA_ALIAS_CTX["$a_aquila"]="$c_aquila"
+            OLLAMA_ALIAS_FROM["$a_laguna"]="$laguna"; OLLAMA_ALIAS_CTX["$a_laguna"]="$c_laguna"
+            OLLAMA_ALIAS_LABEL["$a_kat"]="KAT-Coder V2.5 35B-A3B"
+            OLLAMA_ALIAS_LABEL["$a_aquila"]="XYZ-Aquila-mini 35B-A3B"
+            OLLAMA_ALIAS_LABEL["$a_laguna"]="Laguna S 2.1 118B-A9B"
+            OLLAMA_SLOT[h4]="$a_north"
+            OLLAMA_SLOT[h5]="$a_nemo"
+            OLLAMA_SLOT[h6]="$a_ornith"
+            OLLAMA_SLOT[h7]="$a_devstral"
+            OLLAMA_SLOT[h8]="$a_kat"
+            OLLAMA_SLOT[h9]="$a_aquila"
+            OLLAMA_SLOT[off1]="$a_laguna"
+        else
+            OLLAMA_SLOT[h6]="$a_north"
+            OLLAMA_SLOT[h7]="$a_nemo"
+            OLLAMA_SLOT[h8]="$a_ornith"
+            OLLAMA_SLOT[h9]="$a_devstral"
+        fi
     fi
 }
 

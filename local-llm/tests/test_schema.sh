@@ -16,6 +16,9 @@ def ok(c, m):
         F += 1; print("  FAIL:", m)
 
 reg = lm["registry"]; ta = lm["task_alias"]
+ok(ta.get("heavy") == "qwen38-27b-192k", f"5090 heavy alias {ta.get('heavy')}")
+ok(ta.get("h1") == "qwen36-35b-256k", f"5090 experimental H1 alias {ta.get('h1')}")
+ok(reg.get("qwen38-27b-192k", {}).get("ctx") == 196608, "Qwen3.8 production context is not 192k")
 for slot, al in ta.items():
     ok(al in reg, f"task_alias[{slot}]={al} not in registry")
 for lname, ldef in lm["launchers"].items():
@@ -27,6 +30,14 @@ for lname, ldef in lm["launchers"].items():
                 if "slot" in r:
                     ok(r["slot"] in ta, f"{lname}/{which} row [{r['key']}] slot '{r.get('slot')}' not in task_alias")
         ok(len(keys) == len(set(keys)), f"{lname}/{which} duplicate keys: {keys}")
+    q36_rows = [
+        r for cat in ldef["experimental"]["categories"] for r in cat["rows"]
+        if r.get("slot") == "h1"
+    ]
+    ok(
+        len(q36_rows) == 1 and "next monthly sweep" in q36_rows[0].get("note", ""),
+        f"{lname} Qwen3.6 H1 row missing monthly-retirement note",
+    )
 for al, e in reg.items():
     ok("label" in e, f"registry[{al}] missing label")
 

@@ -4,6 +4,7 @@
   "tier": "5090",
 
   "registry": {
+    "qwen38-27b-192k":       { "label": "Qwen3.8 27B",                         "ctx": 196608 },
     "qwen36-35b-256k":       { "label": "Qwen3.6 35B-A3B",                     "ctx": 262144 },
     "qwen3coder-144k":       { "label": "Qwen3-Coder 30B-A3B",                "ctx": 147456 },
     "museglimmer-30b-128k":  { "label": "Muse Glimmer 30B",                   "ctx": 131072 },
@@ -19,7 +20,7 @@
   },
 
   "task_alias": {
-    "heavy":     "qwen36-35b-256k",
+    "heavy":     "qwen38-27b-192k",
     "coder":     "qwen3coder-144k",
     "review":    "qwen3coder-144k",
     "agentic":   "museglimmer-30b-128k",
@@ -85,7 +86,7 @@
             "heading": "Heavy-coding bench",
             "subtitle": "(VRAM-resident; swap model, MCP off)",
             "rows": [
-              { "key": "1",  "label": "Qwen3.6 35B-A3B MoE",    "slot": "h1" },
+              { "key": "1",  "label": "Qwen3.6 35B-A3B MoE",    "slot": "h1", "note": "(retire during next monthly sweep)" },
               { "key": "2",  "label": "Qwen3-Coder 30B-A3B",    "slot": "h2" },
               { "key": "3",  "label": "Muse Glimmer 30B",       "slot": "h3" },
               { "key": "4",  "label": "North Mini Code 1.0",    "slot": "h4" },
@@ -151,7 +152,7 @@
             "heading": "Heavy-coding bench",
             "subtitle": "(coding profile, swap model)",
             "rows": [
-              { "key": "1",  "label": "Qwen3.6 35B-A3B MoE",    "slot": "h1",  "profile": "coding" },
+              { "key": "1",  "label": "Qwen3.6 35B-A3B MoE",    "slot": "h1",  "profile": "coding", "note": "(retire during next monthly sweep)" },
               { "key": "2",  "label": "Qwen3-Coder 30B-A3B",    "slot": "h2",  "profile": "coding" },
               { "key": "3",  "label": "Muse Glimmer 30B",       "slot": "h3",  "profile": "coding" },
               { "key": "4",  "label": "North Mini Code 1.0",    "slot": "h4",  "profile": "coding" },
