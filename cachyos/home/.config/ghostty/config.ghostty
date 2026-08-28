@@ -1,15 +1,15 @@
 # Appearance
 theme = Jesse
-font-family = FantasqueSansM Nerd Font Mono
-font-size = 12.25
-adjust-cell-width = -14%
+font-family = CaskaydiaMono Nerd Font Mono
+font-size = 11
 background-opacity = 0.96
+alpha-blending = native
 
 # Window
 title = CachyOS
 # GTK decorations consume one column and three rows.
-window-width = 161
-window-height = 38
+window-width = 162
+window-height = 40
 window-padding-balance = true
 window-decoration = client
 window-theme = dark
@@ -51,6 +51,7 @@ keybind = shift+end=scroll_to_bottom
 
 # Tabs, splits, and prompts
 keybind = ctrl+shift+t=new_tab
+keybind = ctrl+shift+r=prompt_tab_title
 keybind = ctrl+tab=next_tab
 keybind = ctrl+shift+tab=previous_tab
 keybind = ctrl+shift+o=new_split:right

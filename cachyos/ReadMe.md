@@ -15,7 +15,7 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
     _Alacritty terminal emulator configuration with a custom Nord-inspired dark theme._
 
   * **home/.config/ghostty**  
-    _Ghostty terminal emulator configuration matching the Alacritty theme and controls, with native tabs, splits, and shell integration. GTK client-side decorations are forced so the tab controls and application menu remain consistent across Plasma and COSMIC. Installation and deployment remain manual while Ghostty is being evaluated._
+    _Shared Ghostty terminal configuration for Plasma and COSMIC. It uses CaskaydiaMono Nerd Font Mono at 11 pt, native sRGB alpha blending, a 162-column by 40-row startup size, the Jesse color theme, native tabs and splits, persistent tab renaming, and shell integration. GTK client-side decorations keep the tab controls and application menu consistent across both desktops. The full bootstrap installs Ghostty and its font, and `init-shell.sh` deploys the configuration._
 
   * **home/.config/cosmic/com.system76.CosmicTerm**  
     _COSMIC Terminal settings and the custom Jesse color scheme matching the Alacritty palette, font size, opacity, bright-bold colors, and supported shortcuts. COSMIC Terminal does not currently expose equivalent settings for the underline cursor, fixed initial dimensions, copy-on-select, mouse hiding, or line-based scrollback._
@@ -23,11 +23,11 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
   * **home/.config/zed/themes**  
     _Custom Zed editor theme._
 
-  The tracked `home/.config` and `home/.gnupg` assets are an inventory, not a
-  promise that the bootstrap or shell installer deploys them. Terminal,
-  editor, COSMIC, and GPG agent settings remain manually deployed unless an
-  item explicitly says otherwise. Their applications, fonts, and other runtime
-  dependencies are likewise outside the Plasma appearance profile.
+  The tracked `home/.config` and `home/.gnupg` assets are an inventory unless
+  an item explicitly says otherwise. Ghostty is installed by `bootstrap.sh`
+  and deployed by `init-shell.sh`. Alacritty, editor, COSMIC Terminal, and GPG
+  agent settings remain manually deployed. Their applications, fonts, and
+  other runtime dependencies are outside the Plasma appearance profile.
 
 * **surface-laptop**  
   _Authored in 2026, this directory contains scripts specific to configuring Microsoft Surface laptop hardware, including kernel installation and hardware service enablement._
@@ -35,7 +35,7 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
 ### Items
   
 * **bootstrap.sh**  
-  _Authored in 2026, this script performs full CachyOS workstation provisioning. It updates the system, installs repository and AUR software, and configures services, groups, and Flatpak. It is not the appearance-only entry point. Firewall setup requires both `--enable-firewall` and an explicit `--ssh-port <port>`. Orphan removal and cache pruning are enabled only with `--package-maintenance`. Pass `--plasma-customization` only when the appearance profile should run after the complete bootstrap, and optionally pass `--plasma-wallpaper /path/to/image` to use a personal wallpaper._
+  _Authored in 2026, this script performs full CachyOS workstation provisioning. It updates the system, installs repository and AUR software, including Ghostty and Caskaydia Mono Nerd Font for both Plasma and COSMIC, and configures services, groups, and Flatpak. It is not the appearance-only entry point. Firewall setup requires both `--enable-firewall` and an explicit `--ssh-port <port>`. Orphan removal and cache pruning are enabled only with `--package-maintenance`. Pass `--plasma-customization` only when the appearance profile should run after the complete bootstrap, and optionally pass `--plasma-wallpaper /path/to/image` to use a personal wallpaper._
 
 * **customize-plasma.sh**  
   _Applies the reproducible parts of the current CachyOS Plasma profile: Breeze Dark colors and application style, Breeze window decorations, reduced animations, Slot Gradient Dark icons, Capitaine cursors, file-dialog preferences, GTK theme integration, and desktop/lock-screen wallpapers. The script installs its package dependencies. The Slot icon archive is resolved through the OpenDesktop JSON API, then accepted only when its filename, SHA-256 digest, and archive layout match the reviewed artifact pinned in the script. A personal wallpaper is copied into the user's local wallpaper directory when supplied. Hardware-specific input IDs, display scaling, activity IDs, panel containment IDs, and lock timeout policy are deliberately excluded._
@@ -79,7 +79,7 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
   ```
 
 * **init-shell.sh**  
-  _Authored in 2026, this script installs ZSH and sets it as the default shell, then deploys only the explicitly listed top-level shell and Git files. It does not deploy tracked terminal, editor, COSMIC, or GPG agent configuration. It is intended to be run after bootstrapping to establish the shell environment._
+  _Authored in 2026, this script installs ZSH and sets it as the default shell, deploys the explicitly listed top-level shell and Git files, and installs the shared Ghostty configuration and Jesse theme with timestamped backups when content changes. It does not deploy Alacritty, editor, COSMIC Terminal, or GPG agent configuration. It is intended to be run after bootstrapping to establish the shell and terminal environment._
 
 * **install-development.sh**  
   _Authored in 2026, this script automates installing and configuring of a set of development tools, focusing on Azure, .NET, and Node.js. The actions performed by this script are intended to be general-purpose, but are targeted at a development workstation. Orphan removal and cache pruning run only when `--package-maintenance` is supplied._

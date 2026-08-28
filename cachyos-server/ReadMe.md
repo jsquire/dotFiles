@@ -15,11 +15,12 @@ These resources from the base `cachyos/` directory are directly compatible with 
 | Resource | Purpose | Notes |
 |----------|---------|-------|
 | `cachyos/secureboot.sh` | Secure Boot setup | Only if hardware is UEFI + Limine |
+| `cachyos/home/.config/ghostty` | Ghostty profile and Jesse theme | Installed by the server bootstrap for its Plasma session |
 
 ### Structure
 
 * **home**  
-  _Based on `cachyos/home`, this contains the $HOME items for the user account, including zsh, git, and gpg-agent configuration adapted for the server environment with `EDITOR=nano` and curses pinentry._
+  _Based on `cachyos/home`, this contains the $HOME items for the user account, including zsh, git, and gpg-agent configuration adapted for the server environment with `EDITOR=nano` and curses pinentry. The shared Ghostty profile remains in `cachyos/home` and is deployed directly by the server bootstrap rather than duplicated here._
 
 * **container-services**  
   _Docker Compose services and operational scripts for the server-hosted containers (AdGuard Home, Plex)._
@@ -27,7 +28,7 @@ These resources from the base `cachyos/` directory are directly compatible with 
 ### Items
 
 * **bootstrap.sh**  
-  _Authored in 2026, this is an idempotent server setup script covering packages, ZSH, KDE Plasma + KRDP (KDE's built-in Remote Desktop), Docker, firewall configuration, Python/uv, Node/NVM, and the NFS client.  Pass `--full` to also mount the NAS Plex media export over NFS and deploy container services end-to-end._
+  _Authored in 2026, this is an idempotent server setup script covering packages, ZSH, KDE Plasma + KRDP (KDE's built-in Remote Desktop), the shared Ghostty profile and font, Docker, firewall configuration, Python/uv, Node/NVM, and the NFS client. Pass `--full` to also mount the NAS Plex media export over NFS and deploy container services end-to-end._
 
   Arguments:
   | Flag | Default | Purpose |

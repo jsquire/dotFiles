@@ -168,6 +168,15 @@ sudo pacman -S --needed --noconfirm \
 
 
 ############################################
+# Cross-desktop terminal
+############################################
+
+sudo pacman -S --needed --noconfirm \
+    ghostty \
+    ttf-cascadia-mono-nerd
+
+
+############################################
 # Plasma desktop utilities
 ############################################
 

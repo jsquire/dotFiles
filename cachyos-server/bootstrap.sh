@@ -207,7 +207,9 @@ sudo pacman -S --needed --noconfirm \
     plasma-systemmonitor \
     xdg-desktop-portal \
     xdg-desktop-portal-kde \
-    kdeplasma-addons
+    kdeplasma-addons \
+    ghostty \
+    ttf-cascadia-mono-nerd
 
 ############################################
 # Micro editor
@@ -265,6 +267,14 @@ install_home_file "${SCRIPT_DIR}/home/.gitignore" "$HOME/.gitignore"
 install_home_file "${SCRIPT_DIR}/home/.p10k.zsh"  "$HOME/.p10k.zsh"
 install_home_file "${SCRIPT_DIR}/home/.profile"   "$HOME/.profile"
 install_home_file "${SCRIPT_DIR}/home/.zshrc"     "$HOME/.zshrc"
+
+mkdir -p "$HOME/.config/ghostty/themes"
+install_home_file \
+    "${SCRIPT_DIR}/../cachyos/home/.config/ghostty/config.ghostty" \
+    "$HOME/.config/ghostty/config.ghostty"
+install_home_file \
+    "${SCRIPT_DIR}/../cachyos/home/.config/ghostty/themes/Jesse" \
+    "$HOME/.config/ghostty/themes/Jesse"
 
 # The template .gitconfig ships placeholders rather than a real identity, and it
 # sets commit.gpgsign/tag.gpgsign to true. Left unedited, git does not merely

@@ -43,6 +43,14 @@ install_home_file "${SCRIPT_DIR}/home/.p10k.zsh"  "$HOME/.p10k.zsh"
 install_home_file "${SCRIPT_DIR}/home/.profile"   "$HOME/.profile"
 install_home_file "${SCRIPT_DIR}/home/.zshrc"     "$HOME/.zshrc"
 
+mkdir -p "$HOME/.config/ghostty/themes"
+install_home_file \
+    "${SCRIPT_DIR}/home/.config/ghostty/config.ghostty" \
+    "$HOME/.config/ghostty/config.ghostty"
+install_home_file \
+    "${SCRIPT_DIR}/home/.config/ghostty/themes/Jesse" \
+    "$HOME/.config/ghostty/themes/Jesse"
+
 # The template .gitconfig ships placeholders rather than a real identity, and it
 # sets commit.gpgsign/tag.gpgsign to true. Left unedited, git does not merely
 # record a wrong email: every commit fails outright with "gpg: skipped ... No
