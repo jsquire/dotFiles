@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json.schemastore.org/template",
+  "author": "Jesse Squire",
+  "classifications": [
+    "C#",
+    ".NET",
+    "Solution"
+  ],
+  "description": "Creates a .NET solution with agent guidance, centralized build settings, NUnit tests, CI, and dependency updates.",
+  "identity": "Jesse.CSharp.Solution",
+  "name": "Jesse C# Solution",
+  "shortName": "jesse-csharp",
+  "sourceName": "Jesse.Project-1",
+  "preferNameDirectory": true,
+  "tags": {
+    "language": "C#",
+    "type": "solution"
+  },
+  "forms": {
+    "identity": {
+      "identifier": "replace",
+      "pattern": "^",
+      "replacement": ""
+    },
+    "namespaceCharacters": {
+      "identifier": "replace",
+      "pattern": "[^A-Za-z0-9.]",
+      "replacement": ""
+    },
+    "namespaceLeadingDigit": {
+      "identifier": "replace",
+      "pattern": "(^|\\.)(?=[0-9])",
+      "replacement": "${1}Project"
+    },
+    "namespaceName": {
+      "identifier": "chain",
+      "steps": [
+        "namespaceCharacters",
+        "namespaceLeadingDigit"
+      ]
+    }
+  },
+  "symbols": {
+    "projectPathName": {
+      "type": "derived",
+      "valueSource": "name",
+      "valueTransform": "identity",
+      "replaces": "__PROJECT_PATH_NAME__"
+    },
+    "rootNamespace": {
+      "type": "derived",
+      "valueSource": "name",
+      "valueTransform": "namespaceName",
+      "replaces": "__ROOT_NAMESPACE__"
+    },
+    "copyrightYear": {
+      "type": "generated",
+      "generator": "now",
+      "replaces": "copyrightYear",
+      "parameters": {
+        "format": "yyyy"
+      }
+    },
+    "kestrelHttpPort": {
+      "type": "generated",
+      "generator": "port",
+      "replaces": "__HTTP_PORT__",
+      "parameters": {
+        "low": 5000,
+        "high": 5300
+      }
+    },
+    "kestrelHttpsPort": {
+      "type": "generated",
+      "generator": "port",
+      "replaces": "__HTTPS_PORT__",
+      "parameters": {
+        "low": 7000,
+        "high": 7300
+      }
+    },
+    "applicationType": {
+      "type": "parameter",
+      "datatype": "choice",
+      "defaultValue": "class-library",
+      "displayName": "Application type",
+      "description": "Selects the application project created under src.",
+      "replaces": "__APPLICATION_TYPE__",
+      "choices": [
+        {
+          "choice": "class-library",
+          "description": "Creates a reusable class library."
+        },
+        {
+          "choice": "console",
+          "description": "Creates a command-line application."
+        },
+        {
+          "choice": "web-api",
+          "description": "Creates a minimal ASP.NET Core Web API."
+        },
+        {
+          "choice": "worker",
+          "description": "Creates a .NET worker service."
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "source": "./",
+      "target": "./",
+      "exclude": [
+        ".template.config/**",
+        "variants/**",
+        "**/[Bb]in/**",
+        "**/[Oo]bj/**",
+        "**/.git/**",
+        "**/.vs/**",
+        "**/*.user",
+        "**/*.lock.json",
+        "**/*.filelist"
+      ],
+      "rename": {
+        "AGENTS.md.template": "AGENTS.md",
+        "editorconfig.template": ".editorconfig",
+        "gitignore.template": ".gitignore",
+        "gitattributes.template": ".gitattributes",
+        ".github/instructions/csharp.instructions.md.template": ".github/instructions/csharp.instructions.md"
+      }
+    },
+    {
+      "condition": "(applicationType == \"class-library\")",
+      "source": "variants/class-library/",
+      "target": "./"
+    },
+    {
+      "condition": "(applicationType == \"console\")",
+      "source": "variants/console/",
+      "target": "./"
+    },
+    {
+      "condition": "(applicationType == \"web-api\")",
+      "source": "variants/web-api/",
+      "target": "./",
+      "rename": {
+        "src/Jesse.Project-1/appsettings.json.template": "src/Jesse.Project-1/appsettings.json"
+      }
+    },
+    {
+      "condition": "(applicationType == \"worker\")",
+      "source": "variants/worker/",
+      "target": "./",
+      "rename": {
+        "src/Jesse.Project-1/appsettings.json.template": "src/Jesse.Project-1/appsettings.json"
+      }
+    }
+  ]
+}

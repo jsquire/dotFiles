@@ -82,7 +82,7 @@ The installer deploys the prebuilt binary to `%LOCALAPPDATA%\ollama-host\` and a
 Start Menu shortcut (under `AI\`); launch it to bring the local stack up. The binary ships prebuilt in
 `windows/ollama-host/dist/` — the installer copies that copy verbatim (verifying its `.sha256`) and
 never builds from source, so **updating `dist/` is the responsibility of whoever changes the
-ollama-host code.** See [`ollama-host/README.md`](ollama-host/README.md) for build, configuration, and
+ollama-host code.** See [`ollama-host/ReadMe.md`](ollama-host/ReadMe.md) for build, configuration, and
 design details.
 
 ### Crush (primary agent)

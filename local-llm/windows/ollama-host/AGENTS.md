@@ -1,7 +1,7 @@
 # ollama-host — Agent Guide
 
 A Windows system-tray supervisor (NativeAOT C#) that runs Ollama and an in-process `content:null`
-compatibility proxy as one unit, matching their lifetimes. See `README.md` for the full design.
+compatibility proxy as one unit, matching their lifetimes. See `ReadMe.md` for the full design.
 
 This file is the platform-neutral contract for any AI agent working in this project. It is
 self-contained and local to `ollama-host`; the conventions below are adopted from the author's

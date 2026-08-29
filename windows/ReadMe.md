@@ -14,6 +14,9 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
 * **configuration**  
   _Authored in 2026, these are PowerShell scripts that enforce system configuration policies, such as preventing Windows Update from rebooting without explicit user approval.  Scripts are idempotent and safe to re-run as needed._
 
+* **development**  
+  _Authored in 2026, this directory contains the Windows bootstrap for shared user-scoped development assets, including personal agent instructions and project templates maintained under the root `config` directory._
+
 * **git-bash**  
   _Authored over a period of time starting in roughly 2012, these are the $HOME items for the bash profile associated with the Git for Windows environment._
   

@@ -82,7 +82,7 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
   _Authored in 2026, this script installs ZSH and sets it as the default shell, deploys the explicitly listed top-level shell and Git files, and installs the shared Ghostty configuration and Jesse theme with timestamped backups when content changes. It does not deploy Alacritty, editor, COSMIC Terminal, or GPG agent configuration. It is intended to be run after bootstrapping to establish the shell and terminal environment._
 
 * **install-development.sh**  
-  _Authored in 2026, this script automates installing and configuring of a set of development tools, focusing on Azure, .NET, and Node.js. The actions performed by this script are intended to be general-purpose, but are targeted at a development workstation. Orphan removal and cache pruning run only when `--package-maintenance` is supplied._
+  _Authored in 2026, this script automates installing and configuring a set of development tools and shared user-scoped assets, focusing on Azure, .NET, GitHub Copilot, Node.js, and Rust. The actions performed by this script are intended to be general-purpose, but are targeted at a development workstation. Orphan removal and cache pruning run only when `--package-maintenance` is supplied._
 
 * **backups/**  
   _Backup and restore setup, configuration, and scripts.  See `backups/ReadMe.md` for details._

@@ -1643,7 +1643,7 @@ if ($IsFullMode) {
     Write-Host "    3. Test remote inference:  crush" -ForegroundColor Yellow
 }
 Write-Host ""
-Write-Host "  See README.md for 'How to Test' and 'How to Get Started' guides." -ForegroundColor Gray
+Write-Host "  See ReadMe.md for 'How to Test' and 'How to Get Started' guides." -ForegroundColor Gray
 Write-Host ""
 
 if ($script:Failures.Count -gt 0) {

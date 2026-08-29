@@ -24,7 +24,7 @@ configuration with every key at its default.
 ## Configuration
 
 Edit `appsettings.json` next to the exe, or set `OLLAMAHOST_`-prefixed environment variables (for
-example `OLLAMAHOST_Proxy__ListenPort`). See the top-level `README.md` for the full key list. Logs
+example `OLLAMAHOST_Proxy__ListenPort`). See the top-level `ReadMe.md` for the full key list. Logs
 default to `%LOCALAPPDATA%\ollama-host\logs\ollama-host.log`, rolling at 1 MB.
 
 ## Rebuilding

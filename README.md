@@ -13,6 +13,9 @@ Included are projects, documents, and presentations that were either created as 
 * **root**  
   _The root contains the overall repository configuration files, license, and general structure._
 
+* **config**  
+  _The container for shared configuration and source assets installed across operating systems, including personal agent instructions and project templates._
+
 * **cachyos**  
   _The container for items used for building and configuring a CachyOS (Arch-based) desktop or workstation._  
 

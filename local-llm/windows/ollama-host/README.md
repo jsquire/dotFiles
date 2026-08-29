@@ -82,7 +82,7 @@ changes the code. The Windows installer
 (`local-llm/windows/install-windows.ps1`) copies `dist/ollama-host.exe` verbatim — verifying its
 `.sha256` — along with the example `appsettings.json` to `%LOCALAPPDATA%\ollama-host\`, and creates the
 **Ollama Host** Start Menu shortcut. It never builds from source, so no SDK is required on the target.
-See `dist/README.md` for the target-platform assumptions.
+See `dist/ReadMe.md` for the target-platform assumptions.
 
 ## Source structure
 
