@@ -27,10 +27,14 @@ dotnet new jesse-csharp --help
 Create a project.
 
 ```shell
-dotnet new jesse-csharp --name Contoso.Sample --applicationType class-library
+dotnet new jesse-csharp --name Contoso.Sample
 ```
 
-Supported application types are `class-library`, `console`, `web-api`, and `worker`.
+The default application type is `console`. Use `--apptype <type>` or `-at <type>` to select `class-library`, `console`, `web-api`, or `worker`.
+
+The console application starts with only `EntryPoint.cs` at the project source root and writes `Hello, World!`.
+
+The template generates into the current directory by default. Add `--location <path>` to select another containing directory. Relative paths are resolved from the current directory.
 
 Generated repositories include NUnit, NSubstitute, native Microsoft.Testing.Platform, Central Package Management, GitHub Actions, Dependabot, `AGENTS.md`, and portable agent skills.
 

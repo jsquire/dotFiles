@@ -11,7 +11,7 @@
   "name": "Jesse C# Solution",
   "shortName": "jesse-csharp",
   "sourceName": "Jesse.Project-1",
-  "preferNameDirectory": true,
+  "preferNameDirectory": false,
   "tags": {
     "language": "C#",
     "type": "solution"
@@ -24,19 +24,19 @@
     },
     "namespaceCharacters": {
       "identifier": "replace",
-      "pattern": "[^A-Za-z0-9.]",
+      "pattern": "[^A-Za-z0-9]",
       "replacement": ""
     },
-    "namespaceLeadingDigit": {
+    "namespacePrefix": {
       "identifier": "replace",
-      "pattern": "(^|\\.)(?=[0-9])",
-      "replacement": "${1}Project"
+      "pattern": "^",
+      "replacement": "Project"
     },
     "namespaceName": {
       "identifier": "chain",
       "steps": [
         "namespaceCharacters",
-        "namespaceLeadingDigit"
+        "namespacePrefix"
       ]
     }
   },
@@ -79,13 +79,21 @@
         "high": 7300
       }
     },
-    "applicationType": {
+    "location": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": ".",
+      "fileRename": "__LOCATION__",
+      "displayName": "Location",
+      "description": "Containing directory for the generated solution. Relative paths are resolved from the current directory."
+    },
+    "apptype": {
       "type": "parameter",
       "datatype": "choice",
-      "defaultValue": "class-library",
+      "defaultValue": "console",
       "displayName": "Application type",
       "description": "Selects the application project created under src.",
-      "replaces": "__APPLICATION_TYPE__",
+      "replaces": "__APPTYPE__",
       "choices": [
         {
           "choice": "class-library",
@@ -112,7 +120,7 @@
       "target": "./",
       "exclude": [
         ".template.config/**",
-        "variants/**",
+        "**/variants/**",
         "**/[Bb]in/**",
         "**/[Oo]bj/**",
         "**/.git/**",
@@ -122,37 +130,73 @@
         "**/*.filelist"
       ],
       "rename": {
-        "AGENTS.md.template": "AGENTS.md",
-        "editorconfig.template": ".editorconfig",
-        "gitignore.template": ".gitignore",
-        "gitattributes.template": ".gitattributes",
-        ".github/instructions/csharp.instructions.md.template": ".github/instructions/csharp.instructions.md"
+        "__LOCATION__/AGENTS.md.template": "__LOCATION__/AGENTS.md",
+        "__LOCATION__/editorconfig.template": "__LOCATION__/.editorconfig",
+        "__LOCATION__/gitignore.template": "__LOCATION__/.gitignore",
+        "__LOCATION__/gitattributes.template": "__LOCATION__/.gitattributes",
+        "__LOCATION__/.github/instructions/csharp.instructions.md.template": "__LOCATION__/.github/instructions/csharp.instructions.md"
+      },
+      "modifiers": [
+        {
+          "condition": "(apptype == \"console\")",
+          "exclude": [
+            "__LOCATION__/src/Jesse.Project-1/GreetingService.cs",
+            "__LOCATION__/tests/GreetingServiceTests.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "condition": "(apptype == \"class-library\")",
+      "source": "./",
+      "target": "./",
+      "include": [
+        "__LOCATION__/variants/class-library/**"
+      ],
+      "rename": {
+        "__LOCATION__/variants/class-library/src/Jesse.Project-1/Jesse.Project-1.csproj": "__LOCATION__/src/Jesse.Project-1/Jesse.Project-1.csproj"
       }
     },
     {
-      "condition": "(applicationType == \"class-library\")",
-      "source": "variants/class-library/",
-      "target": "./"
-    },
-    {
-      "condition": "(applicationType == \"console\")",
-      "source": "variants/console/",
-      "target": "./"
-    },
-    {
-      "condition": "(applicationType == \"web-api\")",
-      "source": "variants/web-api/",
+      "condition": "(apptype == \"console\")",
+      "source": "./",
       "target": "./",
+      "include": [
+        "__LOCATION__/variants/console/**"
+      ],
       "rename": {
-        "src/Jesse.Project-1/appsettings.json.template": "src/Jesse.Project-1/appsettings.json"
+        "__LOCATION__/variants/console/src/Jesse.Project-1/Jesse.Project-1.csproj": "__LOCATION__/src/Jesse.Project-1/Jesse.Project-1.csproj",
+        "__LOCATION__/variants/console/src/Jesse.Project-1/EntryPoint.cs": "__LOCATION__/src/Jesse.Project-1/EntryPoint.cs",
+        "__LOCATION__/variants/console/tests/EntryPointTests.cs": "__LOCATION__/tests/EntryPointTests.cs"
       }
     },
     {
-      "condition": "(applicationType == \"worker\")",
-      "source": "variants/worker/",
+      "condition": "(apptype == \"web-api\")",
+      "source": "./",
       "target": "./",
+      "include": [
+        "__LOCATION__/variants/web-api/**"
+      ],
       "rename": {
-        "src/Jesse.Project-1/appsettings.json.template": "src/Jesse.Project-1/appsettings.json"
+        "__LOCATION__/variants/web-api/src/Jesse.Project-1/Jesse.Project-1.csproj": "__LOCATION__/src/Jesse.Project-1/Jesse.Project-1.csproj",
+        "__LOCATION__/variants/web-api/src/Jesse.Project-1/Program.cs": "__LOCATION__/src/Jesse.Project-1/Program.cs",
+        "__LOCATION__/variants/web-api/src/Jesse.Project-1/Properties/launchSettings.json": "__LOCATION__/src/Jesse.Project-1/Properties/launchSettings.json",
+        "__LOCATION__/variants/web-api/src/Jesse.Project-1/appsettings.Development.json": "__LOCATION__/src/Jesse.Project-1/appsettings.Development.json",
+        "__LOCATION__/variants/web-api/src/Jesse.Project-1/appsettings.json.template": "__LOCATION__/src/Jesse.Project-1/appsettings.json"
+      }
+    },
+    {
+      "condition": "(apptype == \"worker\")",
+      "source": "./",
+      "target": "./",
+      "include": [
+        "__LOCATION__/variants/worker/**"
+      ],
+      "rename": {
+        "__LOCATION__/variants/worker/src/Jesse.Project-1/Jesse.Project-1.csproj": "__LOCATION__/src/Jesse.Project-1/Jesse.Project-1.csproj",
+        "__LOCATION__/variants/worker/src/Jesse.Project-1/Program.cs": "__LOCATION__/src/Jesse.Project-1/Program.cs",
+        "__LOCATION__/variants/worker/src/Jesse.Project-1/Worker.cs": "__LOCATION__/src/Jesse.Project-1/Worker.cs",
+        "__LOCATION__/variants/worker/src/Jesse.Project-1/appsettings.json.template": "__LOCATION__/src/Jesse.Project-1/appsettings.json"
       }
     }
   ]

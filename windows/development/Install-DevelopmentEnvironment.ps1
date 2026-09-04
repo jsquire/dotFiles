@@ -123,21 +123,58 @@ function Test-ApplicationVariants {
     {
         $projectName = 'Bootstrap.' + ($applicationType -replace '-', '')
         $projectRoot = Join-Path $ValidationRoot $applicationType
+        $arguments = @(
+            'new',
+            $TemplateShortName,
+            '--name',
+            $projectName,
+            '--output',
+            $projectRoot,
+            '--no-update-check'
+        )
+
+        if ($applicationType -ne 'console')
+        {
+            $arguments += @('--apptype', $applicationType)
+        }
 
         Write-Host "Generating $applicationType validation project..." -ForegroundColor Cyan
         Invoke-DotNet `
-            -Arguments @(
-                'new',
-                $TemplateShortName,
-                '--name',
-                $projectName,
-                '--output',
-                $projectRoot,
-                '--applicationType',
-                $applicationType,
-                '--no-update-check'
-            ) `
+            -Arguments $arguments `
             -FailureMessage "Failed to generate the $applicationType template variant."
+
+        if ($applicationType -eq 'console')
+        {
+            $projectFile = Join-Path $projectRoot "src\$projectName\$projectName.csproj"
+            $sourceRoot = Join-Path $projectRoot "src\$projectName"
+            $entryPointFile = Join-Path $sourceRoot 'EntryPoint.cs'
+            $implementationFiles = @(Get-ChildItem -LiteralPath $sourceRoot -Filter '*.cs' -File)
+
+            if (-not (Select-String -LiteralPath $projectFile -SimpleMatch '<OutputType>Exe</OutputType>' -Quiet))
+            {
+                throw 'The default application type did not produce a console project.'
+            }
+
+            if (($implementationFiles.Count -ne 1) -or ($implementationFiles[0].Name -ne 'EntryPoint.cs'))
+            {
+                throw 'The console application must contain only EntryPoint.cs at its source root.'
+            }
+
+            if (-not (Select-String -LiteralPath $entryPointFile -SimpleMatch 'Console.WriteLine("Hello, World!");' -Quiet))
+            {
+                throw 'The console entry point does not write Hello, World.'
+            }
+
+            if (Test-Path -LiteralPath (Join-Path $projectRoot 'tests\GreetingServiceTests.cs'))
+            {
+                throw 'The console output contains a test for the excluded greeting service.'
+            }
+
+            if (-not (Test-Path -LiteralPath (Join-Path $projectRoot 'tests\EntryPointTests.cs') -PathType Leaf))
+            {
+                throw 'The console output does not contain the entry point test.'
+            }
+        }
 
         Push-Location $projectRoot
 
@@ -165,7 +202,7 @@ function Test-ApplicationVariants {
             $projectName,
             '--output',
             $projectRoot,
-            '--applicationType',
+            '--apptype',
             'class-library',
             '--no-update-check'
         ) `
@@ -303,7 +340,9 @@ try
         Write-Host ""
         Write-Host "Jesse C# template installed successfully." -ForegroundColor Green
         Write-Host "Create a project from any directory with:" -ForegroundColor Green
-        Write-Host "  dotnet new jesse-csharp --name <ProjectName> --applicationType <type>" -ForegroundColor White
+        Write-Host "  dotnet new jesse-csharp --name <ProjectName>" -ForegroundColor White
+        Write-Host "Add --location <path> to select another containing directory." -ForegroundColor White
+        Write-Host "Use --apptype for class-library, web-api, or worker projects." -ForegroundColor White
     }
 }
 finally
