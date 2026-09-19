@@ -34,6 +34,10 @@ CRUSH_HOME_DIR="${HOME}/.crush"
 CRUSH_CONFIG_DIR="${HOME}/.config/crush"
 DEFAULT_MODEL_ROOT="${HOME}/.ollama/models"
 VLLM_PORT=8000
+VLLM_VERSION="0.29.0"
+# vLLM 0.29.0 still imports PixtralRotaryEmbedding, which Transformers 5.17 renamed.
+# Keep the newest compatible Transformers release until the upstream vLLM fix is released.
+VLLM_TRANSFORMERS_VERSION="5.16.0"
 # LAN model-switch web service (browser button page so non-technical/Windows users can switch
 # models without an SSH account). Runs as the unprivileged VLLM_SWITCH_USER; port verified free
 # on the server (clear of AdGuard 3000/53/80/443, Plex 32400/8080, vLLM 8000/8001).
@@ -1115,8 +1119,10 @@ if [[ "$SHOULD_INSTALL_SOFTWARE" == true ]]; then
                     info "Could not detect CUDA version — using --torch-backend=auto"
                 fi
 
-                if "$UV_BIN" pip install --python "$VLLM_VENV/bin/python" vllm $torch_backend_flag; then
-                    success "vLLM installed in $VLLM_VENV"
+                if "$UV_BIN" pip install --python "$VLLM_VENV/bin/python" \
+                    "vllm==${VLLM_VERSION}" "transformers==${VLLM_TRANSFORMERS_VERSION}" \
+                    $torch_backend_flag; then
+                    success "vLLM ${VLLM_VERSION} installed in $VLLM_VENV"
                 else
                     add_failure "vLLM installation failed. Check CUDA version (needs 12.1+)."
                 fi

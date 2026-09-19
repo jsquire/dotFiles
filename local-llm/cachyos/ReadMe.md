@@ -19,13 +19,6 @@ This server hosts multiple users simultaneously. vLLM provides:
 
 Clients connect via `http://server-ip:8000/v1` — same OpenAI API as Ollama.
 
-## Evaluation handoff
-
-[`qwen38-nvfp4-agent-handoff.md`](qwen38-nvfp4-agent-handoff.md) is the standalone prompt for
-evaluating the September 2026 Qwen3.8 NVFP4 candidate on the RTX 4090. It includes the
-read-only preflight, isolation rules, context and concurrency gates, paired quality suite,
-secondary-candidate disposition, and required recommendation output.
-
 ## What Gets Installed
 
 | Component | Purpose | Install Method |
@@ -43,7 +36,9 @@ secondary-candidate disposition, and required recommendation output.
 > **vLLM serves ONE model at a time** on the 24 GB card. **Mistral-Small-3.2-24B is the standing
 > default** (basic chat / general, 64K); the specialist coding and image roles are on-demand
 > **switch modes** loaded via `cachyos-switch-model` (see below). All roster models run on stable
-> vLLM (≥ 0.24.0) — no nightly/git build needed.
+> vLLM 0.29.0 with Transformers 5.16.0. Transformers 5.17 is temporarily excluded because
+> vLLM 0.29.0 still imports the Pixtral rotary-embedding API that 5.17 renamed. No nightly or
+> git build is required for the production roster.
 
 | Model | HuggingFace ID | Served name | Size | Mode / role |
 |-------|---------------|-------------|------|-------------|

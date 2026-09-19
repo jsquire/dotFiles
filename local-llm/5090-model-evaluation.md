@@ -1668,8 +1668,3 @@ The Qwen NVFP4 tag was removed after Ollama's Windows MLX runner loaded it but c
 first evaluation while resolving an absent absolute cuDNN build path. The official MLX
 runtime component remains installed for a future stable-runtime recheck. No alias, roster,
 or model was changed on the CachyOS 4090 server.
-
-The standalone prompt for a user-launched 4090 vLLM evaluation is
-`cachyos/qwen38-nvfp4-agent-handoff.md`. It covers the exact Qwen3.8 NVFP4 checkpoint,
-isolated loadability, 16K and 32K context, concurrency, paired quality tests, Muse feasibility,
-hosted DeepSeek disposition, and the stop-before-deployment boundary.
