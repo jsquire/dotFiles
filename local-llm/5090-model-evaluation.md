@@ -1618,3 +1618,58 @@ installer test-profile entry.
 
 The CachyOS 4090 vLLM server roster is unchanged. The CachyOS local 5090 path follows the
 new Qwen3.8 production selection; the 4090 Ollama tier retains its existing model choice.
+
+---
+
+## §BY. Muse Glimmer DFlash promoted and non-roster models removed (2026-09-19)
+
+`muse-glimmer:30b-q4_K_M-dflash` replaces `muse-glimmer:30b` beneath the existing
+`museglimmer-30b-128k` production alias. The public alias remains stable for Copilot, Crush,
+and task-launcher consumers. Its deployed parameters are 131072 context, temperature 0.30,
+and `draft_num_predict 3`.
+
+The promotion was measured on the Windows RTX 5090 with Ollama 0.34.2:
+
+| Measurement | Non-draft incumbent | DFlash |
+|---|---:|---:|
+| Warm generation, 3-run average | 72.1 tok/s | **119.1 tok/s** |
+| Warm generation range | 71.8 to 72.4 | **118.2 to 120.4** |
+| Short-prompt prefill average | **1749.6 tok/s** | 1678.8 tok/s |
+| Prefill at 121440 occupied tokens | **3155.6 tok/s** | 2765.8 tok/s |
+| Repeated agent/tool/document checks | 15/15 | 15/15 |
+| Constrained abstention and grounded summaries | 6/6 | 6/6 |
+| Vision fixture | pass | pass |
+
+DFlash improved generation by 65.2 percent. The accepted regressions are 4.0 percent lower
+short-prompt prefill and 12.4 percent lower prefill in the paired 121K run.
+
+At the production context target, DFlash retrieved exact sentinels from the beginning,
+middle, and end of a 121501-token prompt. Whole-card use was 24925 MiB with 7263 MiB free,
+preserving the 2 GiB operating buffer. Ollama 0.34.2 reports only the 2.17 GiB draft layer
+for this artifact in `ollama ps`; `nvidia-smi` supplied the total card measurements.
+
+After the alias was rebuilt, the deployed name passed the capability, single-tool,
+multi-step-tool, failure-recovery, constrained-document, and vision checks. Its model
+metadata resolves the parent as `muse-glimmer:30b-q4_K_M-dflash`.
+
+The cleanup manifest resolved every entry in `scripts/local-models.json` to its installed
+parent before deletion. These non-roster tags were removed:
+
+- `laguna-xs-2.1:Q4_K_M`
+- `muse-glimmer:30b`
+- `ornith-1.5:35b`
+- `qwen3.8:27b-nvfp4`
+
+The cleanup reclaimed 56.93 GiB. All 13 canonical roster aliases and their required parent
+artifacts remain installed. Qwen3.6 remains because it is still the explicit H1 rollback
+entry, not an unused non-roster model.
+
+The Qwen NVFP4 tag was removed after Ollama's Windows MLX runner loaded it but crashed on
+first evaluation while resolving an absent absolute cuDNN build path. The official MLX
+runtime component remains installed for a future stable-runtime recheck. No alias, roster,
+or model was changed on the CachyOS 4090 server.
+
+The standalone prompt for a user-launched 4090 vLLM evaluation is
+`cachyos/qwen38-nvfp4-agent-handoff.md`. It covers the exact Qwen3.8 NVFP4 checkpoint,
+isolated loadability, 16K and 32K context, concurrency, paired quality tests, Muse feasibility,
+hosted DeepSeek disposition, and the stop-before-deployment boundary.

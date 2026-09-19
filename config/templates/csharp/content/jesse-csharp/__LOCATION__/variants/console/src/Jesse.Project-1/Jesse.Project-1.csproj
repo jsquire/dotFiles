@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(CommonTargetFramework)</TargetFramework>
+    <RootNamespace>__ROOT_NAMESPACE__</RootNamespace>
+    <StartupObject>__ROOT_NAMESPACE__.EntryPoint</StartupObject>
+    <OutputType>Exe</OutputType>
+    <IsAotCompatible Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net7.0'))">true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="Properties\" />
+  </ItemGroup>
+</Project>

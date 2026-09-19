@@ -1,0 +1,23 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--#if (apptype == "web-api") -->
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+    <!--#endif -->
+    <!--#if (apptype == "worker") -->
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
+    <!--#endif -->
+  </ItemGroup>
+
+  <!-- Test-Only Dependencies -->
+  <ItemGroup Condition="'$(IsTestProject)' == 'true'">
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.5.0" />
+    <PackageVersion Include="NSubstitute" Version="6.2.0" />
+    <PackageVersion Include="NUnit" Version="4.6.1" />
+    <PackageVersion Include="NUnit.Analyzers" Version="4.14.0" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="6.2.0" />
+  </ItemGroup>
+</Project>

@@ -7,7 +7,7 @@
     "qwen38-27b-192k":       { "label": "Qwen3.8 27B",                         "ctx": 196608 },
     "qwen36-35b-256k":       { "label": "Qwen3.6 35B-A3B",                     "ctx": 262144 },
     "qwen3coder-144k":       { "label": "Qwen3-Coder 30B-A3B",                "ctx": 147456 },
-    "museglimmer-30b-128k":  { "label": "Muse Glimmer 30B",                   "ctx": 131072 },
+    "museglimmer-30b-128k":  { "label": "Muse Glimmer 30B DFlash",            "ctx": 131072 },
     "qwen3:8b":              { "label": "Qwen3 8B",                            "ctx": 32768  },
     "northmini-code-256k":   { "label": "North Mini Code 1.0",                "ctx": 262144 },
     "nemotron35-light-256k": { "label": "Nemotron 3.5 Lightning 30B-A3B",     "ctx": 262144 },
@@ -88,7 +88,7 @@
             "rows": [
               { "key": "1",  "label": "Qwen3.6 35B-A3B MoE",    "slot": "h1", "note": "(retire during next monthly sweep)" },
               { "key": "2",  "label": "Qwen3-Coder 30B-A3B",    "slot": "h2" },
-              { "key": "3",  "label": "Muse Glimmer 30B",       "slot": "h3" },
+              { "key": "3",  "label": "Muse Glimmer 30B DFlash", "slot": "h3" },
               { "key": "4",  "label": "North Mini Code 1.0",    "slot": "h4" },
               { "key": "5",  "label": "Nemotron 3.5 Lightning", "slot": "h5" },
               { "key": "6",  "label": "Ornith-1.0-35B",         "slot": "h6" },
@@ -154,7 +154,7 @@
             "rows": [
               { "key": "1",  "label": "Qwen3.6 35B-A3B MoE",    "slot": "h1",  "profile": "coding", "note": "(retire during next monthly sweep)" },
               { "key": "2",  "label": "Qwen3-Coder 30B-A3B",    "slot": "h2",  "profile": "coding" },
-              { "key": "3",  "label": "Muse Glimmer 30B",       "slot": "h3",  "profile": "coding" },
+              { "key": "3",  "label": "Muse Glimmer 30B DFlash", "slot": "h3",  "profile": "coding" },
               { "key": "4",  "label": "North Mini Code 1.0",    "slot": "h4",  "profile": "coding" },
               { "key": "5",  "label": "Nemotron 3.5 Lightning", "slot": "h5",  "profile": "coding" },
               { "key": "6",  "label": "Ornith-1.0-35B",         "slot": "h6",  "profile": "coding" },

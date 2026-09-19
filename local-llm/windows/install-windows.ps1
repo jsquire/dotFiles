@@ -294,7 +294,7 @@ $KnownModelDescriptions = @{
     "qwen3.6:35b"     = "Qwen3.6 35B-A3B MoE, experimental pending retirement at the next monthly sweep (256k ctx), ~22 GB"
     "hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M" = "Fara 1.5 27B (Microsoft, MIT): computer-use / GUI agent, vision + tools (192k ctx), ~17 GB"
     "qwen3-coder:30b" = "Qwen3-Coder 30B-A3B MoE — light coding / review (144k ctx), ~18 GB"
-    "muse-glimmer:30b" = "Muse Glimmer 30B (Meta, Apache 2.0), agentic / all MCP+tools, vision + tools + thinking (128k ctx), ~18 GB"
+    "muse-glimmer:30b-q4_K_M-dflash" = "Muse Glimmer 30B DFlash (Meta, Apache 2.0), agentic / all MCP+tools, vision + tools + thinking (128k ctx), ~19 GB"
     "nemotron-3.5-lightning:30b-a3b-q4_K_M" = "Nemotron 3.5 Lightning 30B-A3B (NVIDIA), general conversation + grounded research (256k ctx), ~25 GB"
     "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M" = "Ornith-1.0-35B (MIT), creative writing / cover letters (256k ctx), ~20 GB"
     "qwen3:8b"        = "Qwen3 8B Dense — image-gen companion (32k ctx), ~5 GB"
@@ -308,7 +308,7 @@ $ProductionModels = [ordered]@{
     "qwen3.8:27b"     = $KnownModelDescriptions["qwen3.8:27b"]
     "hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M" = $KnownModelDescriptions["hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M"]
     "qwen3-coder:30b" = $KnownModelDescriptions["qwen3-coder:30b"]
-    "muse-glimmer:30b" = $KnownModelDescriptions["muse-glimmer:30b"]
+    "muse-glimmer:30b-q4_K_M-dflash" = $KnownModelDescriptions["muse-glimmer:30b-q4_K_M-dflash"]
     "nemotron-3.5-lightning:30b-a3b-q4_K_M" = $KnownModelDescriptions["nemotron-3.5-lightning:30b-a3b-q4_K_M"]
     "hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M" = $KnownModelDescriptions["hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M"]
     "qwen3:8b"        = $KnownModelDescriptions["qwen3:8b"]
@@ -322,8 +322,8 @@ $ProfileDefinitions = @{
     }
     # 5090 side-by-side test profile (-TestProfiles). ~1TB model storage, so every
     # contender is installed at once and exposed through the launcher [H1]-[H5] bench.
-    # NOTE: base pull tags below must be validated on the box — exact Ollama tags for
-    # qwen3.6:35b / muse-glimmer:30b may differ at install time.
+    # NOTE: base pull tags below must be validated on the box. The Qwen3.6 tag may
+    # differ at install time.
     "Test5090" = @{
         Description = "RTX 5090 (32GB) — side-by-side model bench (~1TB model storage)"
         RequiredGB = 400
@@ -332,7 +332,7 @@ $ProfileDefinitions = @{
             "qwen3.6:35b"      = "Qwen3.6 35B-A3B MoE, experimental pending retirement at the next monthly sweep (256k ctx), ~22 GB"
             "hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M" = "Fara 1.5 27B (Microsoft, MIT): computer-use / GUI agent bench (192k ctx), ~17 GB"
             "qwen3-coder:30b"  = "Qwen3-Coder 30B-A3B MoE — light coding / review (256k ctx), ~18 GB"
-            "muse-glimmer:30b" = "Muse Glimmer 30B (Meta, Apache 2.0), agentic / all MCP+tools, vision + tools + thinking (128k ctx), ~18 GB"
+            "muse-glimmer:30b-q4_K_M-dflash" = "Muse Glimmer 30B DFlash (Meta, Apache 2.0), agentic / all MCP+tools, vision + tools + thinking (128k ctx), ~19 GB"
             # New agentic-coding bench candidates. All fit VRAM-resident at Q4 on the 32 GB 5090; pulled
             # via Ollama's HF passthrough. North Mini Code = Cohere coding specialist (cohere2moe, Apache
             # 2.0). Nemotron 3.5 Lightning = NVIDIA Mamba-2 + Transformer hybrid MoE (nemotron_h_moe,
@@ -1474,7 +1474,7 @@ if ($ShouldPullModels) {
                 "qwen3.8:27b"     = 196608
                 "qwen3.6:35b"     = 262144
                 "qwen3-coder:30b" = 147456
-                "muse-glimmer:30b" = 131072
+                "muse-glimmer:30b-q4_K_M-dflash" = 131072
                 "qwen3:8b"        = 32768
             }
             foreach ($entry in $numCtxSettings.GetEnumerator()) {
@@ -1516,10 +1516,11 @@ PARAMETER num_ctx $ctx
                 # whole consensus protocol and its citations under a system prompt that
                 # explicitly forbade speculation, matching the failure that already got it
                 # retired from the CachyOS server roster. Muse Glimmer abstained cleanly on
-                # the same bench. Measured on-box: 16 GB at the full 131072 ctx, 100% GPU,
-                # leaving ~11 GB VRAM free, the roomiest model in the roster. Native tool
-                # calling verified. Cost is speed, ~70 tok/s against GLM's ~195.
-                "museglimmer-30b-128k" = @{ From = "muse-glimmer:30b"; Ctx = 131072; Temp = 0.30 }
+                # the same bench. The DFlash artifact was promoted on 2026-09-19 after
+                # averaging 119.1 tok/s versus 72.1 for the non-draft artifact while
+                # preserving tools, vision, grounding, and exact retrieval through 121.5K
+                # occupied prompt tokens. It left 7.1 GiB free at the 128K target.
+                "museglimmer-30b-128k" = @{ From = "muse-glimmer:30b-q4_K_M-dflash"; Ctx = 131072; Temp = 0.30 }
                 # Production "General & Research" slot. Calibrated on-box 2026-08-13 (5090, CUDA,
                 # q8 KV): hybrid Mamba-2 + MoE keeps full KV on few layers, so 32k costs 29.53 GB
                 # and 256k costs only 30.75 GB. Context is nearly free; the 25 GB of weights is the

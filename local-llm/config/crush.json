@@ -28,7 +28,7 @@
           "can_reason": true
         },
         {
-          "name": "Muse Glimmer 30B (Agentic / all MCP+tools)",
+          "name": "Muse Glimmer 30B DFlash (Agentic / all MCP+tools)",
           "id": "museglimmer-30b-128k",
           "context_window": 131072,
           "default_max_tokens": 16384,

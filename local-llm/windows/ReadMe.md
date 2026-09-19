@@ -18,14 +18,14 @@ Single-user AI assistant on Windows with Ollama, Crush, Copilot CLI, MCP, and lo
 | **copilot-local** | Task picker launcher for Copilot CLI | `~/Documents/CLI/` + PATH |
 | **imagegen MCP** | Image-generation tool for Crush/Copilot (Office authoring is a skill, not MCP) | Isolated Python venv |
 
-### Models — RTX 5090 (~130 GB disk)
+### Models — RTX 5090 (~135 GB disk)
 
 | Model | Launcher alias | Base tag | Task |
 |-------|----------------|----------|------|
 | Qwen3.8 27B dense | `qwen38-27b-192k` | `qwen3.8:27b` | Heavy coding (default), tech docs |
 | Fara 1.5 27B dense | `fara15-27b-192k` | `hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M` | Computer use / GUI agent (vision + tools) |
 | Qwen3-Coder 30B-A3B | `qwen3coder-144k` | `qwen3-coder:30b` | Light coding / code review |
-| Muse Glimmer 30B (Meta) | `museglimmer-30b-128k` | `muse-glimmer:30b` | Agentic / all MCP+tools / Office authoring (vision + tools + thinking) |
+| Muse Glimmer 30B DFlash (Meta) | `museglimmer-30b-128k` | `muse-glimmer:30b-q4_K_M-dflash` | Agentic / all MCP+tools / Office authoring (vision + tools + thinking) |
 | Nemotron 3.5 Lightning 30B-A3B | `nemotron35-light-256k` | `nemotron-3.5-lightning:30b-a3b-q4_K_M` | General conversation / grounded research (abstains when unsourced) |
 | Ornith-1.0-35B | `ornith-35b-256k` | `hf.co/deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M` | Creative writing / cover letters |
 | Qwen3 8B | `qwen3:8b` | `qwen3:8b` | Image-gen companion |
@@ -231,7 +231,7 @@ result = client.images.generate(prompt="a sunset over mountains", size="1024x102
 ```powershell
 ollama list                      # Installed models
 ollama ps                        # Loaded models + VRAM
-ollama pull muse-glimmer:30b     # Add a model
+ollama pull muse-glimmer:30b-q4_K_M-dflash  # Add the production Muse model
 ollama rm qwen3-coder:30b        # Remove a model
 nvidia-smi                       # GPU VRAM usage
 ```

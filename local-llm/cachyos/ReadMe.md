@@ -19,6 +19,13 @@ This server hosts multiple users simultaneously. vLLM provides:
 
 Clients connect via `http://server-ip:8000/v1` — same OpenAI API as Ollama.
 
+## Evaluation handoff
+
+[`qwen38-nvfp4-agent-handoff.md`](qwen38-nvfp4-agent-handoff.md) is the standalone prompt for
+evaluating the September 2026 Qwen3.8 NVFP4 candidate on the RTX 4090. It includes the
+read-only preflight, isolation rules, context and concurrency gates, paired quality suite,
+secondary-candidate disposition, and required recommendation output.
+
 ## What Gets Installed
 
 | Component | Purpose | Install Method |
