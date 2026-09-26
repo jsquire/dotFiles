@@ -54,6 +54,84 @@ if ! command -v limine-enroll-config &>/dev/null; then
     exit 1
 fi
 
+if ! command -v limine-update &>/dev/null; then
+    fail "limine-update not found. Is the CachyOS Limine tooling installed?"
+    exit 1
+fi
+
+############################################
+# Limine Secure Boot configuration
+############################################
+
+get_limine_config_path() {
+    sudo bash -c '
+        source /usr/lib/limine/limine-common-functions
+        initialize_header >/dev/null
+        printf "%s\n" "$LIMINE_CONFIG_PATH"
+    '
+}
+
+enable_limine_config_enrollment() {
+    local defaults_file=/etc/default/limine
+
+    if sudo grep -qE '^[[:space:]]*ENABLE_ENROLL_LIMINE_CONFIG[[:space:]]*=[[:space:]]*yes[[:space:]]*$' "$defaults_file"; then
+        success "Limine config enrollment already enabled"
+        return
+    fi
+
+    info "Enabling Limine config enrollment..."
+    if sudo grep -qE '^[[:space:]#]*ENABLE_ENROLL_LIMINE_CONFIG[[:space:]]*=' "$defaults_file"; then
+        sudo sed -i -E \
+            's|^[[:space:]#]*ENABLE_ENROLL_LIMINE_CONFIG[[:space:]]*=.*$|ENABLE_ENROLL_LIMINE_CONFIG=yes|' \
+            "$defaults_file"
+    else
+        printf '\nENABLE_ENROLL_LIMINE_CONFIG=yes\n' | sudo tee -a "$defaults_file" >/dev/null
+    fi
+    success "Limine config enrollment enabled"
+}
+
+hash_limine_wallpaper() {
+    local config_path wallpaper_ref wallpaper_path wallpaper_hash escaped_ref
+
+    config_path=$(get_limine_config_path)
+    if [[ ! -f "$config_path" ]]; then
+        fail "Limine config not found at '$config_path'."
+        return 1
+    fi
+
+    wallpaper_ref=$(sudo sed -nE \
+        's|^[[:space:]]*wallpaper:[[:space:]]*([^[:space:]#]+)(#[[:xdigit:]]+)?[[:space:]]*$|\1|p' \
+        "$config_path" | head -1)
+
+    if [[ -z "$wallpaper_ref" ]]; then
+        warn "No Limine wallpaper entry found in '$config_path'; skipping wallpaper hashing."
+        return
+    fi
+
+    if [[ "$wallpaper_ref" != boot\(\):/* ]]; then
+        fail "Unsupported Limine wallpaper reference: '$wallpaper_ref'"
+        fail "Expected a boot(): path so the wallpaper file can be verified."
+        return 1
+    fi
+
+    wallpaper_path="$(dirname "$config_path")/${wallpaper_ref#boot():/}"
+    if [[ ! -f "$wallpaper_path" ]]; then
+        fail "Limine wallpaper not found at '$wallpaper_path'."
+        return 1
+    fi
+
+    wallpaper_hash=$(sudo b2sum "$wallpaper_path" | awk '{print $1}')
+    escaped_ref=${wallpaper_ref//\\/\\\\}
+    escaped_ref=${escaped_ref//&/\\&}
+    escaped_ref=${escaped_ref//|/\\|}
+
+    info "Adding the Limine wallpaper hash to '$config_path'..."
+    sudo sed -i -E \
+        "s|^[[:space:]]*wallpaper:[[:space:]]*.*$|wallpaper: ${escaped_ref}#${wallpaper_hash}|" \
+        "$config_path"
+    success "Limine wallpaper hash updated"
+}
+
 ############################################
 # Install sbctl if needed
 ############################################
@@ -136,19 +214,22 @@ if $SETUP_MODE_ON; then
         success "Keys created"
     fi
 
-    # --microsoft includes Microsoft's keys (needed for firmware updates and dual-boot)
-    info "Enrolling keys (with Microsoft's keys included)..."
-    sudo sbctl enroll-keys --microsoft
+    # Retain Microsoft trust for Windows and the firmware's built-in OEM keys.
+    info "Enrolling keys (with Microsoft and firmware-builtin keys included)..."
+    sudo sbctl enroll-keys --microsoft --firmware-builtin
     success "Keys enrolled"
 
-    # Limine uses BLAKE2B hash verification — only its EFI binary needs signing, not kernel images
-    info "Signing Limine boot manager..."
-    sudo limine-enroll-config
-    success "Limine config enrolled"
+    enable_limine_config_enrollment
+    hash_limine_wallpaper
 
     info "Updating Limine..."
     sudo limine-update
     success "Limine updated"
+
+    # limine-update may replace the EFI binary, so enroll and sign the final binary.
+    info "Enrolling the Limine config and signing the boot manager..."
+    sudo limine-enroll-config
+    success "Limine config enrolled"
 
     echo ""
     info "Verifying signed files..."
@@ -197,8 +278,10 @@ info "    1. Press F7 to switch to Advanced Mode"
 info "    2. Open Settings > Security > Secure Boot"
 info "    3. Set Secure Boot Mode to 'Custom'"
 info "    4. Open Key Management"
-info "    5. Select 'Delete All Secure Boot Variables' and confirm"
-info "    6. Press F10, save changes, and reboot"
+info "    5. Select 'Export Secure Boot variables' to make a backup"
+info "    6. Select 'Reset to Setup Mode' and confirm"
+info "       Do not select 'Restore Factory Keys'"
+info "    7. Press F10, save changes, and reboot"
 echo ""
 info "After rebooting, run this script again to continue."
 echo ""
