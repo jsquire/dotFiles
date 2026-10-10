@@ -29,6 +29,7 @@ Clients connect via `http://server-ip:8000/v1` — same OpenAI API as Ollama.
 | **Crush** | Terminal AI agent with MCP | pacman or user-local |
 | **uv** | Python toolchain (MCP venvs) | Official installer |
 | **copilot-local** | Task picker launcher | `~/.local/bin/` |
+| **Copilot roster extension** | Native `/server` or `/local` plus dynamic OpenRouter `/cloud` | Journaled user extension |
 | **MCP servers** | Office document editing | Isolated Python venvs |
 
 ### Models (HuggingFace 4-bit AWQ/GPTQ, ~105 GB disk + ~35 GB image gen)
@@ -91,6 +92,15 @@ The `--install` value makes the **inference engine explicit**:
 > aliases (e.g. `--mode server` → `--install server`; `--providers squire-server` → `--providers server`).
 
 ## Configure
+
+### Copilot CLI routing
+
+Client-tool installations deploy or safely upgrade the roster extension.
+`--install local` uses the desktop role, `--install client` uses the client
+role, and `--install server` points `/server` at local vLLM. Every role includes
+dynamic OpenRouter `/cloud` discovery without storing a credential or contacting
+OpenRouter during installation. Set `OPENROUTER_API_KEY` separately only after
+account provisioning is approved.
 
 ### vLLM Server
 

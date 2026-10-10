@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "local": null,
+  "server": null,
+  "services": [
+    {
+      "id": "openrouter",
+      "label": "OpenRouter",
+      "api": "openai-chat",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "credential": { "env": "OPENROUTER_API_KEY", "kind": "bearer" },
+      "requestBody": {
+        "provider": {
+          "allow_fallbacks": false,
+          "require_parameters": true,
+          "data_collection": "deny",
+          "zdr": true
+        }
+      },
+      "discovery": {
+        "kind": "openrouter",
+        "url": "https://openrouter.ai/api/v1/models",
+        "preferredModels": [
+          "anthropic/claude-opus-5.5",
+          "anthropic/claude-sonnet-5.5",
+          "moonshotai/kimi-k3",
+          "moonshotai/kimi-k2.7-code",
+          "moonshotai/kimi-k2.6",
+          "qwen/qwen3.8-2.4t-a95b",
+          "qwen/qwen3.8-max-0902"
+        ],
+        "maxContextWindowTokens": 1048576,
+        "maxOutputTokens": 131072,
+        "defaultMaxOutputTokens": 16384
+      }
+    },
+    {
+      "id": "my-chat-service",
+      "label": "My Chat Completions service",
+      "api": "openai-chat",
+      "baseUrl": "https://chat.example/v1",
+      "credential": { "env": "OPENAI_API_KEY", "kind": "api-key" },
+      "models": [
+        {
+          "id": "organization/model-id",
+          "maxPromptTokens": 24576,
+          "maxContextWindowTokens": 32768,
+          "maxOutputTokens": 8192
+        }
+      ]
+    },
+    {
+      "id": "my-messages-service",
+      "label": "My Messages service",
+      "api": "anthropic-messages",
+      "baseUrl": "https://messages.example/v1",
+      "credential": { "env": "ANTHROPIC_API_KEY", "kind": "api-key" },
+      "models": [
+        {
+          "id": "model-id",
+          "maxPromptTokens": 24576,
+          "maxContextWindowTokens": 32768,
+          "maxOutputTokens": 8192
+        }
+      ]
+    }
+  ]
+}

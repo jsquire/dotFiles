@@ -29,4 +29,21 @@ Assert-Eq "copilot server image host" "10.9.9.9"  (Copilot-Host @("3", "5"))
 Assert-Eq "copilot local no -- separator"  "no" (Copilot-Sep @("1", "1"))
 Assert-Eq "copilot server no -- separator" "no" (Copilot-Sep @("3", "1"))
 
+$roster = Join-Path $PS_REPO "scripts\local-models.json"
+Invoke-LauncherPs1 -Src $cop -Providers "local,server" -Inputs @("2", "11") -LocalRoster $roster
+Assert-Eq "copilot experimental model" $true ($script:PS_LAST_OUT -like "*CAPTURE model=qwen3:8b*imagegen=on*")
+Assert-Eq "copilot experimental port" $true ($script:PS_LAST_OUT -like "*IMAGEGEN_PORT=8002*")
+Assert-Eq "copilot experimental backend" $true ($script:PS_LAST_OUT -like "*IMAGEGEN_BACKEND=qwen-image-2.1*")
+Invoke-LauncherPs1 -Src $cop -Providers "local,server" -Inputs @("1", "7") -LocalRoster $roster
+Assert-Eq "copilot production port" $true ($script:PS_LAST_OUT -like "*IMAGEGEN_PORT=8001*")
+Assert-Eq "copilot production backend" $true ($script:PS_LAST_OUT -like "*IMAGEGEN_BACKEND=hidream-o1*")
+Invoke-LauncherPs1 -Src $cop -Providers "local,server" -Inputs @("3", "5") -LocalRoster $roster
+Assert-Eq "copilot server port" $true ($script:PS_LAST_OUT -like "*IMAGEGEN_PORT=8001*")
+Invoke-LauncherPs1 -Src $cru -Providers "local,server" -Inputs @("2", "11") -LocalRoster $roster
+$qwenConfig = (Get-Content $script:PS_CRUSH -Raw | ConvertFrom-Json).mcp.'imagegen-mcp'
+Assert-Eq "crush experimental url" "http://127.0.0.1:8002" $qwenConfig.env.IMAGEGEN_URL
+Assert-Eq "crush experimental backend" "qwen-image-2.1" $qwenConfig.env.IMAGEGEN_BACKEND
+Invoke-LauncherPs1 -Src $cru -Providers "local,server" -Inputs @("1", "6") -LocalRoster $roster
+Assert-Eq "crush production backend" "hidream-o1" (Get-Content $script:PS_CRUSH -Raw | ConvertFrom-Json).mcp.'imagegen-mcp'.env.IMAGEGEN_BACKEND
+
 if (PS-Summary "imagegen-context-ps") { exit 0 } else { exit 1 }

@@ -11,6 +11,13 @@ Both exit non-zero on any failure. A run needs `python3`, `curl`, and `git`. On 
 suites prefer a native `python3` and fall back to `wsl python3` only if none is on PATH. No GPU,
 model server, `copilot`/`crush` binary, or network is required.
 
+The experimental Copilot roster extension has a separate Node test package at
+`scripts\copilot-roster-extension`. Its unit tests use synthetic endpoints and
+explicit session artifact storage without Git or model services. Its opt-in
+runtime proof additionally requires an installed Copilot executable and bundled
+SDK. See that package's ReadMe for environment variables, grant/denial
+conditions and non-destructive recovery checks.
+
 ## What it proves
 
 - **schema** - the roster JSON is internally consistent and parses in both python3 and PowerShell.

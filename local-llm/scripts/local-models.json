@@ -80,6 +80,16 @@
           }
         ]
       },
+      "windows_experimental": {
+        "categories": [
+          {
+            "heading": "Visual experiments (Windows local only)",
+            "rows": [
+              { "key": "11", "label": "Qwen-Image-2.1", "slot": "image_llm", "imagegen": true, "imagegen_backend": "qwen-image-2.1", "note": "+ Qwen Image (MCP)" }
+            ]
+          }
+        ]
+      },
       "experimental": {
         "categories": [
           {
@@ -142,6 +152,16 @@
             "heading": "General & Research",
             "rows": [
               { "key": "8", "label": "Conversation & research", "slot": "research", "profile": "docs" }
+            ]
+          }
+        ]
+      },
+      "windows_experimental": {
+        "categories": [
+          {
+            "heading": "Visual experiments (Windows local only)",
+            "rows": [
+              { "key": "11", "label": "Qwen-Image-2.1", "slot": "image_llm", "profile": "image", "imagegen_backend": "qwen-image-2.1", "note": "+ Qwen Image (MCP)" }
             ]
           }
         ]

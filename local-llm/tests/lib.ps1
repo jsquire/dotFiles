@@ -33,7 +33,7 @@ function PS-Summary($name) {
 # native Windows python3; fall back to `wsl python3` only when there isn't one. The WSL round trip was
 # the sole reason these suites needed a working WSL install, and a wedged WSL hangs them indefinitely.
 $script:PS_PY = $null
-foreach ($_c in @('python3', 'python')) {
+foreach ($_c in @('python', 'python3')) {
     $_cmd = Get-Command $_c -ErrorAction SilentlyContinue
     if ($_cmd) { $script:PS_PY = $_cmd.Source; break }
 }
@@ -64,6 +64,8 @@ function copilot {
     $sep = if ($args -contains '--') { 'yes' } else { 'no' }
     Write-Host ("CAPTURE model=" + $env:COPILOT_MODEL + " base=" + $env:COPILOT_PROVIDER_BASE_URL + " prompt=" + $env:COPILOT_PROVIDER_MAX_PROMPT_TOKENS + " out=" + $env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS + " imagegen=" + $ig + " office=" + $of)
     Write-Host ("IMAGEGEN_HOST=" + $env:COPILOT_MCP_IMAGEGEN_HOST)
+    Write-Host ("IMAGEGEN_PORT=" + $env:COPILOT_MCP_IMAGEGEN_PORT)
+    Write-Host ("IMAGEGEN_BACKEND=" + $env:COPILOT_MCP_IMAGEGEN_BACKEND)
     Write-Host ("ARGV_HAS_SEP=" + $sep)
 }
 function crush { Write-Host "CAPTURE crush" }
@@ -76,10 +78,11 @@ Set-Location (Join-Path '__SB__' 'work')
 
 # Run a .ps1 launcher headless. Sets $script:PS_LAST_OUT and $script:PS_CRUSH (path or "").
 function Invoke-LauncherPs1 {
-    param([string]$Src, [string]$Providers, [string[]]$Inputs, [string]$ModelArg, [string]$TaskArg)
+    param([string]$Src, [string]$Providers, [string[]]$Inputs, [string]$ModelArg, [string]$TaskArg, [string]$LocalRoster)
     $sb = Join-Path $env:TEMP ("llt_" + [guid]::NewGuid().ToString("N").Substring(0, 10))
     New-Item -ItemType Directory -Force -Path (Join-Path $sb ".config\local-llm"), (Join-Path $sb "work"), (Join-Path $sb ".config\crush\skills\office") | Out-Null
-    Copy-Item (Join-Path $PS_FIX "local-models.5090.json") (Join-Path $sb ".config\local-llm\local-models.json")
+    $roster = if ($LocalRoster) { $LocalRoster } else { Join-Path $PS_FIX "local-models.5090.json" }
+    Copy-Item $roster (Join-Path $sb ".config\local-llm\local-models.json")
     Copy-Item (Join-Path $PS_FIX "server-models.json") (Join-Path $sb ".config\local-llm\server-models.json")
     Set-Content (Join-Path $sb ".config\crush\skills\office\SKILL.md") "office skill (test fixture)" -Encoding UTF8
     $bomless = New-Object System.Text.UTF8Encoding($false)

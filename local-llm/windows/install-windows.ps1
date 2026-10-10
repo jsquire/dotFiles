@@ -122,6 +122,7 @@ param(
     [switch]$ModelsOnly,
     [switch]$EnableLAN,
     [switch]$TestProfiles,
+    [switch]$InstallQwenImageExperimental,
     [switch]$SkipWslNetworking,
     [switch]$Force,
 
@@ -188,6 +189,7 @@ if ($Help) {
                          -ModelPath still overrides just the models subpath.
                          Example: -DataRoot V:\ollama
     -SkipModels          Install software only; pull models later with: ollama pull <tag>
+    -InstallQwenImageExperimental  Install the optional Windows-local Qwen-Image-2.1 backend (~31 GiB cached weights)
     -ModelsOnly          Skip software installation; only pull/update models
     -EnableLAN           Set OLLAMA_HOST=0.0.0.0 so other machines can connect
     -SkipWslNetworking   Don't configure WSL2 mirrored networking (.wslconfig)
@@ -654,6 +656,10 @@ if (",$Providers," -notlike "*,$DefaultProvider,*") {
 
 $ShouldInstallSoftware = $IsClientMode -or (-not $ModelsOnly)
 $ShouldPullModels = $IsFullMode -and (-not $SkipModels)
+if ($InstallQwenImageExperimental -and (-not $IsFullMode -or -not $InstallClientTools -or -not $ShouldInstallSoftware)) {
+    Write-Fail "-InstallQwenImageExperimental requires a Full software installation with client tools."
+    exit 1
+}
 $EffectiveModelConfig = if ($IsFullMode) { Get-EffectiveModelConfig } else { $null }
 $ModelTierLabel = if ($IsFullMode) { $EffectiveModelConfig.Label } else { "n/a (client mode)" }
 $ResolvedModelRoot = if ($IsFullMode) { Get-ResolvedModelRoot } else { $null }
@@ -1089,6 +1095,65 @@ if ($ShouldInstallSoftware) {
         Write-Warn "Copilot MCP config template not found — skipping."
     }
 
+    # ── Step: Deploy Copilot roster routing extension ─────────────────
+
+    Write-Step "Deploy Copilot roster routing extension"
+    $rosterExtensionSource = Join-Path $PSScriptRoot "..\scripts\copilot-roster-extension"
+    if (Test-Path (Join-Path $rosterExtensionSource "deploy.mjs")) {
+        $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
+        if (-not $nodeCommand) {
+            Write-Info "Node.js 22 or newer is required for the Copilot roster extension."
+            Install-WinGetPackage -Id "OpenJS.NodeJS.LTS" -Name "Node.js LTS" | Out-Null
+            $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
+            if (-not $nodeCommand -and (Test-Path "$env:ProgramFiles\nodejs\node.exe")) {
+                $nodeCommand = Get-Item "$env:ProgramFiles\nodejs\node.exe"
+            }
+        }
+        if ($nodeCommand) {
+            $nodeExe = if ($nodeCommand -is [System.Management.Automation.ApplicationInfo]) {
+                $nodeCommand.Source
+            } else {
+                $nodeCommand.FullName
+            }
+            $nodeMajor = [int]((& $nodeExe -p "process.versions.node.split('.')[0]") | Select-Object -First 1)
+            $npmExe = Join-Path (Split-Path $nodeExe) "npm.cmd"
+            if ($nodeMajor -lt 22) {
+                Add-NonFatalWarning "Copilot roster extension requires Node.js 22 or newer; found $nodeMajor."
+            } elseif (-not (Test-Path $npmExe)) {
+                Add-NonFatalWarning "npm was not found beside $nodeExe; Copilot roster extension was not deployed."
+            } else {
+                Push-Location $rosterExtensionSource
+                try {
+                    & $npmExe ci --ignore-scripts --no-audit --no-fund --silent
+                    if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
+                    $role = if ($IsClientMode) { "client" } else { "desktop" }
+                    $deployOutput = & $nodeExe ".\deploy.mjs" ensure --role $role --server-host $SquireServerIP 2>&1
+                    if ($LASTEXITCODE -ne 0) { throw (($deployOutput | Select-Object -Last 4) -join " | ") }
+                    Write-Success "Copilot roster extension ready for $role role. OpenRouter is configured without storing a key."
+                    Write-Info "Set OPENROUTER_API_KEY separately only after account provisioning is approved."
+                } catch {
+                    Add-NonFatalWarning "Copilot roster extension deployment stopped safely: $($_.Exception.Message)"
+                } finally {
+                    Pop-Location
+                }
+            }
+        } else {
+            Add-NonFatalWarning "Node.js was unavailable; Copilot roster extension was not deployed."
+        }
+    } else {
+        Write-Warn "Copilot roster extension source not found — skipping."
+    }
+
+    if ($InstallQwenImageExperimental -and (Test-Path $copilotMcpDest)) {
+        $mcpConfig = Get-Content $copilotMcpDest -Raw | ConvertFrom-Json
+        $imageEntry = $mcpConfig.mcpServers.'imagegen-mcp'
+        if (-not $imageEntry) { throw "Existing Copilot MCP config has no imagegen-mcp entry to update" }
+        $imageEntry.env.IMAGEGEN_URL = 'http://${COPILOT_MCP_IMAGEGEN_HOST:-127.0.0.1}:${COPILOT_MCP_IMAGEGEN_PORT:-8001}'
+        $imageEntry.env | Add-Member -NotePropertyName IMAGEGEN_BACKEND -NotePropertyValue '${COPILOT_MCP_IMAGEGEN_BACKEND:-hidream-o1}' -Force
+        $mcpConfig | ConvertTo-Json -Depth 20 | Set-Content -Path $copilotMcpDest -Encoding UTF8
+        Write-Success "Updated only the imagegen MCP routing in the existing Copilot config."
+    }
+
     # ── Step: Set up Image Generation service (diffusers + FastAPI) ─────
 
     if ($IsFullMode) {
@@ -1171,6 +1236,14 @@ TIMESTEP_TOKEN_NUM = 1
         Copy-Item $imagegenStart "$imagegenDir\imagegen-start.cmd" -Force -ErrorAction SilentlyContinue
         Write-Info "Start with: copilot-local (option 7) or imagegen-start.cmd"
         Write-Info "API: POST http://localhost:8001/v1/images/generations"
+
+        $qwenDir = Join-Path $AiToolsDir "imagegen-qwen"
+        if ($InstallQwenImageExperimental) {
+            $cache = if ($HFCacheDir) { $HFCacheDir } else { Join-Path $env:USERPROFILE ".cache\huggingface" }
+            & (Join-Path $PSScriptRoot "install-qwen-image-experimental.ps1") -AiToolsDir $AiToolsDir -HFCacheDir $cache
+        } elseif (Test-Path (Join-Path $qwenDir ".venv\Scripts\python.exe")) {
+            Copy-Item (Join-Path $PSScriptRoot "qwen-imagegen-server.py") (Join-Path $qwenDir "qwen-imagegen-server.py") -Force
+        }
     }
 
     # ── Step: Set up imagegen MCP client (fastmcp wrapper) ────────────────

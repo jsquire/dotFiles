@@ -100,15 +100,22 @@ function Row-Detail($row) {
     if ($row.PSObject.Properties['note'] -and $row.note) { "$a $($row.note)" } else { $a }
 }
 function Resolve-LocalRow([string]$which, [string]$key) {
-    foreach ($c in $LM.launchers.crush.$which.categories) {
+    foreach ($c in (Get-LocalCategories $which)) {
         foreach ($r in $c.rows) { if ($r.key -eq $key) { return $r } }
     }
     return $null
 }
+function Get-LocalCategories([string]$which) {
+    $categories = @($LM.launchers.crush.$which.categories)
+    if (($which -eq "experimental") -and ($LM.tier -eq "5090") -and $LM.launchers.crush.PSObject.Properties['windows_experimental']) {
+        $categories += @($LM.launchers.crush.windows_experimental.categories)
+    }
+    return $categories
+}
 function Render-Local([string]$which) {
     Show-Line ""
     $first = $true
-    foreach ($c in $LM.launchers.crush.$which.categories) {
+    foreach ($c in (Get-LocalCategories $which)) {
         if (-not $first) { Show-Line ""; Show-Line "" }
         $first = $false
         Show-Line "     $($c.heading)"
@@ -137,6 +144,7 @@ $ServerMcp = $null
 $SrvCtx = 0
 $SrvMax = 0
 $SelLabel = ""
+$ImageBackend = "hidream-o1"
 
 function Write-CrushConfig {
     param(
@@ -152,7 +160,11 @@ function Write-CrushConfig {
     # server -> the squire-server (so image generation follows the task context, not a baked host).
     $imagegenHost = if ($Provider -eq "server") { $SquireIp } else { "127.0.0.1" }
     if ($McpOverrides -and $McpOverrides.ContainsKey("imagegen-mcp")) {
-        $McpOverrides["imagegen-mcp"]["env"] = @{ IMAGEGEN_URL = "http://${imagegenHost}:8001" }
+        $imagePort = if ($ImageBackend -eq "qwen-image-2.1") { "8002" } else { "8001" }
+        $McpOverrides["imagegen-mcp"]["env"] = @{
+            IMAGEGEN_URL = "http://${imagegenHost}:$imagePort"
+            IMAGEGEN_BACKEND = $ImageBackend
+        }
     }
     $config = @{ mcp = $McpOverrides }
     # Output cap + context window. For the server provider these come from the advertised roster
@@ -234,6 +246,7 @@ if (-not $Task) {
                 if ($r) {
                     $Task = $r.profile
                     $SelectedModel = LL-Alias $r.slot
+                    if ($r.PSObject.Properties['imagegen_backend']) { $ImageBackend = $r.imagegen_backend }
                     $SelLabel = LL-Label $SelectedModel
                     break picker
                 }
@@ -341,7 +354,8 @@ Be direct. If the code is correct, say so briefly.
         Write-CrushConfig -McpOverrides @{
             "imagegen-mcp" = @{ disabled = $false }
         } -Model $SelectedModel
-        Write-Host "  Profile: Image generation (HiDream) using $SelectedModel for VRAM headroom"
+        $imageName = if ($ImageBackend -eq "qwen-image-2.1") { "Qwen-Image-2.1 (experimental)" } else { "HiDream" }
+        Write-Host "  Profile: Image generation ($imageName) using $SelectedModel for VRAM headroom"
     }
 }
 }

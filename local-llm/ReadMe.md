@@ -49,6 +49,7 @@ cd local-llm/cachyos
 | **ComfyUI Desktop** | Image generation (HiDream-O1, SD3.5) — Windows only |
 | **MCP servers** | Office document editing (Word, PowerPoint) |
 | **copilot-local** | Task picker launcher |
+| **[Copilot roster extension](scripts/copilot-roster-extension/ReadMe.md)** | Installer-managed experimental `/local`, `/server`, and dynamic OpenRouter `/cloud` commands with reversible installation; wrapper retained |
 
 ## Directory Structure
 

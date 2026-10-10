@@ -37,6 +37,11 @@ from fastmcp import FastMCP
 mcp = FastMCP("imagegen-mcp")
 
 IMAGEGEN_URL = os.environ.get("IMAGEGEN_URL", "http://127.0.0.1:8001")
+IMAGEGEN_BACKEND = os.environ.get("IMAGEGEN_BACKEND", "hidream-o1")
+if IMAGEGEN_BACKEND not in ("hidream-o1", "qwen-image-2.1"):
+    raise ValueError(f"Unsupported image backend: {IMAGEGEN_BACKEND}")
+_QWEN = IMAGEGEN_BACKEND == "qwen-image-2.1"
+REQUEST_TIMEOUT_SECONDS = 300 if _QWEN else 180
 IDLE_TIMEOUT_SECONDS = 300  # 5 minutes
 STARTUP_TIMEOUT_SECONDS = 300  # max wait for server to become ready (headless cold start can be slow)
 
@@ -99,7 +104,13 @@ async def _check_server_health() -> bool:
     try:
         async with httpx.AsyncClient(timeout=5) as client:
             resp = await client.get(f"{IMAGEGEN_URL}/health")
-            return resp.status_code == 200
+            if resp.status_code != 200:
+                return False
+            expected = "Qwen-Image-2.1" if _QWEN else "HiDream-O1-Image-Dev"
+            actual = resp.json().get("model")
+            if actual != expected:
+                raise RuntimeError(f"Wrong image backend at {IMAGEGEN_URL}: expected {expected}, got {actual}")
+            return True
     except (httpx.ConnectError, httpx.TimeoutException):
         return False
 
@@ -115,12 +126,25 @@ async def _start_server() -> bool:
     if not _is_local():
         return False  # remote server must be managed externally
 
-    imagegen_dir = _get_ai_tools_dir() / "imagegen"
+    other_port = 8001 if _QWEN else 8002
+    other_model = "HiDream-O1-Image-Dev" if _QWEN else "Qwen-Image-2.1"
+    try:
+        async with httpx.AsyncClient(timeout=2) as client:
+            other = await client.get(f"http://127.0.0.1:{other_port}/health")
+        if other.status_code == 200 and other.json().get("model") == other_model:
+            raise RuntimeError(
+                f"{other_model} is already running on port {other_port}. "
+                "Stop that backend before starting this image profile to avoid GPU exhaustion."
+            )
+    except (httpx.ConnectError, httpx.TimeoutException):
+        pass
+
+    imagegen_dir = _get_ai_tools_dir() / ("imagegen-qwen" if _QWEN else "imagegen")
     if sys.platform == "win32":
         venv_python = imagegen_dir / ".venv" / "Scripts" / "python.exe"
     else:
         venv_python = imagegen_dir / ".venv" / "bin" / "python"
-    server_script = imagegen_dir / "imagegen-server.py"
+    server_script = imagegen_dir / ("qwen-imagegen-server.py" if _QWEN else "imagegen-server.py")
 
     if not venv_python.exists():
         return False
@@ -145,10 +169,14 @@ async def _start_server() -> bool:
     if sys.platform == "win32":
         popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
-    _server_process = subprocess.Popen(
-        [str(venv_python), str(server_script), "--port", "8001"],
-        **popen_kwargs,
-    )
+    port = "8002" if _QWEN else "8001"
+    try:
+        _server_process = subprocess.Popen(
+            [str(venv_python), str(server_script), "--port", port],
+            **popen_kwargs,
+        )
+    finally:
+        _server_log.close()
 
     # Wait for server to become ready
     for _ in range(STARTUP_TIMEOUT_SECONDS):
@@ -195,7 +223,7 @@ async def generate_image(
     width: int = 1024,
     height: int = 1024,
 ) -> str:
-    """Generate an image from a text prompt using HiDream-O1-Image-Dev.
+    """Generate an image from a text prompt using the selected image backend.
 
     The image is saved as a PNG file and the saved path is returned.
     The imagegen server is started automatically if not running (~15-20s cold start).
@@ -208,8 +236,8 @@ async def generate_image(
             is placed in ~/Downloads. A relative path is resolved under the user's HOME directory
             (e.g. "Downloads/cat.png" -> ~/Downloads/cat.png), never the current working directory;
             use an absolute path to save elsewhere. "~" is expanded.
-        width: Image width in pixels (default 1024). Rendered at 2048 native and downscaled.
-        height: Image height in pixels (default 1024). Rendered at 2048 native and downscaled.
+        width: Image width in pixels (default 1024).
+        height: Image height in pixels (default 1024).
     """
     global _last_request_time
 
@@ -218,8 +246,8 @@ async def generate_image(
         if _is_local():
             return (
                 "Error: Could not start image generation server. "
-                "Check that imagegen-server.py and its venv exist at "
-                f"{_get_ai_tools_dir() / 'imagegen'}"
+                "Check the installed backend and venv at "
+                f"{_get_ai_tools_dir() / ('imagegen-qwen' if _QWEN else 'imagegen')}"
             )
         else:
             return (
@@ -230,7 +258,7 @@ async def generate_image(
     _last_request_time = time.time()
 
     try:
-        async with httpx.AsyncClient(timeout=180) as client:
+        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
             resp = await client.post(
                 f"{IMAGEGEN_URL}/v1/images/generations",
                 json={
@@ -252,7 +280,7 @@ async def generate_image(
 
         return f"Image saved to {out} ({len(img_bytes):,} bytes, {width}x{height})"
     except httpx.TimeoutException:
-        return "Error: Image generation timed out (>120s). The model may still be loading."
+        return f"Error: Image generation timed out (>{REQUEST_TIMEOUT_SECONDS}s)."
     except Exception as e:
         return f"Error generating image: {e}"
 
@@ -272,7 +300,7 @@ async def imagegen_status() -> str:
                     f"Image generation server is RUNNING.\n"
                     f"  Model: {info.get('model', 'unknown')}\n"
                     f"  Quality: {info.get('quality', 'unknown')}\n"
-                    f"  Pipeline loaded: {info.get('pipeline_loaded', False)}\n"
+                    f"  Pipeline loaded: {info.get('model_loaded', False)}\n"
                     f"  URL: {IMAGEGEN_URL}"
                 )
             return f"Server responded with status {resp.status_code}"
@@ -291,5 +319,47 @@ async def imagegen_status() -> str:
             )
 
 
+if _QWEN:
+    @mcp.tool()
+    async def edit_image(prompt: str, input_path: str, output_path: str = "", width: int = 1024, height: int = 1024) -> str:
+        """Edit a local image with Qwen-Image-2.1. Saves the result as PNG.
+
+        Args:
+            prompt: Instruction describing the changes to make.
+            input_path: Absolute path to the image to edit.
+            output_path: Optional output PNG path; defaults to Downloads.
+            width: Output width in pixels (default 1024).
+            height: Output height in pixels (default 1024).
+        """
+        global _last_request_time
+        source = Path(input_path).expanduser()
+        if not source.is_absolute() or not source.is_file():
+            return f"Error: Input image must be an existing absolute file path: {source}"
+        if source.stat().st_size > 20 * 1024 * 1024:
+            return "Error: Input image exceeds 20 MiB."
+        if not await _start_server():
+            return f"Error: Qwen image server is unavailable at {IMAGEGEN_URL}."
+        _last_request_time = time.time()
+        try:
+            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
+                with source.open("rb") as stream:
+                    response = await client.post(
+                        f"{IMAGEGEN_URL}/v1/images/edits",
+                        data={"prompt": prompt, "size": f"{width}x{height}"},
+                        files={"image": (source.name, stream, "application/octet-stream")},
+                    )
+                response.raise_for_status()
+            content = base64.b64decode(response.json()["data"][0]["b64_json"])
+            output = _resolve_output_path(output_path, prompt)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(content)
+            return f"Edited image saved to {output} ({len(content):,} bytes, {width}x{height})"
+        except (httpx.HTTPError, OSError, ValueError, KeyError, IndexError) as exc:
+            return f"Error editing image: {exc}"
+
+
 if __name__ == "__main__":
-    mcp.run(transport="stdio")
+    try:
+        mcp.run(transport="stdio")
+    finally:
+        asyncio.run(_stop_server())

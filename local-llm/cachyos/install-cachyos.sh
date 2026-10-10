@@ -2061,6 +2061,43 @@ with open(p, 'w') as f:
         warn "Copilot MCP config template not found — skipping."
     fi
 
+    # ── Deploy Copilot roster routing extension ──────────────────────────
+    step "Deploy Copilot roster routing extension"
+    local roster_extension_source="${SCRIPT_DIR}/../scripts/copilot-roster-extension"
+    if [[ -f "${roster_extension_source}/deploy.mjs" ]]; then
+        if ! command_exists node || ! command_exists npm; then
+            info "Installing Node.js and npm for the Copilot roster extension."
+            run_privileged pacman -S --needed --noconfirm nodejs npm >/dev/null 2>&1 \
+                || add_warning "Node.js/npm installation failed; Copilot roster extension was not deployed."
+        fi
+        if command_exists node && command_exists npm; then
+            local node_major
+            node_major="$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || printf '0')"
+            if (( node_major < 22 )); then
+                add_warning "Copilot roster extension requires Node.js 22 or newer; found ${node_major}."
+            else
+                local roster_role roster_server
+                case "$MODE" in
+                    server) roster_role="server"; roster_server="127.0.0.1" ;;
+                    client) roster_role="client"; roster_server="${SQUIRE_SERVER_IP}" ;;
+                    *)      roster_role="desktop"; roster_server="${SQUIRE_SERVER_IP}" ;;
+                esac
+                if (
+                    cd "$roster_extension_source"
+                    npm ci --ignore-scripts --no-audit --no-fund --silent
+                    node ./deploy.mjs ensure --role "$roster_role" --server-host "$roster_server"
+                ) >/dev/null; then
+                    success "Copilot roster extension ready for ${roster_role} role. OpenRouter is configured without storing a key."
+                    info "Set OPENROUTER_API_KEY separately only after account provisioning is approved."
+                else
+                    add_warning "Copilot roster extension deployment stopped safely; existing configuration was preserved."
+                fi
+            fi
+        fi
+    else
+        warn "Copilot roster extension source not found — skipping."
+    fi
+
     # ── Set up imagegen MCP venv ──────────────────────────────────────────
     step "Set up imagegen MCP server"
     local mcp_imagegen_dir="${HOME}/.local/share/ai-tools/mcp-imagegen"

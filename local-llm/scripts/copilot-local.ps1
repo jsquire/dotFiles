@@ -88,15 +88,22 @@ function Row-Detail($row) {
     if ($row.PSObject.Properties['note'] -and $row.note) { "$a $($row.note)" } else { $a }
 }
 function Resolve-LocalRow([string]$which, [string]$key) {
-    foreach ($c in $LM.launchers.copilot.$which.categories) {
+    foreach ($c in (Get-LocalCategories $which)) {
         foreach ($r in $c.rows) { if ($r.key -eq $key) { return $r } }
     }
     return $null
 }
+function Get-LocalCategories([string]$which) {
+    $categories = @($LM.launchers.copilot.$which.categories)
+    if (($which -eq "experimental") -and ($LM.tier -eq "5090") -and $LM.launchers.copilot.PSObject.Properties['windows_experimental']) {
+        $categories += @($LM.launchers.copilot.windows_experimental.categories)
+    }
+    return $categories
+}
 function Render-Local([string]$which) {
     Show-Line ""
     $first = $true
-    foreach ($c in $LM.launchers.copilot.$which.categories) {
+    foreach ($c in (Get-LocalCategories $which)) {
         if (-not $first) { Show-Line ""; Show-Line "" }
         $first = $false
         Show-Line "     $($c.heading)"
@@ -119,7 +126,7 @@ function Get-ServerRoster {
 }
 
 # ── Resolve the selection: explicit model arg wins; otherwise the picker ──────
-$selLabel = ""; $selTag = ""; $mcpKeep = $false; $officeSkill = $false; $selRemote = $false
+$selLabel = ""; $selTag = ""; $mcpKeep = $false; $officeSkill = $false; $selRemote = $false; $imageBackend = "hidream-o1"
 $env:COPILOT_PROVIDER_BASE_URL = $null
 if ($Model -and $Model -match ':') {
     # Direct model alias/tag (e.g. copilot-local qwen3:8b) — skip the picker.
@@ -166,6 +173,7 @@ if ($Model -and $Model -match ':') {
                     $env:COPILOT_MODEL = LL-Alias $r.slot
                     $selLabel = LL-Label $env:COPILOT_MODEL
                     $mcpKeep = [bool]($r.PSObject.Properties['imagegen'] -and $r.imagegen)
+                    if ($r.PSObject.Properties['imagegen_backend']) { $imageBackend = $r.imagegen_backend }
                     $officeSkill = [bool]($r.PSObject.Properties['office'] -and $r.office)
                     $selTag = if ($which -eq "experimental") { "[$sel] experimental" } else { "[$sel] task profile" }
                     break picker
@@ -251,6 +259,8 @@ $mcpFlags = if ($mcpKeep) { @() } else { @('--disable-mcp-server', 'imagegen-mcp
 # Point the imagegen MCP tool at the selected environment's image server (the mcp-config expands
 # ${COPILOT_MCP_IMAGEGEN_HOST}): local -> localhost, server -> the squire-server.
 $env:COPILOT_MCP_IMAGEGEN_HOST = if ($selRemote) { $SquireIp } else { "127.0.0.1" }
+$env:COPILOT_MCP_IMAGEGEN_PORT = if ($imageBackend -eq "qwen-image-2.1") { "8002" } else { "8001" }
+$env:COPILOT_MCP_IMAGEGEN_BACKEND = $imageBackend
 $gitSafety = @(
     '--deny-tool=shell(git add)', '--deny-tool=shell(git commit)', '--deny-tool=shell(git push)',
     '--deny-tool=shell(git merge)', '--deny-tool=shell(git rebase)', '--deny-tool=shell(git reset)',
