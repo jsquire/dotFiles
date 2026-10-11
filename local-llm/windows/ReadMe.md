@@ -235,7 +235,7 @@ result = client.images.generate(prompt="a sunset over mountains", size="1024x102
 > **Note:** Images render at 2048×2048 native resolution and downscale to requested size.
 > Model is ~35GB cached in HuggingFace hub. Inference repo cloned to `ai-tools/imagegen/HiDream-O1-Image/`.
 
-**Experimental Windows-local Qwen-Image-2.1** is a separate, explicitly selected backend.
+**Experimental Windows-local Qwen-Image-2.1-Turbo** is a separate, explicitly selected backend.
 Install it once with `.\install-windows.ps1 -InstallQwenImageExperimental -DataRoot V:\ollama`
 (or run `install-qwen-image-experimental.ps1 -AiToolsDir V:\ollama\ai-tools -HFCacheDir V:\ollama\hf-cache`
 if the rest of the stack is already installed). It uses a separate Python environment,
@@ -243,12 +243,14 @@ the Hugging Face cache (~31 GiB for weights), and `localhost:8002`; it never cha
 HiDream default on port 8001 or the Squire server. Refresh the Copilot imagegen MCP
 entry from `config/copilot-mcp-config.json` when upgrading an existing installation.
 
-Select **Local → Experimental → Qwen-Image-2.1** (`[11]` in either launcher).
+Select **Local → Experimental → Qwen-Image-2.1-Turbo** (`[11]` in either launcher).
 The image MCP tool starts the backend on demand and releases its managed process after
 five idle minutes. Qwen's experimental profile also provides `edit_image` for an
-existing local image. Start at 1024×1024; 2048×2048 approaches the 5090's VRAM limit.
+existing local image. Turbo uses its pinned eight-step sigma schedule for generation
+and editing. Start at 1024×1024; 2048×2048 approaches the 5090's VRAM limit.
 Do not run both image backends simultaneously. Only this Windows profile points to Qwen;
-the production image and server profiles continue to point to HiDream.
+the production image and server profiles continue to point to HiDream. The checkpoint's
+Qwen Research License permits non-commercial research and evaluation only.
 
 ### Model Management
 

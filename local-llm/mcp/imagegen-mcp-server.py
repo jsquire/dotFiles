@@ -38,9 +38,9 @@ mcp = FastMCP("imagegen-mcp")
 
 IMAGEGEN_URL = os.environ.get("IMAGEGEN_URL", "http://127.0.0.1:8001")
 IMAGEGEN_BACKEND = os.environ.get("IMAGEGEN_BACKEND", "hidream-o1")
-if IMAGEGEN_BACKEND not in ("hidream-o1", "qwen-image-2.1"):
+if IMAGEGEN_BACKEND not in ("hidream-o1", "qwen-image-2.1-turbo"):
     raise ValueError(f"Unsupported image backend: {IMAGEGEN_BACKEND}")
-_QWEN = IMAGEGEN_BACKEND == "qwen-image-2.1"
+_QWEN = IMAGEGEN_BACKEND == "qwen-image-2.1-turbo"
 REQUEST_TIMEOUT_SECONDS = 300 if _QWEN else 180
 IDLE_TIMEOUT_SECONDS = 300  # 5 minutes
 STARTUP_TIMEOUT_SECONDS = 300  # max wait for server to become ready (headless cold start can be slow)
@@ -106,7 +106,7 @@ async def _check_server_health() -> bool:
             resp = await client.get(f"{IMAGEGEN_URL}/health")
             if resp.status_code != 200:
                 return False
-            expected = "Qwen-Image-2.1" if _QWEN else "HiDream-O1-Image-Dev"
+            expected = "Qwen-Image-2.1-Turbo" if _QWEN else "HiDream-O1-Image-Dev"
             actual = resp.json().get("model")
             if actual != expected:
                 raise RuntimeError(f"Wrong image backend at {IMAGEGEN_URL}: expected {expected}, got {actual}")
@@ -127,7 +127,7 @@ async def _start_server() -> bool:
         return False  # remote server must be managed externally
 
     other_port = 8001 if _QWEN else 8002
-    other_model = "HiDream-O1-Image-Dev" if _QWEN else "Qwen-Image-2.1"
+    other_model = "HiDream-O1-Image-Dev" if _QWEN else "Qwen-Image-2.1-Turbo"
     try:
         async with httpx.AsyncClient(timeout=2) as client:
             other = await client.get(f"http://127.0.0.1:{other_port}/health")
@@ -322,7 +322,7 @@ async def imagegen_status() -> str:
 if _QWEN:
     @mcp.tool()
     async def edit_image(prompt: str, input_path: str, output_path: str = "", width: int = 1024, height: int = 1024) -> str:
-        """Edit a local image with Qwen-Image-2.1. Saves the result as PNG.
+        """Edit a local image with Qwen-Image-2.1-Turbo. Saves the result as PNG.
 
         Args:
             prompt: Instruction describing the changes to make.

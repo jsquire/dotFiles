@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 
 os.environ["IMAGEGEN_URL"] = "http://127.0.0.1:8002"
-os.environ["IMAGEGEN_BACKEND"] = "qwen-image-2.1"
+os.environ["IMAGEGEN_BACKEND"] = "qwen-image-2.1-turbo"
 server_path = Path(__file__).resolve().parents[1] / "mcp" / "imagegen-mcp-server.py"
 spec = importlib.util.spec_from_file_location("imagegen_mcp", server_path)
 server = importlib.util.module_from_spec(spec)
@@ -23,6 +23,14 @@ class Response:
         return {"model": "HiDream-O1-Image-Dev"}
 
 
+class TurboResponse:
+    status_code = 200
+
+    @staticmethod
+    def json():
+        return {"model": "Qwen-Image-2.1-Turbo"}
+
+
 class ImageMcpTests(unittest.TestCase):
     def test_qwen_timeout_and_edit_registration(self):
         self.assertEqual(server.REQUEST_TIMEOUT_SECONDS, 300)
@@ -35,6 +43,12 @@ class ImageMcpTests(unittest.TestCase):
             other_spec.loader.exec_module(other)
         self.assertFalse(hasattr(other, "edit_image"))
         self.assertEqual(other.REQUEST_TIMEOUT_SECONDS, 180)
+
+    def test_accepts_turbo_health_identity(self):
+        manager = AsyncMock()
+        manager.__aenter__.return_value.get.return_value = TurboResponse()
+        with patch.object(server.httpx, "AsyncClient", return_value=manager):
+            self.assertTrue(asyncio.run(server._check_server_health()))
 
     def test_refuses_to_load_alongside_hidream(self):
         client = AsyncMock()

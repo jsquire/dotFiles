@@ -160,7 +160,7 @@ function Write-CrushConfig {
     # server -> the squire-server (so image generation follows the task context, not a baked host).
     $imagegenHost = if ($Provider -eq "server") { $SquireIp } else { "127.0.0.1" }
     if ($McpOverrides -and $McpOverrides.ContainsKey("imagegen-mcp")) {
-        $imagePort = if ($ImageBackend -eq "qwen-image-2.1") { "8002" } else { "8001" }
+        $imagePort = if ($ImageBackend -eq "qwen-image-2.1-turbo") { "8002" } else { "8001" }
         $McpOverrides["imagegen-mcp"]["env"] = @{
             IMAGEGEN_URL = "http://${imagegenHost}:$imagePort"
             IMAGEGEN_BACKEND = $ImageBackend
@@ -354,7 +354,7 @@ Be direct. If the code is correct, say so briefly.
         Write-CrushConfig -McpOverrides @{
             "imagegen-mcp" = @{ disabled = $false }
         } -Model $SelectedModel
-        $imageName = if ($ImageBackend -eq "qwen-image-2.1") { "Qwen-Image-2.1 (experimental)" } else { "HiDream" }
+        $imageName = if ($ImageBackend -eq "qwen-image-2.1-turbo") { "Qwen-Image-2.1-Turbo (experimental)" } else { "HiDream" }
         Write-Host "  Profile: Image generation ($imageName) using $SelectedModel for VRAM headroom"
     }
 }

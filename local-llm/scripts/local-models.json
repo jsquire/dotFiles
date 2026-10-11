@@ -85,7 +85,7 @@
           {
             "heading": "Visual experiments (Windows local only)",
             "rows": [
-              { "key": "11", "label": "Qwen-Image-2.1", "slot": "image_llm", "imagegen": true, "imagegen_backend": "qwen-image-2.1", "note": "+ Qwen Image (MCP)" }
+              { "key": "11", "label": "Qwen-Image-2.1-Turbo", "slot": "image_llm", "imagegen": true, "imagegen_backend": "qwen-image-2.1-turbo", "note": "+ Qwen Image Turbo (MCP)" }
             ]
           }
         ]
@@ -161,7 +161,7 @@
           {
             "heading": "Visual experiments (Windows local only)",
             "rows": [
-              { "key": "11", "label": "Qwen-Image-2.1", "slot": "image_llm", "profile": "image", "imagegen_backend": "qwen-image-2.1", "note": "+ Qwen Image (MCP)" }
+              { "key": "11", "label": "Qwen-Image-2.1-Turbo", "slot": "image_llm", "profile": "image", "imagegen_backend": "qwen-image-2.1-turbo", "note": "+ Qwen Image Turbo (MCP)" }
             ]
           }
         ]

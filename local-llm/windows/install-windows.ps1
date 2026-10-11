@@ -189,7 +189,7 @@ if ($Help) {
                          -ModelPath still overrides just the models subpath.
                          Example: -DataRoot V:\ollama
     -SkipModels          Install software only; pull models later with: ollama pull <tag>
-    -InstallQwenImageExperimental  Install the optional Windows-local Qwen-Image-2.1 backend (~31 GiB cached weights)
+    -InstallQwenImageExperimental  Install the optional Windows-local Qwen-Image-2.1-Turbo backend (~31 GiB cached weights)
     -ModelsOnly          Skip software installation; only pull/update models
     -EnableLAN           Set OLLAMA_HOST=0.0.0.0 so other machines can connect
     -SkipWslNetworking   Don't configure WSL2 mirrored networking (.wslconfig)

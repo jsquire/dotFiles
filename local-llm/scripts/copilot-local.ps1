@@ -259,7 +259,7 @@ $mcpFlags = if ($mcpKeep) { @() } else { @('--disable-mcp-server', 'imagegen-mcp
 # Point the imagegen MCP tool at the selected environment's image server (the mcp-config expands
 # ${COPILOT_MCP_IMAGEGEN_HOST}): local -> localhost, server -> the squire-server.
 $env:COPILOT_MCP_IMAGEGEN_HOST = if ($selRemote) { $SquireIp } else { "127.0.0.1" }
-$env:COPILOT_MCP_IMAGEGEN_PORT = if ($imageBackend -eq "qwen-image-2.1") { "8002" } else { "8001" }
+$env:COPILOT_MCP_IMAGEGEN_PORT = if ($imageBackend -eq "qwen-image-2.1-turbo") { "8002" } else { "8001" }
 $env:COPILOT_MCP_IMAGEGEN_BACKEND = $imageBackend
 $gitSafety = @(
     '--deny-tool=shell(git add)', '--deny-tool=shell(git commit)', '--deny-tool=shell(git push)',
