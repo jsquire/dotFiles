@@ -54,8 +54,6 @@ export function openRouterService() {
             provider: {
                 allow_fallbacks: false,
                 require_parameters: true,
-                data_collection: "deny",
-                zdr: true,
             },
         },
         discovery: {

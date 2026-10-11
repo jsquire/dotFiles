@@ -105,7 +105,9 @@ The installer deploys or safely upgrades the reversible roster extension.
 Normal `copilot` sessions gain `/local`, `/server`, and `/cloud`; OpenRouter's
 live text-model catalog is queried only when `/cloud` is invoked. The installer
 records only the `OPENROUTER_API_KEY` variable name. It never stores a key or
-contacts OpenRouter.
+contacts OpenRouter. OpenRouter account privacy settings control whether
+retained-data free models are eligible. Use those models only with synthetic,
+public or otherwise non-confidential content.
 
 `copilot-local` remains available and wires everything at launch. It points Copilot at the local compat
 proxy (`http://localhost:11435/v1`) for Ollama models, or at the CachyOS vLLM server (`:8000`) for the

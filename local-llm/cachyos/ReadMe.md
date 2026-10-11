@@ -99,8 +99,10 @@ Client-tool installations deploy or safely upgrade the roster extension.
 `--install local` uses the desktop role, `--install client` uses the client
 role, and `--install server` points `/server` at local vLLM. Every role includes
 dynamic OpenRouter `/cloud` discovery without storing a credential or contacting
-OpenRouter during installation. Set `OPENROUTER_API_KEY` separately only after
-account provisioning is approved.
+OpenRouter during installation. Set `OPENROUTER_API_KEY` separately. OpenRouter
+account privacy settings control whether retained-data free models are eligible.
+Use those models only with synthetic, public or otherwise non-confidential
+content.
 
 ### vLLM Server
 

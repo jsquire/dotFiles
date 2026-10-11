@@ -12,9 +12,7 @@
       "requestBody": {
         "provider": {
           "allow_fallbacks": false,
-          "require_parameters": true,
-          "data_collection": "deny",
-          "zdr": true
+          "require_parameters": true
         }
       },
       "discovery": {

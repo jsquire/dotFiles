@@ -6,9 +6,10 @@ command, conversation, or foreground permission handler.
 
 Requires Node 22 or newer for installation and a CLI bundle exposing the
 experimental provider registration, scoped withdrawal, and session activity
-APIs. Native mock-backed integration is verified on Copilot CLI 1.0.90.
-The earlier 1.0.87 feasibility probe does not establish compatibility with
-this implementation's newer scoped-withdrawal API.
+APIs. Native mock-backed integration is verified through Copilot CLI 1.0.91.
+Live isolated OpenRouter routing is verified on Copilot CLI 1.0.95. The earlier
+1.0.87 feasibility probe does not establish compatibility with this
+implementation's newer scoped-withdrawal API.
 
 ## Trial boundaries
 
@@ -35,9 +36,11 @@ this implementation's newer scoped-withdrawal API.
 - A small session-owned loopback gateway forwards to exactly one selected
   endpoint, clamps the output request parameter, and applies configured body
   policy. It does not select another endpoint, follow redirects, or retry.
-- Prompt/context limits are registered with the runtime. Real-model compaction,
-  generation-limit compliance, vision/reasoning capabilities, authenticated
-  Copilot return and rendered TUI behavior still need acceptance testing.
+- Prompt/context limits are registered with the runtime. Live streaming and
+  tool-call formatting are verified with a free OpenRouter coding model.
+  Long-history compaction, boundary-sized generation-limit compliance,
+  vision/reasoning capabilities, authenticated Copilot return and rendered TUI
+  behavior still need acceptance testing.
 
 The Git hook denies common legacy mutation command patterns. It is not an
 exhaustive shell parser or a substitute for the user's instruction and native
@@ -151,16 +154,21 @@ Every inference request includes:
 {
   "provider": {
     "allow_fallbacks": false,
-    "require_parameters": true,
-    "data_collection": "deny",
-    "zdr": true
+    "require_parameters": true
   }
 }
 ```
 
-This disables another upstream attempt after failure. OpenRouter still chooses
-the initial eligible upstream unless a future configuration adds `provider.only`
-or `provider.order`.
+This disables another upstream attempt after failure and excludes endpoints
+that cannot accept the requested parameters. OpenRouter account privacy
+settings control provider data retention and training eligibility. The
+extension does not force `data_collection` or ZDR request fields, so free
+retained-data models remain selectable when the account permits them. Treat
+those models as suitable only for synthetic, public or otherwise
+non-confidential content.
+
+OpenRouter still chooses the initial eligible upstream unless a future
+configuration adds `provider.only` or `provider.order`.
 
 ## Add third-party systems
 

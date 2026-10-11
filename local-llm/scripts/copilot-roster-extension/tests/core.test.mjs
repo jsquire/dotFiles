@@ -58,15 +58,15 @@ test("third-party services support both API families without vendor hardcoding",
     }
 });
 
-test("OpenRouter configuration uses full-catalog discovery and strict request policy", () => {
+test("OpenRouter configuration uses full-catalog discovery and account-controlled privacy", () => {
     const service = openRouterService();
     const value = validateConfig({ ...config(), services: [service] });
     assert.equal(value.services[0].models.length, 0);
     assert.equal(value.services[0].discovery.kind, "openrouter");
-    assert.equal(value.services[0].requestBody.provider.allow_fallbacks, false);
-    assert.equal(value.services[0].requestBody.provider.require_parameters, true);
-    assert.equal(value.services[0].requestBody.provider.data_collection, "deny");
-    assert.equal(value.services[0].requestBody.provider.zdr, true);
+    assert.deepEqual(value.services[0].requestBody.provider, {
+        allow_fallbacks: false,
+        require_parameters: true,
+    });
 });
 
 test("service requires exactly one static or dynamic catalog source", () => {

@@ -103,8 +103,7 @@ const configuration = {
             credential: { env: "UNSET_SYNTHETIC_SERVICE_API_KEY", kind: "api-key" },
             models: [{ ...common, wireModel: "missing-wire" }] },
         { id: "openrouter", api: "openai-chat", baseUrl: `${url}/openrouter/v1`,
-            requestBody: { provider: { allow_fallbacks: false, require_parameters: true,
-                data_collection: "deny", zdr: true } },
+            requestBody: { provider: { allow_fallbacks: false, require_parameters: true } },
             discovery: { kind: "openrouter", url: `${url}/openrouter/models`,
                 preferredModels: ["dynamic/model"], maxContextWindowTokens: 32768,
                 maxOutputTokens: 256, defaultMaxOutputTokens: 128 } },
@@ -205,7 +204,7 @@ try {
         assert.equal(requests.at(-1).maxTokens, name === "local" ? 8192 : 256);
         if (wire === "dynamic/model") {
             assert.deepEqual(requests.at(-1).providerPolicy, {
-                allow_fallbacks: false, require_parameters: true, data_collection: "deny", zdr: true,
+                allow_fallbacks: false, require_parameters: true,
             });
         }
         results.push({ step: `switch-${wire}`, sameSession: true, history: true, outputCap: requests.at(-1).maxTokens });
