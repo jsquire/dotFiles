@@ -1,10 +1,9 @@
 # Creating C# Projects
 
 - When explicitly asked to create a new C# or .NET project, use the installed `jesse-csharp` template unless the user requests a different template.
-- Ask which containing directory to use.
-- Create projects with `dotnet new jesse-csharp --name <ProjectName>`. Add `--location <path>` when a containing directory other than the current directory is requested and `--apptype <type>` when a non-console application type is needed.
+- Create projects with `dotnet new jesse-csharp --name <ProjectName> --applicationType <type>`.
 - Use `class-library`, `console`, `web-api`, or `worker` for `<type>` based on the requested application.
-- Use `console` when no application type is specified and the surrounding requirements do not imply another type.
+- Use `class-library` when no application type is specified and the surrounding requirements do not imply another type.
 - Do not pass a template source path or package path.
 - If `jesse-csharp` is unavailable, report that the development bootstrap for the current operating system must be run and ask if another template should be used.
 
@@ -73,3 +72,12 @@ Rules:
 - Record what I **explicitly deferred or rejected**, so it isn't re-raised.
 - Update status as you go so a resumed session can tell what's done.
 - If a summary tells you a list was lost, say so plainly and re-derive it rather than guessing at the contents.
+
+# IMPORTANT: Always Use Data For Decisions
+- Base all assumptions and conclusions on data from authoritative sources
+- Do research in the local context and on the internet to gather data as needed
+- Consider AI summaries of articles and search results as non-authoritative unless you did the summarization
+- If you lack data to validate, tell me what you don't know
+- Avoid common LLM patterns in text.  No m-dash use ever.  Avoid colon and semicolon unless no other format exists
+- IMPORTANT: Avoid speculation
+- IMPORTANT: Avoid hallucinations
