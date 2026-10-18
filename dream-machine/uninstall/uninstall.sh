@@ -8,7 +8,7 @@
 # routing clients around AdGuard with nothing left to clean it up.
 #
 # Leaves udm-boot.service enabled (that's a separate decision — /data/on_boot.d
-# is a shared convention and other hooks may depend on it; see ReadMe.md).
+# is a shared convention and other hooks may depend on it; see README.md).
 
 set -u
 

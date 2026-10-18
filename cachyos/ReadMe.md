@@ -85,7 +85,7 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
   _Authored in 2026, this script automates installing and configuring a set of development tools and shared user-scoped assets, focusing on Azure, .NET, GitHub Copilot, Node.js, and Rust. The actions performed by this script are intended to be general-purpose, but are targeted at a development workstation. Orphan removal and cache pruning run only when `--package-maintenance` is supplied._
 
 * **backups/**  
-  _Backup and restore setup, configuration, and scripts.  See `backups/ReadMe.md` for details._
+  _Backup and restore setup, configuration, and scripts.  See `backups/README.md` for details._
 
 * **secureboot.sh**  
   _Authored in 2026, this is a multi-phase script that guides configuration of Secure Boot with the Limine boot manager using sbctl. It retains Microsoft and firmware-builtin certificates when enrolling the owner keys, enables Limine config enrollment, adds the required BLAKE2b hash to the configured `boot():` wallpaper, updates Limine, and then enrolls the final Limine config and signs the resulting EFI binary. It auto-detects progress and can be re-run after each reboot to continue through the enrollment process._

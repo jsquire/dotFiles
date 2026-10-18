@@ -98,7 +98,7 @@ conflicts with this banner, **this banner wins.**
 ### Software Stack
 - **Backend**: Ollama (with vendored llama.cpp)
 - **Frontend**: Crush CLI (task profiles), Copilot CLI (legacy scripts)
-- **MCP servers**: imagegen-mcp (HiDream-O1 image gen). Office authoring (Word/PowerPoint/Excel) uses the vendored `office` skill (python-docx/python-pptx/openpyxl via `uv run`), not MCP — see `mcp/ReadMe.md`.
+- **MCP servers**: imagegen-mcp (HiDream-O1 image gen). Office authoring (Word/PowerPoint/Excel) uses the vendored `office` skill (python-docx/python-pptx/openpyxl via `uv run`), not MCP — see `mcp/README.md`.
 - **Env vars**: `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`
 
 ### Current Model Set

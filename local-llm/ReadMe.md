@@ -36,8 +36,8 @@ cd local-llm/cachyos
 
 | Guide | For |
 |-------|-----|
-| **[windows/ReadMe.md](windows/ReadMe.md)** | Desktop setup — Ollama, 5090 profile, single-user |
-| **[cachyos/ReadMe.md](cachyos/ReadMe.md)** | Server setup — vLLM, multi-user, always-on LAN endpoint |
+| **[windows/README.md](windows/README.md)** | Desktop setup — Ollama, 5090 profile, single-user |
+| **[cachyos/README.md](cachyos/README.md)** | Server setup — vLLM, multi-user, always-on LAN endpoint |
 
 ## Components
 
@@ -49,15 +49,15 @@ cd local-llm/cachyos
 | **ComfyUI Desktop** | Image generation (HiDream-O1, SD3.5) — Windows only |
 | **MCP servers** | Office document editing (Word, PowerPoint) |
 | **copilot-local** | Task picker launcher |
-| **[Copilot roster extension](scripts/copilot-roster-extension/ReadMe.md)** | Installer-managed experimental `/local`, `/server`, and dynamic OpenRouter `/cloud` commands with reversible installation; wrapper retained |
+| **[Copilot roster extension](scripts/copilot-roster-extension/README.md)** | Installer-managed experimental `/local`, `/server`, and dynamic OpenRouter `/cloud` commands with reversible installation; wrapper retained |
 
 ## Directory Structure
 
 ```
 local-llm/
-├── ReadMe.md                        # This file (index)
+├── README.md                        # This file (index)
 ├── windows/
-│   ├── ReadMe.md                    # Desktop documentation
+│   ├── README.md                    # Desktop documentation
 │   ├── install-windows.ps1          # Windows installer
 │   ├── remove-windows.ps1           # Windows uninstaller
 │   ├── Modelfile.qwen3coder-65k     # Ollama custom model definition
@@ -65,7 +65,7 @@ local-llm/
 │   ├── imagegen-start.cmd           # ComfyUI launcher
 │   └── icons/                       # Shortcut icons (copilot/crush, dark/light)
 ├── cachyos/
-│   ├── ReadMe.md                    # Server documentation
+│   ├── README.md                    # Server documentation
 │   ├── install-cachyos.sh           # CachyOS installer
 │   └── remove-cachyos.sh           # CachyOS uninstaller
 ├── scripts/
@@ -84,13 +84,13 @@ local-llm/
 │       ├── git-safety/SKILL.md      # Git safety skill definition
 │       └── office/SKILL.md          # Office authoring skill (docx/pptx/xlsx via Python)
 ├── mcp/
-│   ├── ReadMe.md                    # MCP setup documentation
+│   ├── README.md                    # MCP setup documentation
 │   ├── imagegen-mcp-server.py       # Image generation MCP server
 │   ├── setup-mcp-venvs.ps1         # Windows MCP venv setup
 │   ├── setup-mcp-venvs.sh          # Linux MCP venv setup
 │   └── templates/                   # MCP template assets
 └── benchmarks/
-    ├── ReadMe.md                    # Benchmark methodology
+    ├── README.md                    # Benchmark methodology
     ├── tasks/                       # Evaluation task sets
     │   ├── coding-tasks.md
     │   ├── document-tasks.md
