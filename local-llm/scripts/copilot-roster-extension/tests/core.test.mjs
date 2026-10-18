@@ -253,15 +253,27 @@ test("provider failures remain failures and never retry another service", async 
         assert.deepEqual(restored.extensions.enabled, ["user-changed"]);
     });
 function fakeSession() {
-    const state = { current: "copilot-default", list: [], calls: [], active: false, picks: [], confirm: true };
+    const state = { current: "copilot-default", list: [], calls: [], active: false, picks: [], confirm: true,
+        failSubagents: false,
+        subagents: undefined, agents: DEFAULT_TEST_AGENTS };
     const session = {
         capabilities: { ui: { elicitation: true } },
-        ui: { select: async () => state.picks.shift() ?? null, confirm: async () => state.confirm },
+        ui: { select: async () => state.picks.shift() ?? null, confirm: async message => {
+            state.calls.push({ confirm: message });
+            return state.confirm;
+        } },
         log: async message => state.calls.push({ log: message }),
         setModel: async id => { state.current = id; state.calls.push({ model: id }); },
         rpc: {
             metadata: { activity: async () => ({ hasActiveWork: state.active }) },
             model: { getCurrent: async () => ({ modelId: state.current }), list: async () => ({ list: state.list }) },
+            agent: { list: async () => ({ agents: state.agents.map(name => ({ name })) }) },
+            tools: { updateSubagentSettings: async ({ subagents }) => {
+                if (state.failSubagents) throw new Error("synthetic subagent settings failure");
+                state.subagents = subagents;
+                state.calls.push({ subagents });
+                return {};
+            } },
             provider: {
                 add: async params => {
                     state.calls.push({ add: params });
@@ -276,6 +288,8 @@ function fakeSession() {
     };
     return { session, state };
 }
+
+const DEFAULT_TEST_AGENTS = ["general-purpose", "explore", "research", "code-review", "security-review", "rubber-duck"];
 
 test("cancelled selection leaves model and registry untouched", async () => {
     const { session, state } = fakeSession();
@@ -357,16 +371,156 @@ test("registration is reused and stale withdrawal is scoped to owned model IDs",
     assert.deepEqual(state.calls.find(call => call.withdraw).withdraw, ["roster-cloud-abcdef-old/model"]);
 });
 
-test("BYOK guards deny delegation/image tools without granting other tools", async () => {
+test("managed routes pin supported delegation and block unvalidated surfaces", async () => {
     const { session, state } = fakeSession();
     state.current = "roster-local-abcdef-model/mock";
     const router = new Router(session, config());
-    assert.equal((await router.guard({ toolName: "task" })).permissionDecision, "deny");
-    assert.equal((await router.guard({ toolName: "functions.write_agent" })).permissionDecision, "deny");
+    assert.equal(await router.guard({ toolName: "task", toolArgs: { name: "research" } }), undefined);
+    assert.equal(state.subagents.agents.research.model, state.current);
+    assert.equal(state.subagents.agents.research.modelPolicy, "required");
+    assert.deepEqual(state.subagents.disabledSubagents, ["rubber-duck"]);
+    assert.equal((await router.guard({ toolName: "run_dynamic_workflow" })).permissionDecision, "deny");
+    assert.equal((await router.guard({ toolName: "delegate" })).permissionDecision, "deny");
+    assert.equal((await router.guard({ toolName: "task", toolArgs: { name: "rubber-duck" } })).permissionDecision, "deny");
     assert.equal((await router.guard({ toolName: "imagegen-mcp-generate_image" })).permissionDecision, "deny");
     assert.equal(await router.guard({ toolName: "write" }), undefined);
     state.current = "copilot-default";
     assert.equal(await router.guard({ toolName: "task" }), undefined);
+    assert.equal(state.subagents, null);
+});
+
+test("managed transition failures deny delegation until policy can be reconciled", async () => {
+    const { session, state } = fakeSession();
+    state.current = "roster-local-abcdef-model/mock";
+    state.failSubagents = true;
+    const router = new Router(session, config());
+    await assert.rejects(router.initialize(), /synthetic subagent settings failure/);
+    assert.equal(router.route.phase, "failed");
+    const denied = await router.guard({ toolName: "task", toolArgs: { name: "explore" } });
+    assert.equal(denied.permissionDecision, "deny");
+    state.failSubagents = false;
+    assert.equal(await router.guard({ toolName: "task", toolArgs: { name: "explore" } }), undefined);
+    assert.equal(router.route.phase, "managed");
+});
+
+test("previously unknown task agents are added to required managed policy", async () => {
+    const { session, state } = fakeSession();
+    state.current = "roster-server-abcdef-model/mock";
+    const router = new Router(session, config());
+    await router.guard({ toolName: "task", toolArgs: { name: "custom-reviewer" } });
+    assert.equal(state.subagents.agents["custom-reviewer"].model, state.current);
+    assert.equal(state.subagents.agents["custom-reviewer"].modelPolicy, "required");
+});
+
+test("initialization restores standard defaults and applies managed policy after model changes", async () => {
+    const { session, state } = fakeSession();
+    const router = new Router(session, config());
+    await router.initialize();
+    assert.equal(state.subagents, null);
+    state.current = "roster-cloud-abcdef-model/mock";
+    await router.modelChanged(state.current);
+    assert.equal(router.route.phase, "managed");
+    assert.equal(state.subagents.agents["general-purpose"].model, state.current);
+    state.current = "copilot-standard";
+    await router.modelChanged(state.current);
+    assert.equal(router.route.phase, "standard");
+    assert.equal(state.subagents, null);
+});
+
+test("exact cross-provider grants require approval and expire on foreground route change", async () => {
+    const { session, state } = fakeSession();
+    const source = "roster-cloud-abcdef-source/model";
+    const target = "roster-cloud-abcdef-target/model";
+    state.current = source;
+    const router = new Router(session, config());
+    router.routeModels.set(source, {
+        kind: "cloud", entry: { id: "source", label: "Source" },
+        service: { baseUrl: "https://source.example" }, host: undefined,
+    });
+    router.routeModels.set(target, {
+        kind: "cloud", entry: { id: "target", label: "Target" },
+        service: { baseUrl: "https://target.example" }, host: undefined,
+    });
+    await router.initialize();
+    assert.equal(await router.guard({ toolName: "task", toolArgs: {
+        name: "research", model: target,
+    } }), undefined);
+    assert.equal(state.subagents.agents.research.model, target);
+    assert.match(state.calls.find(call => call.confirm)?.confirm ?? "", /until the active foreground route changes/);
+    assert.equal(await router.guard({ toolName: "task", toolArgs: { name: "research" } }), undefined);
+    assert.equal(state.subagents.agents.research.model, target);
+    state.current = "copilot-standard";
+    await router.modelChanged(state.current);
+    assert.equal(router.grants.size, 0);
+    assert.equal(state.subagents, null);
+});
+
+test("cross-provider grants fail closed on rejection and same-host model conflicts", async () => {
+    const { session, state } = fakeSession();
+    const source = "roster-cloud-abcdef-source/model";
+    const cloudTarget = "roster-cloud-abcdef-target/model";
+    state.current = source;
+    state.confirm = false;
+    const router = new Router(session, config());
+    router.routeModels.set(source, {
+        kind: "cloud", entry: { id: "source", label: "Source" },
+        service: { baseUrl: "https://source.example" }, host: undefined,
+    });
+    router.routeModels.set(cloudTarget, {
+        kind: "cloud", entry: { id: "target", label: "Target" },
+        service: { baseUrl: "https://target.example" }, host: undefined,
+    });
+    await router.initialize();
+    const rejected = await router.guard({ toolName: "task", toolArgs: {
+        name: "research", model: cloudTarget,
+    } });
+    assert.equal(rejected.permissionDecision, "deny");
+    assert.equal(state.subagents.agents.research.model, source);
+
+    const localSource = "roster-local-abcdef-source/model";
+    const serverTarget = "roster-server-abcdef-target/model";
+    state.current = localSource;
+    router.routeModels.set(localSource, {
+        kind: "local", entry: { id: "local", label: "Local" },
+        service: { baseUrl: "http://127.0.0.1:11435/v1" }, host: "loopback",
+    });
+    router.routeModels.set(serverTarget, {
+        kind: "server", entry: { id: "server", label: "Server" },
+        service: { baseUrl: "http://localhost:8000/v1" }, host: "loopback",
+    });
+    await router.modelChanged(localSource);
+    const conflict = await router.guard({ toolName: "task", toolArgs: {
+        name: "research", model: serverTarget,
+    } });
+    assert.equal(conflict.permissionDecision, "deny");
+    assert.match(conflict.permissionDecisionReason, /same local or vLLM host/);
+
+    const localOne = "roster-local-abcdef-one/model";
+    const localTwo = "roster-local-abcdef-two/model";
+    state.current = source;
+    state.confirm = true;
+    router.routeModels.set(localOne, {
+        kind: "local", entry: { id: "one", label: "Local one" },
+        service: { baseUrl: "http://127.0.0.1:11435/v1" }, host: "loopback",
+    });
+    router.routeModels.set(localTwo, {
+        kind: "local", entry: { id: "two", label: "Local two" },
+        service: { baseUrl: "http://127.0.0.1:11435/v1" }, host: "loopback",
+    });
+    await router.modelChanged(source);
+    router.activeSubagents.set("active-local", localOne);
+    const activeConflict = await router.guard({ toolName: "task", toolArgs: {
+        name: "research", model: localTwo,
+    } });
+    assert.equal(activeConflict.permissionDecision, "deny");
+    assert.match(activeConflict.permissionDecisionReason, /still active/);
+    router.activeSubagents.clear();
+    router.hostLeases.set("loopback", localOne);
+    const retainedLease = await router.guard({ toolName: "task", toolArgs: {
+        name: "research", model: localTwo,
+    } });
+    assert.equal(retainedLease.permissionDecision, "deny");
+    assert.match(retainedLease.permissionDecisionReason, /current foreground route/);
 });
 
 test("Git trial hook denies legacy mutation patterns without executing commands", () => {

@@ -193,10 +193,12 @@ try {
         assert(originalHookCalls > 0);
         results.push({ step: "denied-credential-access-preserves-session-default-permissions-and-history" });
     } else {
+    const managedModels = new Map();
     for (const [name, args, wire] of [["local", "local-wire", "local-wire"], ["server", "active", "server-wire"],
         ["cloud", "chat-service org/model", "chat-wire"], ["cloud", "messages-service org/model", "messages-wire"],
         ["cloud", "openrouter dynamic/model", "dynamic/model"]]) {
         await command(name, args);
+        managedModels.set(wire, (await session.rpc.model.getCurrent()).modelId);
         await bounded(session.sendAndWait({ prompt: `Synthetic turn for ${name}. No tools.` }, 30000));
         assert.equal(session.sessionId, id);
         assert.equal(requests.at(-1).model, wire);
@@ -218,6 +220,7 @@ try {
     assert(refusedCredential.error);
     assert.equal((await session.rpc.model.getCurrent()).modelId, prior);
     await command("cloud", "credential-service org/model");
+    managedModels.set("credential-wire", (await session.rpc.model.getCurrent()).modelId);
     await bounded(session.sendAndWait({ prompt: "Synthetic granted credential turn. No tools." }, 30000));
     assert(requests.at(-1).syntheticCredential);
     results.push({ step: "missing-credential-preserves-route-and-approved-synthetic-key-routes-correctly" });
@@ -228,11 +231,40 @@ try {
     assert(originalHookCalls > 0);
     results.push({ step: "original-permission-and-hook-preserved", denied, permissionRequests, originalHookCalls });
     const delegation = await session.rpc.tools.execute({ name: "task", arguments: {
-        agent_type: "explore", description: "Synthetic denied task", prompt: "Synthetic task must not execute",
+        name: "explore", agent_type: "explore", description: "Synthetic managed task",
+        prompt: "Return a short synthetic result.", model: "seed/mock",
     } });
-    assert.equal(requests.length, before);
-    assert(JSON.stringify(delegation).includes("blocked"));
-    results.push({ step: "delegation-blocked", delegation });
+    assert(requests.length > before);
+    assert(requests.slice(before).every(request => request.model === "credential-wire"));
+    results.push({ step: "managed-delegation-pinned-to-active-route", delegation,
+        requests: requests.length - before });
+    const crossProviderStart = requests.length;
+    const crossProvider = await session.rpc.tools.execute({ name: "task", arguments: {
+        name: "explore", agent_type: "explore", description: "Synthetic approved local task",
+        prompt: "Return a short synthetic result.", model: managedModels.get("local-wire"),
+    } });
+    assert(requests.length > crossProviderStart);
+    assert(requests.slice(crossProviderStart).every(request => request.model === "local-wire"));
+    const grantedStart = requests.length;
+    const granted = await session.rpc.tools.execute({ name: "task", arguments: {
+        name: "explore", agent_type: "explore", description: "Synthetic persisted local grant",
+        prompt: "Return a short synthetic result.",
+    } });
+    assert(requests.length > grantedStart);
+    assert(requests.slice(grantedStart).every(request => request.model === "local-wire"));
+    results.push({ step: "approved-cross-provider-grant-persists-until-route-change",
+        crossProvider, granted });
+    await session.setModel("seed/mock");
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const standardStart = requests.length;
+    const standardDelegation = await session.rpc.tools.execute({ name: "task", arguments: {
+        name: "explore", agent_type: "explore", description: "Synthetic standard task",
+        prompt: "Return a short synthetic result.",
+    } });
+    assert(requests.length > standardStart);
+    assert(requests.slice(standardStart).every(request => request.model === "seed-wire"));
+    results.push({ step: "standard-model-restores-default-subagent-inheritance", standardDelegation,
+        requests: requests.length - standardStart });
     await bounded(session.rpc.extensions.reload());
     await new Promise(resolve => setTimeout(resolve, 300));
     await command("local", "local-wire");
