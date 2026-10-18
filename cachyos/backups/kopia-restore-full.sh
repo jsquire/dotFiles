@@ -56,7 +56,7 @@ echo "  ✓ kopia installed ($(kopia --version 2>/dev/null | head -1))"
 
 if ! findmnt -n "${MOUNT_POINT}" &>/dev/null; then
     echo "ERROR: Samba share not mounted at ${MOUNT_POINT}."
-    echo "Mount it first, or see backups/ReadMe.md for setup instructions."
+    echo "Mount it first, or see backups/README.md for setup instructions."
     exit 1
 fi
 echo "  ✓ Samba share mounted at ${MOUNT_POINT}"
