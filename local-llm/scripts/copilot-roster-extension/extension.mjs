@@ -31,11 +31,19 @@ try {
         },
     });
     for (const [api, method] of [[session.rpc.provider, "add"], [session.rpc.provider, "withdraw"],
-        [session.rpc.metadata, "activity"], [session.rpc.model, "getCurrent"]]) {
+        [session.rpc.metadata, "activity"], [session.rpc.model, "getCurrent"],
+        [session.rpc.agent, "list"], [session.rpc.tools, "updateSubagentSettings"]]) {
         requireValue(typeof api?.[method] === "function", `Required experimental SDK API ${method} is unavailable`);
     }
     router = new Router(session, config);
-    await session.log("Roster routing ready. No model was changed. Experimental trial retains the legacy wrapper; server unit changes, image profiles and BYOK delegation are not enabled.", { level: "info" });
+    session.on("session.model_change", event => {
+        void router.modelChanged(event.data.newModel);
+    });
+    session.on("subagent.started", event => router.subagentEvent(event));
+    session.on("subagent.completed", event => router.subagentEvent(event));
+    session.on("subagent.failed", event => router.subagentEvent(event));
+    await router.initialize();
+    await session.log("Roster routing ready. Standard Copilot models retain default subagent behavior. Managed routes pin supported subagents to the active provider unless an exact cross-provider grant is approved. Host switching, workflows, remote delegation, rubber-duck, and image profiles are not enabled.", { level: "info" });
     let stopping = false;
     const stop = async () => {
         if (stopping) return;

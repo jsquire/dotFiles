@@ -3,6 +3,23 @@ import { identity, localEntries, openRouterEntries, requireValue, serverEntries 
 import { createGateway } from "./gateway.mjs";
 
 const OWNED = /^roster-(?:local|server|cloud)-[a-f0-9]+-/;
+const DEFAULT_MANAGED_AGENTS = Object.freeze([
+    "general-purpose",
+    "explore",
+    "research",
+    "code-review",
+    "security-review",
+]);
+const BLOCKED_MANAGED_TOOLS = Object.freeze([
+    "delegate",
+    "run_factory",
+    "run_workflow",
+    "run_dynamic_workflow",
+]);
+const DELEGATION_TOOLS = Object.freeze([
+    "task",
+    "fleet",
+]);
 
 export class Router {
     constructor(session, config, { fetchImpl = fetch, environment = process.env, gatewayFactory = createGateway,
@@ -16,6 +33,13 @@ export class Router {
         this.epoch = randomBytes(6).toString("hex");
         this.registered = new Map();
         this.busy = false;
+        this.transition = Promise.resolve();
+        this.route = { phase: "initializing", model: undefined, kind: undefined, error: undefined };
+        this.managedAgents = new Set(DEFAULT_MANAGED_AGENTS);
+        this.routeModels = new Map();
+        this.grants = new Map();
+        this.hostLeases = new Map();
+        this.activeSubagents = new Map();
     }
 
     async json(url) {
@@ -153,15 +177,23 @@ export class Router {
             }
             this.registered.set(signature, selection);
         }
+        this.routeModels.set(selection, {
+            kind,
+            entry,
+            service,
+            host: this.hostKey(kind, service.baseUrl),
+        });
         await this.idle();
-        await this.session.setModel(selection);
-        requireValue((await this.session.rpc.model.getCurrent()).modelId === selection, "Runtime did not commit the selected route");
-        const known = new Set(this.registered.values());
-        const list = await this.session.rpc.model.list();
-        const stale = list.list.filter(model => OWNED.test(model.id) && !known.has(model.id)).map(model => model.id);
-        if (stale.length) await this.session.rpc.provider.withdraw({ models: stale });
-        requireValue((await this.session.rpc.model.getCurrent()).modelId === selection, "Model changed during stale-route cleanup");
-        await this.session.log(`Selected ${kind} / ${kind === "cloud" ? `${service.id} / ` : ""}${entry.label ?? entry.id}. Output ceiling ${entry.maxOutputTokens}. Delegation and image tools are blocked on extension routes during this trial.`, { level: "info" });
+        await this.transitionTo(selection, kind, async () => {
+            await this.session.setModel(selection);
+            requireValue((await this.session.rpc.model.getCurrent()).modelId === selection, "Runtime did not commit the selected route");
+            const known = new Set(this.registered.values());
+            const list = await this.session.rpc.model.list();
+            const stale = list.list.filter(model => OWNED.test(model.id) && !known.has(model.id)).map(model => model.id);
+            if (stale.length) await this.session.rpc.provider.withdraw({ models: stale });
+            requireValue((await this.session.rpc.model.getCurrent()).modelId === selection, "Model changed during stale-route cleanup");
+        });
+        await this.session.log(`Selected ${kind} / ${kind === "cloud" ? `${service.id} / ` : ""}${entry.label ?? entry.id}. Output ceiling ${entry.maxOutputTokens}. Subagents are pinned to this route. Workflows, remote delegation, rubber-duck, and image tools remain blocked.`, { level: "info" });
     }
 
     async command(name, argument = "") {
@@ -180,21 +212,253 @@ export class Router {
     }
 
     async guard(input) {
-        let current;
+        const name = input.toolName.replace(/^.*\./, "");
+        if ((!DELEGATION_TOOLS.includes(name)) && (!BLOCKED_MANAGED_TOOLS.includes(name)) &&
+            (!/imagegen/i.test(input.toolName))) return;
         try {
-            current = (await this.session.rpc.model.getCurrent()).modelId;
+            const current = (await this.session.rpc.model.getCurrent()).modelId;
             requireValue(typeof current === "string" && current.length > 0, "Runtime did not report the active model ID");
+            await this.reconcile(current);
         } catch (error) {
             console.error(`Routing guard could not read the active model: ${error.message}`);
             return { permissionDecision: "deny", permissionDecisionReason: "Active route could not be verified. Tool execution is blocked until routing recovers." };
         }
-        if (!OWNED.test(current)) return;
-        const name = input.toolName.replace(/^.*\./, "");
-        if (["task", "write_agent", "run_factory", "run_workflow", "delegate", "fleet"].includes(name)) {
-            return { permissionDecision: "deny", permissionDecisionReason: "Delegation on BYOK routes is blocked until provider isolation is validated. No automatic cloud routing." };
+        if (this.route.phase === "standard") return;
+        if (this.route.phase !== "managed") {
+            return { permissionDecision: "deny", permissionDecisionReason: "Managed routing is not ready. Delegation is blocked until route policy is verified." };
+        }
+        if (BLOCKED_MANAGED_TOOLS.includes(name)) {
+            return { permissionDecision: "deny", permissionDecisionReason: "This delegation surface is not validated for managed routes." };
+        }
+        if (DELEGATION_TOOLS.includes(name)) {
+            if (name === "task") {
+                const agent = input.toolArgs?.name ?? input.toolArgs?.agent_type;
+                requireValue(typeof agent === "string" && agent.length > 0, "Task dispatch did not identify an agent");
+                if (agent === "rubber-duck") {
+                    return { permissionDecision: "deny", permissionDecisionReason: "rubber-duck is not validated for managed routes." };
+                }
+                try {
+                    const denied = await this.configureManagedAgent(agent, input.toolArgs?.model);
+                    if (denied) return { permissionDecision: "deny", permissionDecisionReason: denied };
+                } catch (error) {
+                    return { permissionDecision: "deny", permissionDecisionReason: `Managed subagent routing failed. ${error.message}` };
+                }
+            }
+            return;
         }
         if (/imagegen/i.test(input.toolName)) {
             return { permissionDecision: "deny", permissionDecisionReason: "Image-profile routing remains with the existing wrapper." };
+        }
+    }
+
+    async initialize() {
+        const current = (await this.session.rpc.model.getCurrent()).modelId;
+        requireValue(typeof current === "string" && current.length > 0, "Runtime did not report the active model ID");
+        await this.reconcile(current, true);
+    }
+
+    async modelChanged(model) {
+        try {
+            const current = (await this.session.rpc.model.getCurrent()).modelId;
+            if (current !== model) return;
+            if ((this.route.model === model) &&
+                (["transitioning", "managed", "standard"].includes(this.route.phase))) return this.transition;
+            this.route = { phase: "transitioning", model, kind: undefined, error: undefined };
+            return await this.reconcile(model, true);
+        } catch (error) {
+            this.route = { phase: "failed", model, kind: undefined, error };
+            await this.session.log(`Routing policy could not be reconciled after the model change. Delegation is blocked. ${error.message}`, { level: "error" });
+        }
+    }
+
+    async reconcile(model, force = false) {
+        const managed = OWNED.test(model);
+        if ((!force) && (this.route.model === model) &&
+            ((managed && this.route.phase === "managed") || ((!managed) && (this.route.phase === "standard")))) return;
+        return this.transitionTo(model, managed ? this.kindOf(model) : undefined);
+    }
+
+    async transitionTo(model, kind, switchModel) {
+        this.route = { phase: "transitioning", model, kind, error: undefined };
+        const operation = this.transition.then(async () => {
+            try {
+                if (switchModel) await switchModel();
+                const current = (await this.session.rpc.model.getCurrent()).modelId;
+                requireValue(current === model, "Model changed while routing policy was being applied");
+                this.grants.clear();
+                this.hostLeases.clear();
+                const currentRoute = this.routeModels.get(model);
+                if (currentRoute?.host) this.hostLeases.set(currentRoute.host, model);
+                if (kind) {
+                    await this.applyManagedPolicy(model);
+                    requireValue((await this.session.rpc.model.getCurrent()).modelId === model,
+                        "Model changed while managed subagent policy was being applied");
+                    this.route = { phase: "managed", model, kind, error: undefined };
+                } else {
+                    await this.session.rpc.tools.updateSubagentSettings({ subagents: null });
+                    requireValue((await this.session.rpc.model.getCurrent()).modelId === model,
+                        "Model changed while standard subagent policy was being restored");
+                    this.route = { phase: "standard", model, kind: undefined, error: undefined };
+                }
+            } catch (error) {
+                this.route = { phase: "failed", model, kind, error };
+                throw error;
+            }
+        });
+        this.transition = operation.catch(() => {});
+        return operation;
+    }
+
+    async applyManagedPolicy(model) {
+        const agents = await this.session.rpc.agent.list({ includeBuiltInAgents: true, includePrompt: false });
+        for (const agent of agents.agents ?? []) {
+            if ((typeof agent.name === "string") && (agent.name !== "rubber-duck")) this.managedAgents.add(agent.name);
+        }
+        await this.updateManagedPolicy(model);
+    }
+
+    async configureManagedAgent(agent, requestedModel) {
+        const operation = this.transition.then(async () => {
+            requireValue(this.route.phase === "managed", "Managed route changed before task dispatch");
+            const originalAgents = new Set(this.managedAgents);
+            const originalGrants = new Map(this.grants);
+            const originalHostLeases = new Map(this.hostLeases);
+            let changed = false;
+            try {
+                if (!this.managedAgents.has(agent)) {
+                    this.managedAgents.add(agent);
+                    changed = true;
+                }
+                const existing = this.grants.get(agent);
+                if ((typeof requestedModel === "string") && (requestedModel.length > 0)) {
+                    if (requestedModel === this.route.model) {
+                        if (existing) {
+                            this.grants.delete(agent);
+                            changed = true;
+                        }
+                    } else if ((!this.routeModels.has(requestedModel)) && (!OWNED.test(requestedModel))) {
+                        // Required policy intentionally overrides non-managed model requests.
+                    } else if (existing?.model !== requestedModel) {
+                        const denial = await this.approveGrant(agent, requestedModel);
+                        if (denial) return denial;
+                        this.grants.set(agent, {
+                            model: requestedModel,
+                            sourceModel: this.route.model,
+                            sourceKind: this.route.kind,
+                        });
+                        changed = true;
+                    }
+                }
+                if (changed) await this.updateManagedPolicy(this.route.model);
+                return undefined;
+            } catch (error) {
+                this.managedAgents = originalAgents;
+                this.grants = originalGrants;
+                this.hostLeases = originalHostLeases;
+                this.route = { ...this.route, phase: "failed", error };
+                throw error;
+            }
+        });
+        this.transition = operation.catch(() => {});
+        return operation;
+    }
+
+    async approveGrant(agent, targetModel) {
+        const target = this.routeModels.get(targetModel);
+        if (!target) return "Cross-provider routing requires an extension-managed model registered in this session.";
+        const source = this.routeModels.get(this.route.model) ?? {
+            kind: this.route.kind,
+            host: undefined,
+            entry: { label: this.route.model },
+        };
+        const allowed = {
+            local: new Set(["server", "cloud"]),
+            server: new Set(["local", "cloud"]),
+            cloud: new Set(["local", "cloud"]),
+        };
+        if (!allowed[source.kind]?.has(target.kind)) {
+            return `${source.kind} routes cannot grant subagents access to ${target.kind} routes.`;
+        }
+        if ((target.host) && (source.host === target.host) && (targetModel !== this.route.model)) {
+            return "Two different models cannot use the same local or vLLM host.";
+        }
+        if ((target.host) && (this.hostLeases.has(target.host)) &&
+            (this.hostLeases.get(target.host) !== targetModel)) {
+            return "A different model already holds this local or vLLM host for the current foreground route.";
+        }
+        for (const grant of this.grants.values()) {
+            const granted = this.routeModels.get(grant.model);
+            if ((target.host) && (granted?.host === target.host) && (grant.model !== targetModel)) {
+                return "Another approved subagent model already holds this local or vLLM host.";
+            }
+        }
+        for (const model of this.activeSubagents.values()) {
+            const active = this.routeModels.get(model);
+            if ((target.host) && (active?.host === target.host) && (model !== targetModel)) {
+                return "A different subagent model is still active on this local or vLLM host.";
+            }
+        }
+        await this.verifyGrantTarget(target);
+        if (!this.session.capabilities.ui?.elicitation) {
+            return "Cross-provider subagent routing requires interactive approval.";
+        }
+        const label = target.entry.label ?? target.entry.id;
+        const approved = await this.session.ui.confirm(
+            `Allow ${agent} subagents to use ${target.kind} / ${label} until the active foreground route changes?`,
+        );
+        if (approved && target.host) this.hostLeases.set(target.host, targetModel);
+        return approved ? undefined : "Cross-provider subagent routing was not approved.";
+    }
+
+    async verifyGrantTarget(target) {
+        if (target.kind === "local") {
+            const installed = await this.json(this.config.local.discoveryUrl);
+            requireValue(installed.models?.some(model => (!model.remote_model) && (!model.remote_host) &&
+                (model.name === target.entry.wireModel || model.name === target.entry.id)),
+            "The approved local model is no longer available from the running Ollama instance");
+            const models = await this.json(`${this.config.local.baseUrl}/models`);
+            requireValue(models.data?.some(model => model.id === target.entry.wireModel ||
+                model.id === `${target.entry.wireModel}:latest`),
+            "The running local compatibility endpoint no longer advertises the approved model");
+        }
+        if (target.kind === "server") {
+            const state = await this.json(`${this.config.server.controlUrl}/status`);
+            requireValue((state.mode === target.entry.id) && (state.api_up === true) &&
+                (state.served_model === target.entry.wireModel),
+            "The approved vLLM model is not currently served and ready");
+        }
+    }
+
+    async updateManagedPolicy(model) {
+        requireValue(this.route.phase === "transitioning" || this.route.phase === "managed",
+            "Managed policy cannot be updated outside a managed route");
+        await this.session.rpc.tools.updateSubagentSettings({
+            subagents: {
+                agents: Object.fromEntries([...this.managedAgents].map(agent => [agent, {
+                    model: this.grants.get(agent)?.model ?? model,
+                    modelPolicy: "required",
+                    contextTier: "inherit",
+                }])),
+                disabledSubagents: ["rubber-duck"],
+            },
+        });
+    }
+
+    kindOf(model) {
+        return /^roster-(local|server|cloud)-/.exec(model)?.[1];
+    }
+
+    hostKey(kind, baseUrl) {
+        if ((kind !== "local") && (kind !== "server")) return undefined;
+        const hostname = new URL(baseUrl).hostname.toLowerCase();
+        return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname) ? "loopback" : hostname;
+    }
+
+    subagentEvent(event) {
+        if (event.type === "subagent.started") {
+            if (event.data.model) this.activeSubagents.set(event.data.toolCallId, event.data.model);
+        } else if ((event.type === "subagent.completed") || (event.type === "subagent.failed")) {
+            this.activeSubagents.delete(event.data.toolCallId);
         }
     }
 

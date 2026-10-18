@@ -9,7 +9,8 @@ experimental provider registration, scoped withdrawal, and session activity
 APIs. Native mock-backed integration is verified through Copilot CLI 1.0.91.
 Live isolated OpenRouter routing is verified on Copilot CLI 1.0.95. The earlier
 1.0.87 feasibility probe does not establish compatibility with this
-implementation's newer scoped-withdrawal API.
+implementation's newer scoped-withdrawal API. Provider-affinity routing and
+standard-model restoration are verified through Copilot CLI 1.0.98.
 
 ## Trial boundaries
 
@@ -30,9 +31,25 @@ implementation's newer scoped-withdrawal API.
   incompatibility reason. They cannot be activated as a normal Copilot model.
 - Every cloud selection requires a history-transfer confirmation. A
   noninteractive host cannot select cloud through these commands.
-- Agent delegation, messages to existing agents, and image tools are denied on
-  extension-managed routes. Image task rows explicitly direct the user back to
-  the existing wrapper.
+- Supported task and fleet agents on extension-managed routes receive a live
+  `modelPolicy: required` policy for the exact active route. This overrides a
+  conflicting task model and includes custom task agents discovered at
+  dispatch. Rubber-duck is disabled.
+- A task can request another extension-managed model already registered in the
+  same session. The extension validates the allowed provider pair and target
+  health, then asks for explicit approval. Approval creates an exact per-agent
+  grant that expires when the foreground route changes.
+- Local can grant vLLM or cloud. vLLM can grant local or cloud. OpenRouter can
+  grant another OpenRouter model or local. OpenRouter cannot grant vLLM.
+- Local and vLLM routes use a physical-host lease. A grant is denied when the
+  foreground route, another grant, or an active child uses a different model
+  on the same host. Local targets require an already-running Ollama and
+  compatibility endpoint. The extension never starts either service.
+- Selecting a standard Copilot model clears the live managed override before
+  task delegation is available. Standard agents then inherit the selected
+  model and the user's persistent subagent settings normally.
+- Dynamic workflows, agent factories, remote delegation, rubber-duck, and image
+  tools remain denied on managed routes.
 - A small session-owned loopback gateway forwards to exactly one selected
   endpoint, clamps the output request parameter, and applies configured body
   policy. It does not select another endpoint, follow redirects, or retry.
@@ -129,12 +146,18 @@ Requesting another grant by calling `joinSession` again inside a command
 disrupted host delivery in an isolated 1.0.90 experiment. The production module
 therefore attaches once. It does not use that unsupported on-demand pattern.
 
-Use fresh trial sessions until resume behavior is validated. After extension
-reload or runtime restart, reselect the route with its command
-before inference. Old gateway endpoints belong to the exited extension process.
-Following an explicit new selection, scoped withdrawal removes stale owned
-models while leaving unrelated registry entries intact. Persisting an
-extension-only default model is not supported in this trial.
+On startup and extension reload, the extension reconciles subagent policy with
+the active model before reporting readiness. It clears live managed settings
+for standard Copilot models and reapplies required policy for a current managed
+route. External `/model` changes trigger the same transition. A failed
+reconciliation blocks managed delegation until a later tool-time reconciliation
+succeeds.
+
+Old gateway endpoints belong to the exited extension process. If a resumed
+session references an owned model whose provider was not rebuilt, reselect its
+route before inference. Following an explicit new selection, scoped withdrawal
+removes stale owned models while leaving unrelated registry entries intact.
+Persisting an extension-only default model is not supported in this trial.
 
 ## OpenRouter
 
@@ -250,7 +273,11 @@ npm run test:runtime
 
 The runtime fixture grants only its own synthetic hook privilege and, in the
 grant condition, its fabricated API key. Ordinary synthetic tool calls remain
-denied by the original host handler. Results and isolated runtime homes are
+denied by the original host handler. It proves that a conflicting child model
+is replaced by the exact active managed route, switching to a standard model
+restores normal child inheritance, an approved cloud-to-local grant persists
+for that agent until the route changes, reload reapplies managed policy, and a
+provider failure does not fall back. Results and isolated runtime homes are
 retained under the supplied artifact directory.
 
 An additional isolated 1.0.91 proof verified that session-scoped extension
