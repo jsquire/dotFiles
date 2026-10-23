@@ -1,7 +1,5 @@
 # GPG needs the real TTY before p10k instant prompt redirects stdin
-# Use zsh's $TTY (not $(tty)): under Powerlevel10k instant prompt, stdin is
-# redirected so $(tty) yields "not a tty", which breaks pinentry. $TTY is always correct.
-export GPG_TTY=$TTY
+export GPG_TTY=$(tty)
 
 # Set plugins BEFORE sourcing CachyOS config (it respects pre-set plugins)
 plugins=(git fzf extract nvm dotnet docker docker-compose)
@@ -32,7 +30,6 @@ fi
 ############################
 
 # Starting Directory
-
 if [[ $(pwd) == "/" ]]; then
   cd ~
 fi
@@ -49,11 +46,16 @@ fi
 # Rust Cargo Path
 export PATH="$HOME/.cargo/bin:$PATH"
 
-# enable NVM
+# Enable NVM
 export NVM_DIR="$HOME/.nvm"
-[[ -s "$NVM_DIR/nvm.sh" ]] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[[ -s "$NVM_DIR/bash_completion" ]] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+[[ -s "$NVM_DIR/nvm.sh" ]] && \. "$NVM_DIR/nvm.sh"
+[[ -s "$NVM_DIR/bash_completion" ]] && \. "$NVM_DIR/bash_completion"
 
+# Enable MISE tooling for Go and Ruby
+eval "$(mise activate zsh)"
+
+# Allow Zed to use the emulated GPU for DevBox
+export WSL_ZED_USE_EMULATED_GPU=1
 
 # Preserve the window title
 DISABLE_AUTO_TITLE="true"
@@ -81,17 +83,6 @@ export DOTNET_ROLL_FORWARD="LatestMajor"
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
 
-# Chruby
-[[ -f /usr/local/share/chruby/chruby.sh ]] && source /usr/local/share/chruby/chruby.sh
-[[ -f /usr/local/share/chruby/auto.sh ]] && source /usr/local/share/chruby/auto.sh
-
 # Key Bindings
 bindkey "\033[1~" beginning-of-line
 bindkey "\033[4~" end-of-line
-
-# Open files/folders in Zed on Windows from WSL
-zed() {
-    local target
-    target="$(realpath "${1:-.}")"
-    zed.exe "wsl://${WSL_DISTRO_NAME}${target}"
-}
