@@ -23,14 +23,88 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
   * **home/.config/zed/themes**  
     _Custom Zed editor theme._
 
+  * **home/.config/zed/settings.json**
+    _Desktop Zed settings that enable code lenses and select Ruby LSP for Ruby._
+
   The tracked `home/.config` and `home/.gnupg` assets are an inventory unless
   an item explicitly says otherwise. Ghostty is installed by `bootstrap.sh`
-  and deployed by `init-shell.sh`. Alacritty, editor, COSMIC Terminal, and GPG
-  agent settings remain manually deployed. Their applications, fonts, and
-  other runtime dependencies are outside the Plasma appearance profile.
+  and deployed by `init-shell.sh`. Zed settings are also deployed by
+  `init-shell.sh`. Alacritty, the custom Zed theme, editor, COSMIC Terminal,
+  and GPG agent settings remain manually deployed. Their applications, fonts,
+  and other runtime dependencies are outside the Plasma appearance profile.
 
 * **surface-laptop**  
   _Authored in 2026, this directory contains scripts specific to configuring Microsoft Surface laptop hardware, including kernel installation and hardware service enablement._
+
+### Development Environments
+
+The development installer assigns one version manager to each managed ecosystem.
+
+| Ecosystem | Manager |
+| --- | --- |
+| Ruby | [mise](https://mise.jdx.dev/) |
+| Go | [mise](https://mise.jdx.dev/) |
+| Rust | [rustup](https://rustup.rs/) |
+| Node | [NVM](https://github.com/nvm-sh/nvm) |
+| Python | CachyOS packages |
+| .NET | CachyOS packages |
+
+Ruby and Go request `latest` during each installer run. Mise resolves and
+installs the current stable releases, then records the resolved versions in its
+global configuration. Individual repositories can override them with exact or
+rolling versions in `mise.toml`. Ruby projects using `.ruby-version` are also
+supported.
+
+The Ruby environment includes Bundler, Ruby LSP, and `rdbg`. The Go environment
+includes `gopls`, Delve, and Staticcheck. Rust includes rustfmt, Clippy, and
+rust-analyzer.
+
+#### Using mise
+
+Show the active versions and their configuration sources.
+
+```bash
+mise current
+mise config ls
+```
+
+Select an exact version for a project.
+
+```bash
+cd ~/Projects/example
+mise use ruby@4.0.8
+mise use go@1.27.3
+```
+
+Install versions declared by an existing project.
+
+```bash
+mise install
+```
+
+Run a command with a temporary version without changing configuration.
+
+```bash
+mise exec ruby@3.4.11 -- ruby --version
+mise exec go@1.26.4 -- go test ./...
+```
+
+Official mise references
+
+* [Getting Started](https://mise.jdx.dev/getting-started.html)
+* [Installing and Using Development Tools](https://mise.jdx.dev/dev-tools/)
+* [`mise use` Command](https://mise.jdx.dev/cli/use.html)
+* [Configuration](https://mise.jdx.dev/configuration.html)
+* [Version Selection](https://mise.jdx.dev/dev-tools/versions.html)
+* [Configuration Trust](https://mise.jdx.dev/configuration/settings.html#trusted-config-paths)
+
+### Zed
+
+Zed runs locally on the CachyOS desktop and is installed from the AUR as
+`zed-preview-bin`. `init-shell.sh` deploys the tracked desktop settings. Go and
+Rust support are built into Zed, while Ruby uses the Ruby extension with Ruby
+LSP. No WSL launcher, remote server configuration, or emulated GPU setting is
+used on the desktop.
 
 ### Items
   
@@ -79,10 +153,10 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
   ```
 
 * **init-shell.sh**  
-  _Authored in 2026, this script installs ZSH and sets it as the default shell, deploys the explicitly listed top-level shell and Git files, and installs the shared Ghostty configuration and Jesse theme with timestamped backups when content changes. It does not deploy Alacritty, editor, COSMIC Terminal, or GPG agent configuration. It is intended to be run after bootstrapping to establish the shell and terminal environment._
+  _Authored in 2026, this script installs ZSH and sets it as the default shell, deploys the explicitly listed top-level shell and Git files, and installs the shared Ghostty configuration, Jesse theme, and desktop Zed settings with timestamped backups when content changes. It does not deploy Alacritty, the custom Zed theme, editor, COSMIC Terminal, or GPG agent configuration. It is intended to be run after bootstrapping to establish the shell and terminal environment._
 
 * **install-development.sh**  
-  _Authored in 2026, this script automates installing and configuring a set of development tools and shared user-scoped assets, focusing on Azure, .NET, GitHub Copilot, Node.js, and Rust. The actions performed by this script are intended to be general-purpose, but are targeted at a development workstation. Orphan removal and cache pruning run only when `--package-maintenance` is supplied._
+  _Authored in 2026, this script automates installing and configuring a set of development tools and shared user-scoped assets, focusing on Azure, .NET, GitHub Copilot, Node.js, mise-managed Ruby and Go, Rust, and Zed. It removes legacy chruby and ruby-install artifacts only after the mise-managed Ruby and Go environments and their language tools verify successfully. The actions performed by this script are intended to be general-purpose, but are targeted at a development workstation. Orphan removal and cache pruning run only when `--package-maintenance` is supplied._
 
 * **backups/**  
   _Backup and restore setup, configuration, and scripts.  See `backups/README.md` for details._

@@ -77,12 +77,6 @@ fi
 trap cleanup EXIT
 
 ############################################
-# Version Targets
-############################################
-
-
-
-############################################
 # System Update
 ############################################
 
@@ -246,6 +240,103 @@ npm install -g \
     webpack-cli \
     webpack
 
+
+############################################
+# Install Ruby and Go with mise
+############################################
+
+sudo pacman -S --needed --noconfirm \
+    mise \
+    libyaml \
+    openssl \
+    gdbm \
+    readline \
+    libffi
+
+mise use --global \
+    ruby@latest \
+    go@latest
+
+if [[ "$(mise settings get idiomatic_version_file_enable_tools)" != *'"ruby"'* ]]; then
+    mise settings add idiomatic_version_file_enable_tools ruby
+fi
+
+RUBY_VERSION="$(mise exec -- ruby -e 'print RUBY_VERSION')"
+GO_VERSION="$(mise exec -- go env GOVERSION)"
+
+if [ -z "$RUBY_VERSION" ]; then
+    echo "ERROR: mise did not activate Ruby" >&2
+    exit 1
+fi
+
+if [ -z "$GO_VERSION" ]; then
+    echo "ERROR: mise did not activate Go" >&2
+    exit 1
+fi
+
+echo "Using Ruby $RUBY_VERSION"
+echo "Using $GO_VERSION"
+
+RUBY_BIN="$(mise exec -- ruby -rrubygems -e 'print Gem.bindir')"
+GO_BIN="$(mise exec -- go env GOBIN)"
+
+if [ -z "$GO_BIN" ]; then
+    GO_BIN="$(mise exec -- go env GOPATH)/bin"
+fi
+
+mkdir -p "$GO_BIN"
+
+mise exec -- gem install --no-document \
+    bundler \
+    ruby-lsp \
+    debug
+
+mise exec -- go install golang.org/x/tools/gopls@latest
+mise exec -- go install github.com/go-delve/delve/cmd/dlv@latest
+mise exec -- go install honnef.co/go/tools/cmd/staticcheck@latest
+
+for tool in bundle ruby-lsp rdbg; do
+    if [ ! -x "${RUBY_BIN}/${tool}" ]; then
+        echo "ERROR: Ruby tool was not installed at ${RUBY_BIN}/${tool}" >&2
+        exit 1
+    fi
+done
+
+for tool in gopls dlv staticcheck; do
+    if [ ! -x "${GO_BIN}/${tool}" ]; then
+        echo "ERROR: Go tool was not installed at ${GO_BIN}/${tool}" >&2
+        exit 1
+    fi
+done
+
+
+############################################
+# Remove legacy Ruby managers
+############################################
+
+sudo rm -f \
+    /usr/local/bin/chruby-exec \
+    /usr/local/bin/ruby-install \
+    /usr/local/man/man1/ruby-install.1 \
+    /usr/local/share/man/man1/ruby-install.1
+
+sudo rm -rf \
+    /usr/local/share/chruby \
+    /usr/local/share/ruby-install \
+    /usr/local/share/doc/chruby-0.3.9 \
+    /usr/local/share/doc/ruby-install-0.10.2
+
+rm -rf "$HOME/.rubies"
+
+if [ -f "$HOME/.ruby-version" ] &&
+   [[ "$(<"$HOME/.ruby-version")" == ruby-* ]]; then
+    rm -f "$HOME/.ruby-version"
+fi
+
+rm -f "$HOME/.local/state/cachyos-development/ruby-install-release"
+rmdir "$HOME/.local/state/cachyos-development" 2>/dev/null || true
+
+
 ############################################
 # Install Zed Editor (AUR)
 ############################################
@@ -273,11 +364,12 @@ sudo pacman -S --needed --noconfirm \
 # Install and set stable toolchain as default
 # rustup default is idempotent - safe to run multiple times
 rustup default stable
-rustup component add rustfmt clippy 2>/dev/null || true
+rustup component add rustfmt clippy rust-analyzer
 
 # Verify
 rustc --version
 cargo --version
+rust-analyzer --version
 
 
 ############################################

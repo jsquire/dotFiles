@@ -1,0 +1,8 @@
+{
+  "code_lens": "on",
+  "languages": {
+    "Ruby": {
+      "language_servers": ["ruby-lsp"]
+    }
+  }
+}

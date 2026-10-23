@@ -51,6 +51,11 @@ install_home_file \
     "${SCRIPT_DIR}/home/.config/ghostty/themes/Jesse" \
     "$HOME/.config/ghostty/themes/Jesse"
 
+mkdir -p "$HOME/.config/zed"
+install_home_file \
+    "${SCRIPT_DIR}/home/.config/zed/settings.json" \
+    "$HOME/.config/zed/settings.json"
+
 # The template .gitconfig ships placeholders rather than a real identity, and it
 # sets commit.gpgsign/tag.gpgsign to true. Left unedited, git does not merely
 # record a wrong email: every commit fails outright with "gpg: skipped ... No
