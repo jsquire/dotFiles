@@ -270,41 +270,72 @@ sudo pacman -S --needed --noconfirm azure-cli
 wget -qO- https://gh.io/copilot-install | bash
 
 
-###############################################
-# Secret Service (secretsd headless keychain)
-###############################################
+############################################
+# Secret Service (GNOME Keyring)
+############################################
 
 sudo pacman -S --needed --noconfirm \
-    libsecret \
-    python-cryptography \
-    python-dbus \
-    python-gobject \
-    python-platformdirs \
-    python-xdg
+    gnome-keyring \
+    libsecret
 
-if [ ! -d "$HOME/.local/lib/secretsd" ]; then
-    git clone https://github.com/grawity/secretsd.git "$HOME/.local/lib/secretsd"
+if [ "$(ps -p 1 -o comm=)" != "systemd" ]; then
+    echo "ERROR: GNOME Keyring requires the systemd user session configured for this WSL environment." >&2
+    exit 1
 fi
 
-mkdir -p "$HOME/.local/bin" "$HOME/.local/share/nullroute.lt/secretsd"
-ln -sf "$HOME/.local/lib/secretsd/secretsd.py" "$HOME/.local/bin/secretsd"
-chmod +x "$HOME/.local/bin/secretsd"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
 
-mkdir -p "$HOME/.config/systemd/user" "$HOME/.local/share/dbus-1/services"
-cp "$HOME/.local/lib/secretsd/systemd/secretsd.service" "$HOME/.config/systemd/user/"
-cp "$HOME/.local/lib/secretsd/dbus/org.freedesktop.secrets.service" "$HOME/.local/share/dbus-1/services/"
+if [ ! -S "${XDG_RUNTIME_DIR}/bus" ]; then
+    echo "ERROR: User D-Bus socket not available at ${XDG_RUNTIME_DIR}/bus." >&2
+    exit 1
+fi
 
-if [ "$(ps -p 1 -o comm=)" = "systemd" ]; then
-    export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-    export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
+if systemctl --user is-active --quiet secretsd.service ||
+   systemctl --user is-enabled --quiet secretsd.service; then
+    systemctl --user disable --now secretsd.service
+fi
 
-    if [ -S "${XDG_RUNTIME_DIR}/bus" ]; then
-        systemctl --user daemon-reload
-        systemctl --user enable --now secretsd
+rm -f \
+    "$HOME/.config/systemd/user/secretsd.service" \
+    "$HOME/.local/share/dbus-1/services/org.freedesktop.secrets.service"
+
+systemctl --user daemon-reload
+
+KEYRING_ENVIRONMENT=()
+
+for VARIABLE in DISPLAY WAYLAND_DISPLAY XAUTHORITY; do
+    if [ -n "${!VARIABLE:-}" ]; then
+        KEYRING_ENVIRONMENT+=("$VARIABLE")
+    fi
+done
+
+if [ "${#KEYRING_ENVIRONMENT[@]}" -gt 0 ]; then
+    systemctl --user import-environment "${KEYRING_ENVIRONMENT[@]}"
+fi
+
+systemctl --user enable --now gnome-keyring-daemon.socket
+
+if ! busctl --user call \
+    org.freedesktop.secrets \
+    /org/freedesktop/secrets \
+    org.freedesktop.DBus.Peer \
+    Ping >/dev/null; then
+    echo "ERROR: GNOME Keyring did not provide org.freedesktop.secrets." >&2
+    exit 1
+fi
+
+rm -f "$HOME/.local/bin/secretsd"
+rm -rf "$HOME/.local/lib/secretsd"
+
+SECRETS_DATA="$HOME/.local/share/nullroute.lt/secretsd"
+
+if [ -d "$SECRETS_DATA" ]; then
+    if [ -n "$(find "$SECRETS_DATA" -mindepth 1 -print -quit)" ]; then
+        echo "NOTICE: Legacy secretsd data was preserved at $SECRETS_DATA."
+        echo "        Remove it after confirming that no stored credential is still needed."
     else
-        echo "NOTICE: User D-Bus socket not yet available at ${XDG_RUNTIME_DIR}/bus."
-        echo "        secretsd will be enabled and start on next login."
-        systemctl --user enable secretsd 2>/dev/null || true
+        rmdir "$SECRETS_DATA"
     fi
 fi
 

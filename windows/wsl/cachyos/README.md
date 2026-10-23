@@ -23,6 +23,21 @@ Ruby and Go request `latest` during each bootstrap run.  Mise resolves and insta
 
 The Ruby environment includes Bundler, Ruby LSP, and `rdbg`.  The Go environment includes `gopls`, Delve, and Staticcheck.  Rust includes rustfmt, Clippy, and rust-analyzer.
 
+### Secure Storage
+
+The bootstrap installs GNOME Keyring and libsecret to provide the standard
+Linux Secret Service used by GitHub Copilot CLI and other development tools.
+Its systemd user socket is enabled for the CachyOS WSL session, and available
+WSLg display variables are imported so graphical unlock prompts can open. The
+first application that stores a credential may ask you to create or unlock the
+default keyring.
+
+Older bootstrap versions used `secretsd`. The current bootstrap disables that
+service and removes its user-local executable, service definition, D-Bus
+activation file, and source checkout after GNOME Keyring successfully answers
+on `org.freedesktop.secrets`. Non-empty legacy credential data is preserved and
+reported rather than deleted automatically.
+
 #### Using mise
 
 Show the active versions and their configuration sources:
