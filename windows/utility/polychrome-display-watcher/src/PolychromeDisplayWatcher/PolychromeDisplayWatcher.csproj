@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(CommonTargetFramework)-windows</TargetFramework>
+    <RootNamespace>Squire.PolychromeDisplayWatcher</RootNamespace>
+    <StartupObject>Squire.PolychromeDisplayWatcher.Program</StartupObject>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>polychrome-display-watcher</AssemblyName>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <OptimizationPreference>Size</OptimizationPreference>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="Properties\" />
+    <None Include="assets\security.ico"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest"
+          TargetPath="security.ico" />
+  </ItemGroup>
+
+  <Target Name="StageShippingBinary" AfterTargets="Publish">
+    <PropertyGroup>
+      <DistDirectory>$(MSBuildProjectDirectory)\..\..\dist</DistDirectory>
+      <PublishedExecutable>$(PublishDir)$(AssemblyName).exe</PublishedExecutable>
+      <DistExecutable>$(DistDirectory)\$(AssemblyName).exe</DistExecutable>
+      <PublishedIcon>$(PublishDir)security.ico</PublishedIcon>
+      <DistIcon>$(DistDirectory)\security.ico</DistIcon>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(DistDirectory)" />
+
+    <Copy SourceFiles="$(PublishedExecutable)" DestinationFolder="$(DistDirectory)" />
+    <Copy SourceFiles="$(PublishedIcon)" DestinationFiles="$(DistIcon)" />
+
+    <GetFileHash Files="$(DistExecutable)" Algorithm="SHA256">
+      <Output TaskParameter="Hash" PropertyName="ShippingBinaryHash" />
+    </GetFileHash>
+
+    <WriteLinesToFile File="$(DistExecutable).sha256"
+                      Lines="$(ShippingBinaryHash.ToLowerInvariant())  $(AssemblyName).exe"
+                      Overwrite="true" />
+
+    <Message Importance="high"
+             Text="Staged $(AssemblyName).exe into $(DistDirectory) and refreshed its .sha256." />
+  </Target>
+</Project>

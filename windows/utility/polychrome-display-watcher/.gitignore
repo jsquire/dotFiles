@@ -1,0 +1,60 @@
+# Based on https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
+
+# Build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+.artifacts/
+
+# Test and coverage output
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+BenchmarkDotNet.Artifacts/
+
+# IDE and user files
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+
+# Packages and build logs
+*.nupkg
+*.snupkg
+*.nuget.props
+*.nuget.targets
+*.binlog
+MSBuild_Logs/
+
+# Local configuration and secrets
+.env
+.env.*
+appsettings.Local.json
+secrets.json
+
+# Operating systems
+.DS_Store
+Thumbs.db
+[Dd]esktop.ini
+
+# Temporary files
+*.tmp
+*.log
+*~

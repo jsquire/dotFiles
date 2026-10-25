@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/PolychromeDisplayWatcher/PolychromeDisplayWatcher.csproj" />
+  <Project Path="tests/PolychromeDisplayWatcher.Tests.csproj" />
+</Solution>

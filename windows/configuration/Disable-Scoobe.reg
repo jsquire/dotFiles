@@ -1,0 +1,12 @@
+Windows Registry Editor Version 5.00
+
+; Disables the Windows 11 "Finish setting up your PC" (SCOOBE) prompt.
+; Per-user (HKCU). Does NOT affect OneDrive sync, Windows Update, security, or sign-in.
+; Sign out or reboot to apply.
+
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement]
+"ScoobeSystemSettingEnabled"=dword:00000000
+
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager]
+"SubscribedContent-310093Enabled"=dword:00000000
+"ScoobeSystemSettingEnabled"=dword:00000000

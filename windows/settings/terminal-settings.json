@@ -1,0 +1,273 @@
+{
+    "$help": "https://aka.ms/terminal-documentation",
+    "$schema": "https://aka.ms/terminal-profiles-schema",
+    "actions": 
+    [
+        {
+            "command": 
+            {
+                "action": "scrollUp"
+            },
+            "id": "User.scrollUp.0"
+        },
+        {
+            "command": 
+            {
+                "action": "nextTab"
+            },
+            "id": "User.nextTab.0"
+        },
+        {
+            "command": 
+            {
+                "action": "copy"
+            },
+            "id": "User.copy.644BA8F2"
+        },
+        {
+            "command": "openNewTabDropdown",
+            "id": "User.openNewTabDropdown"
+        },
+        {
+            "command": "scrollDownPage",
+            "id": "User.scrollDownPage"
+        },
+        {
+            "command": 
+            {
+                "action": "prevTab"
+            },
+            "id": "User.prevTab.0"
+        },
+        {
+            "command": "paste",
+            "id": "User.paste"
+        },
+        {
+            "command": "find",
+            "id": "User.find"
+        },
+        {
+            "command": "toggleFullscreen",
+            "id": "User.toggleFullscreen"
+        },
+        {
+            "command": 
+            {
+                "action": "scrollDown"
+            },
+            "id": "User.scrollDown.0"
+        },
+        {
+            "command": "scrollUpPage",
+            "id": "User.scrollUpPage"
+        },
+        {
+            "command": 
+            {
+                "action": "sendInput",
+                "input": "\n"
+            },
+            "id": "User.sendInput.F8A79DCB"
+        }
+    ],
+    "copyFormatting": "none",
+    "copyOnSelect": false,
+    "defaultProfile": "{574e775e-4f2a-5b96-ac1e-a2962a402336}",
+    "initialCols": 160,
+    "initialRows": 35,
+    "keybindings": 
+    [
+        {
+            "id": "User.prevTab.0",
+            "keys": "ctrl+left"
+        },
+        {
+            "id": "User.nextTab.0",
+            "keys": "ctrl+right"
+        },
+        {
+            "id": null,
+            "keys": "ctrl+minus"
+        },
+        {
+            "id": null,
+            "keys": "ctrl+plus"
+        },
+        {
+            "id": "User.copy.644BA8F2",
+            "keys": "ctrl+c"
+        },
+        {
+            "id": "User.toggleFullscreen",
+            "keys": "f11"
+        },
+        {
+            "id": "User.openNewTabDropdown",
+            "keys": "ctrl+n"
+        },
+        {
+            "id": "User.paste",
+            "keys": "ctrl+v"
+        },
+        {
+            "id": "User.scrollUp.0",
+            "keys": "pgup"
+        },
+        {
+            "id": "User.scrollUpPage",
+            "keys": "ctrl+pgup"
+        },
+        {
+            "id": "User.find",
+            "keys": "ctrl+f"
+        },
+        {
+            "id": "User.scrollDown.0",
+            "keys": "pgdn"
+        },
+        {
+            "id": "User.scrollDownPage",
+            "keys": "ctrl+pgdn"
+        },
+        {
+            "id": "User.sendInput.F8A79DCB",
+            "keys": "ctrl+enter"
+        },
+        {
+            "id": "User.sendInput.F8A79DCB",
+            "keys": "shift+enter"
+        }
+    ],
+    "newTabMenu": 
+    [
+        {
+            "type": "remainingProfiles"
+        }
+    ],
+    "profiles": 
+    {
+        "defaults": 
+        {
+            "background": "#121212",
+            "backgroundImageAlignment": "bottomRight",
+            "backgroundImageOpacity": 0.15,
+            "colorScheme": "Jesse",
+            "cursorShape": "underscore",
+            "font":
+            {
+                "face": "MesloLGS NF",
+                "size": 10
+            },
+            "padding": "8, 1, 8, 1",
+            "useAcrylic": false
+        },
+        "list":
+        [
+            {
+                "backgroundImage": "C:\\Users\\Jesse\\OneDrive\\pictures\\terminal\\git-bash.png",
+                "commandline": "C:\\Program Files\\Git\\bin\\bash.exe",
+                "guid": "{682fbf2a-f3e7-4e3c-a170-cd83a4db8385}",
+                "hidden": false,
+                "icon": "C:\\Users\\Jesse\\OneDrive\\pictures\\Icons\\Jesse\\git-bash.png",
+                "name": "Git Bash",
+                "startingDirectory": "D:\\",
+                "suppressApplicationTitle": true,
+                "tabTitle": "Git Bash"
+            },
+            {
+                "backgroundImage": "C:\\Users\\Jesse\\OneDrive\\pictures\\terminal\\visual-studio.png",
+                "commandline": "cmd.exe /k \"C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\Common7\\Tools\\VsDevCmd.bat\"",
+                "guid": "{84e69376-0a0d-5126-ae8c-c6189881a9b1}",
+                "hidden": false,
+                "icon": "C:\\Users\\Jesse\\OneDrive\\pictures\\Icons\\Jesse\\visual-studio.png",
+                "name": "Visual Studio",
+                "source": "Windows.Terminal.VisualStudio",
+                "startingDirectory": "D:\\"
+            },
+            {
+                "backgroundImage": "C:\\Users\\Jesse\\OneDrive\\pictures\\terminal\\cachyos.png",
+                "commandline": "wsl -d CachyOS",
+                "guid": "{21c42fd5-4ed5-5cbe-85d9-df5efeb4b6ee}",
+                "hidden": false,
+                "icon": "C:\\Users\\Jesse\\Pictures\\Icons\\Jesse\\cachyos.png",
+                "name": "CachyOS",
+                "opacity": 100,
+                "source": "Microsoft.WSL",
+                "startingDirectory": "//wsl$/CachyOS/home/jesse",
+                "suppressApplicationTitle": true,
+                "tabTitle": "CachyOS",
+                "adjustIndistinguishableColors": "never"
+            },
+            {
+                "backgroundImage": "C:\\Users\\Jesse\\OneDrive\\pictures\\terminal\\powershell.png",
+                "guid": "{574e775e-4f2a-5b96-ac1e-a2962a402336}",
+                "hidden": false,
+                "name": "PowerShell",
+                "source": "Windows.Terminal.PowershellCore",
+                "startingDirectory": "C:\\"
+            },
+            {
+                "backgroundImage": "C:\\Users\\Jesse\\OneDrive\\pictures\\terminal\\win-cmd.png",
+                "guid": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",
+                "hidden": false,
+                "icon": "C:\\Users\\Jesse\\OneDrive\\pictures\\Icons\\Jesse\\win-cmd.png",
+                "name": "Windows Command Prompt",
+                "startingDirectory": "C:\\"
+            },
+            {
+                "backgroundImage": "C:\\Users\\Jesse\\OneDrive\\pictures\\terminal\\azure.png",
+                "guid": "{b453ae62-4e3d-5e58-b989-0a998ec441b8}",
+                "hidden": false,
+                "icon": "C:\\Users\\Jesse\\OneDrive\\pictures\\Icons\\Jesse\\azure.png",
+                "name": "Azure Cloud Shell",
+                "source": "Windows.Terminal.Azure",
+                "startingDirectory": "C:\\Projects"
+            },
+            {
+                "guid": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
+                "hidden": true,
+                "name": "Windows PowerShell"
+            },
+            {
+                "guid": "{42ef4ede-dd3c-5958-b6a8-6a10ae098521}",
+                "hidden": true,
+                "name": "Developer PowerShell for VS 18",
+                "source": "Windows.Terminal.VisualStudio"
+            },
+            {
+                "guid": "{16208362-94fc-5b1f-a491-5b2624d5ab56}",
+                "hidden": true,
+                "name": "Visual Studio Debug Console",
+                "source": "VSDebugConsole"
+            }
+        ]
+    },
+    "schemes": 
+    [
+        {
+            "background": "#121212",
+            "black": "#030303",
+            "blue": "#579BD5",
+            "brightBlack": "#797979",
+            "brightBlue": "#9BDBFE",
+            "brightCyan": "#02FEFF",
+            "brightGreen": "#58F29C",
+            "brightPurple": "#DF89DD",
+            "brightRed": "#F6645D",
+            "brightWhite": "#EAEAEA",
+            "brightYellow": "#F6F353",
+            "cursorColor": "#FFFFFF",
+            "cyan": "#00B6D6",
+            "foreground": "#D3D3D3",
+            "green": "#0FE052",
+            "name": "Jesse",
+            "purple": "#CA5BC8",
+            "red": "#BF5252",
+            "selectionBackground": "#FFFFFF",
+            "white": "#EAEAEA",
+            "yellow": "#D7BA7D"
+        }
+    ],
+    "themes": []
+}
