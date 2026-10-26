@@ -5,7 +5,7 @@
 
 [core]
   editor = code --new-window --wait
-  excludesfile = /Users/jesse/.gitignore
+  excludesfile = ~/.gitignore
   pager = less -F -X
 
 [init]
@@ -23,7 +23,7 @@
   prompt = false
 
 [difftool "vscode-diff"]
-  cmd = code --new-window --wait --diff $LOCAL $REMOTE
+  cmd = code --new-window --wait --diff "$LOCAL" "$REMOTE"
   keepBackup = false
   trustEx = false
 
@@ -34,17 +34,13 @@
   prompt = false
 
 [mergetool "vscode-merge"]
-  cmd = code --new-window --wait $MERGED
+  cmd = code --new-window --wait "$MERGED"
   keepBackup = false
   trustExitCode = false
 
 [alias]
   changes = diff --pretty --name-status
   slog = log --pretty --name-status
-
-[github]
-  user = jsquire
-  token = << GITHUB TOKEN >>
 
 [push]
   default = simple
