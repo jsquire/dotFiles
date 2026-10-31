@@ -56,21 +56,21 @@ for _ in $(seq 1 25); do
 done
 assert_eq "proxy accepts connections" "1" "$up"
 
-# a) content:null through the proxy -> upstream must receive content:""
-curl -fsS -m 5 -X POST -H 'Content-Type: application/json' \
-    -d '{"messages":[{"role":"assistant","content":null},{"role":"user","content":"hi"}]}' \
-    "http://127.0.0.1:$PROXY_PORT/v1/chat/completions" >/dev/null 2>&1
-got="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); c=d["messages"][0]["content"]; print("EMPTYSTR" if c=="" else repr(c))' "$reqfile" 2>/dev/null)"
-assert_eq "null content sanitized to empty string at upstream" "EMPTYSTR" "$got"
+for route in /v1/chat/completions /api/chat; do
+    curl -fsS -m 5 -X POST -H 'Content-Type: application/json' \
+        -d '{"messages":[{"role":"assistant","content":null},{"role":"user","content":"hi"}]}' \
+        "http://127.0.0.1:$PROXY_PORT$route" >/dev/null 2>&1
+    got="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); c=d["messages"][0]["content"]; print("EMPTYSTR" if c=="" else repr(c))' "$reqfile" 2>/dev/null)"
+    assert_eq "$route null content sanitized" "EMPTYSTR" "$got"
 
-# b) string content is left untouched
-curl -fsS -m 5 -X POST -H 'Content-Type: application/json' \
-    -d '{"messages":[{"role":"user","content":"keep me"}]}' \
-    "http://127.0.0.1:$PROXY_PORT/v1/chat/completions" >/dev/null 2>&1
-got2="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["messages"][0]["content"])' "$reqfile" 2>/dev/null)"
-assert_eq "string content untouched through proxy" "keep me" "$got2"
+    curl -fsS -m 5 -X POST -H 'Content-Type: application/json' \
+        -d '{"messages":[{"role":"user","content":"keep me"}]}' \
+        "http://127.0.0.1:$PROXY_PORT$route" >/dev/null 2>&1
+    got2="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["messages"][0]["content"])' "$reqfile" 2>/dev/null)"
+    assert_eq "$route string content untouched" "keep me" "$got2"
+done
 
-# c) non-chat path passes through unchanged
+# non-chat path passes through unchanged
 curl -fsS -m 5 "http://127.0.0.1:$PROXY_PORT/api/tags" >/dev/null 2>&1
 gotp="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("path",""))' "$reqfile" 2>/dev/null)"
 assert_eq "non-chat path passes through" "/api/tags" "$gotp"

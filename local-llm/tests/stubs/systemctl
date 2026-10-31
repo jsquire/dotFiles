@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Daemon-test stub: report every unit inactive without querying the host service manager.
+exit 3

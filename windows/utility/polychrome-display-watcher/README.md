@@ -12,17 +12,18 @@ the executable, and falls back to the shared Windows application icon if it cann
 
 ## Behavior
 
-The watcher registers a message-only window for `GUID_SESSION_DISPLAY_STATUS`. It records the display
-state for the current interactive session and reacts only to a confirmed `Off` to `On` transition.
-After a 10-second stabilization delay, it terminates the complete Polychrome Electron process tree
-and relaunches:
+The watcher registers a message-only window for `GUID_SESSION_DISPLAY_STATUS`. At logon, it schedules
+one initial repair restart because Windows reports the current state as `On` without an `Off` to `On`
+transition. It also reacts to each later confirmed `Off` to `On` transition. After a 10-second
+stabilization delay, it terminates the complete Polychrome Electron process tree and relaunches:
 
 ```text
 C:\Program Files\Polychrome DISPLAY\Polychrome DISPLAY.exe --startupWithMinimize
 ```
 
-A 60-second cooldown prevents duplicate restart cycles. If the display turns off again during the
-delay, the pending restart is canceled.
+A 60-second cooldown prevents duplicate restart cycles. If the display turns off during the delay,
+the pending restart is canceled. If Explorer's notification area is not ready at logon, tray icon
+registration is retried every two seconds for up to one minute.
 
 The watcher changes only Polychrome's process lifetime. It does not change USB power settings,
 firmware, themes, Windows display configuration, or the existing ASRock startup tasks. Restarting
@@ -59,7 +60,8 @@ Get-Process polychrome-display-watcher
 ```
 
 Confirm that the security icon is present in the Windows notification area. It may be under the
-notification-area overflow menu.
+notification-area overflow menu. At logon, the log should record the initial restart schedule,
+Polychrome restart, and new process ID.
 
 The active log is:
 

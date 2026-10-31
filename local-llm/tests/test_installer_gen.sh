@@ -66,7 +66,18 @@ for s, a in ta.items():
     ok(a in reg, f"task_alias {s}={a} not in registry")
 for a, e in reg.items():
     ok("label" in e and "ctx" in e, f"registry {a} missing label/ctx")
-ok("copilot" in d.get("launchers", {}) and "crush" in d.get("launchers", {}), "launcher menus not preserved")
+ok(set(d.get("launchers", {})) == {"copilot"}, "Copilot launcher menu not preserved")
+visible = 0
+for page, page_def in d["launchers"]["copilot"].items():
+    for category in page_def.get("categories", []):
+        ok(bool(category.get("rows")), f"{page} contains an empty category")
+        for row in category.get("rows", []):
+            visible += 1
+            slot = row.get("slot")
+            ok(slot in ta, f"{page} row {row.get('key')} slot {slot!r} missing from task_alias")
+            if slot in ta:
+                ok(ta[slot] in reg, f"{page} row {row.get('key')} alias {ta[slot]!r} missing from registry")
+ok(visible > 0, "generated launcher has no visible rows")
 # tier-specific spot check
 if tier == "5090": ok(ta.get("heavy") == "qwen38-27b-192k", f"5090 heavy alias {ta.get('heavy')}")
 if tier == "4090": ok(ta.get("heavy") == "qwen36-27b-96k",  f"4090 heavy alias {ta.get('heavy')}")

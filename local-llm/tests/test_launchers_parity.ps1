@@ -1,98 +1,74 @@
-# PowerShell launcher parity: current .ps1 launchers vs a frozen PS-specific golden generated from the
-# PRE-REFACTOR PowerShell baseline (git cf852ee^). Proves the data-drive refactor changed no functional
-# resolution on Windows. (bash and PowerShell have two documented pre-existing behavioural differences —
-# the office-skill file guard and the direct-model MCP handling — so each platform has its own golden.)
-#
-# EXCLUSIONS. Two fields are deliberately not compared, because they were intentionally changed
-# after the baseline: the copilot prompt=/out= caps and models.*.max_tokens in .crush.json. Local
-# token budgets are now derived from the roster's registry ctx instead of one global constant, so
-# the baseline can no longer be the authority on them. They are asserted by test_token_budgets.ps1.
-# Note that -RebuildGolden regenerates from BaselineRef via `git show`, so it reproduces the OLD
-# behaviour by design and cannot be used to absorb an intentional change.
-#
-#   test_launchers_parity.ps1                 # check current vs frozen golden
-#   test_launchers_parity.ps1 -RebuildGolden  # regenerate golden from the baseline
-param([switch]$RebuildGolden, [string]$BaselineRef = "cf852ee^")
-
+# Exercises every canonical Windows launcher row against the shared semantic oracle.
 . (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "lib.ps1")
 
-$GIT_ROOT = Split-Path -Parent $PS_REPO
-$goldenC = Join-Path $PS_FIX "golden-copilot-ps.tsv"
-$goldenK = Join-Path $PS_FIX "golden-crush-ps.tsv"
+$cop = Join-Path $PS_REPO "scripts\copilot-local.ps1"
+$localRoster = Join-Path $PS_REPO "scripts\local-models.json"
+$serverRoster = Join-Path $PS_REPO "cachyos\server-models.json"
+$oraclePath = Join-Path $PS_TESTS_DIR "semantic_oracle.py"
+$env:ORACLE_EXPECTED = Join-Path $PS_TESTS_DIR "expected-launcher-semantics.json"
+$env:LL_TEST_SQUIRE_IP = "10.9.9.9"
 
-function Copilot-Tuple($src, $providers, $inputs, $modelArg) {
-    Invoke-LauncherPs1 -Src $src -Providers $providers -Inputs $inputs -ModelArg $modelArg
-    $cap = ($script:PS_LAST_OUT -split "`n" | Where-Object { $_ -like 'CAPTURE model=*' } | Select-Object -First 1)
-    $cap = $cap -replace '^CAPTURE ', ''
-    "$cap"
-}
-function Crush-Tuple($src, $providers, $inputs, $taskArg) {
-    Invoke-LauncherPs1 -Src $src -Providers $providers -Inputs $inputs -TaskArg $taskArg
-    $js = if ($script:PS_CRUSH) { Norm-CrushJson $script:PS_CRUSH } else { "NONE" }
-    "json=$js"
-}
-function Golden-Lookup($file, $name) {
-    $line = Get-Content $file | Where-Object { $_ -like ($name + "`t*") } | Select-Object -First 1
-    if ($line) { ($line -split "`t", 2)[1] } else { "<no-golden:$name>" }
-}
-# Blank the three token-budget values on BOTH sides of the comparison. They are intentionally
-# different from the baseline now (local caps derive from the roster's registry ctx), so the frozen
-# golden can no longer be the authority on them; test_token_budgets.ps1 asserts them instead. The
-# value is masked rather than the key removed, so a field disappearing entirely is still a failure.
-function Mask-Budget([string]$s) {
-    $s -replace '(?<= )prompt=\S+', 'prompt=X' -replace '(?<= )out=\S+', 'out=X' -replace '"max_tokens":\d+', '"max_tokens":X'
-}
+$requiredSafety = @(
+    '--deny-tool=shell(git add)',
+    '--deny-tool=shell(git commit)',
+    '--deny-tool=shell(git push)',
+    '--deny-tool=shell(git merge)',
+    '--deny-tool=shell(git rebase)',
+    '--deny-tool=shell(git reset)',
+    '--deny-tool=shell(git stash)',
+    '--deny-tool=shell(git cherry-pick)',
+    '--deny-tool=shell(git revert)',
+    '--deny-tool=shell(git tag)'
+)
 
-$script:GoldRows = @()
-function Do-Copilot($mode, $name, $src, $prov, $inputs, $modelArg) {
-    $t = Copilot-Tuple $src $prov $inputs $modelArg
-    if ($mode -eq 'golden') { $script:GoldRows += ("$name`t$t") }
-    else { Assert-Eq "copilot/$name" (Mask-Budget (Golden-Lookup $goldenC $name)) (Mask-Budget $t) }
-}
-function Do-Crush($mode, $name, $src, $prov, $inputs, $taskArg) {
-    $t = Crush-Tuple $src $prov $inputs $taskArg
-    if ($mode -eq 'golden') { $script:GoldRows += ("$name`t$t") }
-    else { Assert-Eq "crush/$name" (Mask-Budget (Golden-Lookup $goldenK $name)) (Mask-Budget $t) }
-}
-function Run-CopilotMatrix($mode, $src) {
-    $script:GoldRows = @()
-    foreach ($k in 1..7)  { Do-Copilot $mode "cl-$k" $src "local,server" @("1", "$k") "" }
-    foreach ($k in 1..9)  { Do-Copilot $mode "ce-$k" $src "local,server" @("2", "$k") "" }
-    foreach ($k in 1..8)  { Do-Copilot $mode "cs-$k" $src "local,server" @("3", "$k") "" }
-    Do-Copilot $mode "cdirect" $src "local,server" @() "qwen3:8b"
-    if ($mode -eq 'golden') { Set-Content $goldenC ($script:GoldRows -join "`n") -Encoding ASCII }
-}
-function Run-CrushMatrix($mode, $src) {
-    $script:GoldRows = @()
-    foreach ($k in 1..5)  { Do-Crush $mode "kl-$k" $src "local,server" @("1", "$k") "" }
-    foreach ($k in 1..9)  { Do-Crush $mode "ke-$k" $src "local,server" @("2", "$k") "" }
-    foreach ($k in 1..8)  { Do-Crush $mode "ks-$k" $src "local,server" @("3", "$k") "" }
-    foreach ($t in 'coding', 'review', 'docs', 'image') { Do-Crush $mode "karg-$t" $src "local,server" @() $t }
-    if ($mode -eq 'golden') { Set-Content $goldenK ($script:GoldRows -join "`n") -Encoding ASCII }
-}
-function Extract-Baseline($name) {
-    $tmp = Join-Path $env:TEMP ("bl_" + [guid]::NewGuid().ToString("N").Substring(0, 8) + ".ps1")
-    # Use cmd redirection (byte-preserving) so git's UTF-8 output isn't re-encoded to UTF-16 by PS `>`.
-    $cmd = "git -C `"$GIT_ROOT`" show `"${BaselineRef}:local-llm/scripts/$name`" > `"$tmp`""
-    cmd /c $cmd 2>$null | Out-Null
-    if ((Test-Path $tmp) -and (Get-Item $tmp).Length -gt 0) { $tmp } else { "" }
+function Assert-Argv($name, $model, $imagegen) {
+    $argv = @($script:PS_LAST_OUT -split "`n" |
+        Where-Object { $_ -like 'ARGV_ITEM=*' } |
+        ForEach-Object { $_ -replace '^ARGV_ITEM=', '' })
+    Assert-Eq "$name has no separator" $false ($argv -contains '--')
+    $modelIndex = [array]::IndexOf($argv, '--model')
+    Assert-Eq "$name model argument" $model $argv[$modelIndex + 1]
+    foreach ($flag in $requiredSafety) {
+        Assert-Eq "$name safety $flag" $true ($argv -contains $flag)
+    }
+    $disabled = $false
+    for ($i = 0; $i -lt ($argv.Count - 1); $i++) {
+        if ($argv[$i] -eq '--disable-mcp-server' -and $argv[$i + 1] -eq 'imagegen-mcp') {
+            $disabled = $true
+        }
+    }
+    Assert-Eq "$name imagegen argument" ($imagegen -eq 'off') $disabled
 }
 
-if ($RebuildGolden) {
-    Write-Host "Rebuilding PowerShell golden from baseline: $BaselineRef"
-    $cop = Extract-Baseline "copilot-local.ps1"
-    $cru = Extract-Baseline "crush-task.ps1"
-    if (-not $cop -or -not $cru) { Write-Host "ERROR: could not extract PS baseline at $BaselineRef"; exit 1 }
-    Run-CopilotMatrix 'golden' $cop
-    Run-CrushMatrix   'golden' $cru
-    Remove-Item $cop, $cru -ErrorAction SilentlyContinue
-    Write-Host "Golden written: $((Get-Content $goldenC).Count) copilot + $((Get-Content $goldenK).Count) crush selections."
-    exit 0
+function Check-Row($fields) {
+    $name, $first, $second, $model, $base, $prompt, $out, $imagegen, $targetHost = $fields
+    Invoke-LauncherPs1 -Src $cop -Providers "local,server" -Inputs @($first, $second) -LocalRoster $localRoster
+    $capture = ($script:PS_LAST_OUT -split "`n" | Where-Object { $_ -like 'CAPTURE model=*' } | Select-Object -First 1)
+    Assert-Eq "$name semantics" "CAPTURE model=$model base=$base prompt=$prompt out=$out imagegen=$imagegen office=no" $capture
+    $hostLine = ($script:PS_LAST_OUT -split "`n" | Where-Object { $_ -like 'IMAGEGEN_HOST=*' } | Select-Object -First 1)
+    Assert-Eq "$name image host" $targetHost ($hostLine -replace '^IMAGEGEN_HOST=', '')
+    Assert-Argv $name $model $imagegen
 }
 
-if (-not (Test-Path $goldenC) -or -not (Test-Path $goldenK)) {
-    Write-Host "  golden missing - run: test_launchers_parity.ps1 -RebuildGolden"; exit 1
+$env:ORACLE_KIND = "local"
+$env:ORACLE_PLATFORM = "windows"
+$localRows = Invoke-PyFile $oraclePath (Get-Content $localRoster -Raw)
+foreach ($line in @($localRows)) {
+    if ($line) { Check-Row ($line -split "`t") }
 }
-Run-CopilotMatrix 'check' (Join-Path $PS_REPO "scripts\copilot-local.ps1")
-Run-CrushMatrix   'check' (Join-Path $PS_REPO "scripts\crush-task.ps1")
-if (PS-Summary "launcher-parity-ps") { exit 0 } else { exit 1 }
+
+$env:ORACLE_KIND = "server"
+$env:ORACLE_SERVER_IP = "10.9.9.9"
+$serverRows = Invoke-PyFile $oraclePath (Get-Content $serverRoster -Raw)
+foreach ($line in @($serverRows)) {
+    if ($line) { Check-Row ($line -split "`t") }
+}
+
+Invoke-LauncherPs1 -Src $cop -Providers "local,server" -Inputs @() -ModelArg "qwen3:8b" -LocalRoster $localRoster
+$direct = ($script:PS_LAST_OUT -split "`n" | Where-Object { $_ -like 'CAPTURE model=*' } | Select-Object -First 1)
+Assert-Eq "direct semantics" `
+    "CAPTURE model=qwen3:8b base=http://localhost:11435/v1 prompt=24576 out=8192 imagegen=off office=no" `
+    $direct
+Assert-Argv "direct" "qwen3:8b" "off"
+
+if (PS-Summary "launcher-semantics-ps") { exit 0 } else { exit 1 }

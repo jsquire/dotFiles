@@ -1,62 +1,51 @@
-# local-llm launcher test harness
+# local-llm test harness
 
-Regression tests for the data-driven launchers, the switch daemon, and the installer roster generation.
+Regression tests for the canonical rosters, launchers, installer generation, switch daemon, proxy,
+image tooling, Office skill deployment, and Windows removal symmetry.
 
 ## Run
 
-    bash tests/run-all.sh                                   # schema, daemon, .sh parity, token budgets, installer-gen
-    powershell -File tests\run-all.ps1                      # schema (PS), .ps1 parity, token budgets, imagegen
+```text
+bash tests/run-all.sh
+powershell -File tests\run-all.ps1
+```
 
-Both exit non-zero on any failure. A run needs `python3`, `curl`, and `git`. On Windows the PowerShell
-suites prefer a native `python3` and fall back to `wsl python3` only if none is on PATH. No GPU,
-model server, `copilot`/`crush` binary, or network is required.
+Both runners execute the dependency-controlled Python image suites through `uv`. They require
+`python3` for Bash launcher helpers, PowerShell 5.1 or newer for Windows tests, and `uv` for isolated
+Python dependencies. No Git command, GPU, model server, Copilot installation, or external network
+endpoint is used by the tests themselves.
 
-The experimental Copilot roster extension has a separate Node test package at
-`scripts\copilot-roster-extension`. Its unit tests use synthetic endpoints and
-explicit session artifact storage without Git or model services. Its opt-in
-runtime proof additionally requires an installed Copilot executable and bundled
-SDK. See that package's ReadMe for environment variables, grant/denial
-conditions and non-destructive recovery checks.
+## Scenario proof
 
-## What it proves
-
-- **schema** - the roster JSON is internally consistent and parses in both python3 and PowerShell.
-- **daemon** - `vllm-switch-web.py` serves `/models` (no `unit` leak), renders its page from the roster,
-  enforces the `/switch` whitelist + limits, and falls back to a built-in roster on a missing/bad file.
-- **launcher parity** - every menu selection (and the direct/arg paths) resolves to the *same* model, base
-  URL, MCP/office flags, and `.crush.json` as the **pre-refactor** launchers
-  (`git cf852ee^`). This is the guarantee that data-driving the rosters changed no behaviour.
-  The token-budget fields are masked on both sides of this comparison (see below) and are covered by
-  their own suite instead.
-- **token budgets** - local token caps are derived from the selected model's registry `ctx`
-  (`copilot` prompt = `floor(ctx * 0.75)` and output = `min(16384, ctx - prompt)`; `crush`
-  `max_tokens` = `min(16384, floor(ctx / 4))`), while squire-server picks keep their
-  roster-advertised caps. Asserted against explicit numbers, not a re-derivation of the launcher's
-  own formula, in both `test_token_budgets.ps1` and `test_token_budgets.sh`.
-- **installer-gen** - `write_local_models_json` produces valid, tier-correct `local-models.json` for
-  4090/5090 with and without `--test-profiles`.
+- **schema** validates canonical roster references and exact daemon fallback parity.
+- **daemon** runs privately with a harmless switch command and covers routing, limits, fallback,
+  whitelist enforcement, and HTML/JavaScript escaping.
+- **launcher semantics** enumerates every canonical menu row dynamically. Bash and PowerShell use
+  the same `semantic_oracle.py` for shared behavior, while platform-specific tests retain deliberate
+  differences such as the Windows-only Qwen image profile.
+- **launcher switch** uses stateful doubles to validate switch URL, JSON body, successful readiness,
+  immediate failure, and bounded timeout behavior.
+- **token budgets** asserts explicit canonical values independently from the launchers.
+- **installer generation** validates every tier/profile combination and proves every visible row
+  resolves through `task_alias` to `registry`.
+- **image tests** cover environment routing, output paths, MCP backend identity, Qwen request
+  validation, and the exact Turbo sigma schedule.
+- **Office and Windows removal** verify deployment wiring and sandboxed removal symmetry.
+- **proxy** exercises both supported chat routes through a private stub upstream.
 
 ## Isolation
 
-Tests never touch the real system: each launcher runs in a throwaway sandbox with `HOME`/`USERPROFILE` and
-CWD redirected to temp dirs, `PATH` prefixed with `tests/stubs/` (fake `curl`/`copilot`/`crush`/`clear`/`ollama`
-that fail-closed on any real host), and the daemon suite runs a private instance with
-`VLLM_SWITCH_CMD=/bin/true`. `run-all.sh` asserts the real `~/.config/local-llm` is untouched afterward.
+Launcher executions use temporary HOME or USERPROFILE roots and fail-closed command doubles.
+The complete runners recursively snapshot these protected live roots before and after execution:
 
-## Golden files
+- `~/.config/local-llm`
+- `~/.copilot/mcp-config.json`
+- `~/.copilot/skills/office`
 
-`fixtures/golden-*.tsv` freeze the expected per-selection results, generated from the pre-refactor baseline:
+Snapshots include path, object type, size, and content hash. Any child-file mutation fails the run.
 
-    bash tests/test_launchers_parity.sh --rebuild-golden          # bash golden
-    powershell -File tests\test_launchers_parity.ps1 -RebuildGolden   # PowerShell golden
+## Canonical test data
 
-Commit them; the check-mode runs compare current output against these frozen values. bash and PowerShell have
-their own goldens because of two documented pre-existing platform differences (the office-skill file guard and
-the direct-model MCP handling).
-
-**`--rebuild-golden` cannot absorb an intentional behaviour change.** It regenerates from `cf852ee^`
-via `git show`, so it reproduces the old behaviour by design; re-running it will not bless a new
-value, it will just restore the baseline. When a field is deliberately changed after the baseline,
-mask it on *both* sides of the comparison (`mask_budget` / `Mask-Budget`) and assert it in a
-dedicated suite. The value is masked rather than the key removed, so a field vanishing entirely is
-still a failure.
+Tests read `scripts/local-models.json` and `cachyos/server-models.json` directly. Installer tests
+exercise generated deployment-equivalent rosters. Frozen pre-refactor fixtures and separate
+platform goldens were removed because they no longer represented current production behavior.

@@ -20,7 +20,9 @@ assert_true "windows installer deploys office skill to ~/.copilot/skills" \
 assert_true "cachyos installer deploys office skill to ~/.copilot/skills" \
     grep -q '\.copilot/skills/office' "$CACHY"
 
-# The uninstaller cleans it up.
+# Both uninstallers clean it up when configuration is not retained.
+assert_true "windows remover cleans ~/.copilot/skills/office" \
+    grep -q '\.copilot[\\/]skills[\\/]office' "$REPO_DIR/windows/remove-windows.ps1"
 assert_true "cachyos remover cleans ~/.copilot/skills/office" \
     grep -q '\.copilot/skills/office' "$REPO_DIR/cachyos/remove-cachyos.sh"
 

@@ -8,6 +8,8 @@ from pathlib import Path
 from fastapi import HTTPException, UploadFile
 from PIL import Image
 
+import stub_qwen_runtime  # noqa: F401
+
 
 server_path = Path(__file__).resolve().parents[1] / "windows" / "qwen-imagegen-server.py"
 spec = importlib.util.spec_from_file_location("qwen_image_server", server_path)
@@ -38,9 +40,19 @@ class QwenImageServerTests(unittest.TestCase):
         server.pipeline = None
 
     def test_pins_turbo_model_and_schedule(self):
+        expected_sigmas = (
+            1.0,
+            0.978453,
+            0.95418,
+            0.926626,
+            0.89508,
+            0.845148,
+            0.704534,
+            0.414568,
+        )
         self.assertEqual(server.MODEL_ID, "Qwen/Qwen-Image-2.1-Turbo")
         self.assertEqual(server.MODEL_REVISION, "d65dbc9a7e8f6b5479e33dee6030eaab2a906509")
-        self.assertEqual(len(server.TURBO_SIGMAS), 8)
+        self.assertEqual(server.TURBO_SIGMAS, expected_sigmas)
 
     def test_rejects_base_model_identifier(self):
         with self.assertRaises(HTTPException):
@@ -50,7 +62,9 @@ class QwenImageServerTests(unittest.TestCase):
         request = server.ImageRequest(prompt="test", size="256x256")
         response = asyncio.run(server.generate(request))
 
-        self.assertEqual(self.pipeline.calls[0]["sigmas"], server.TURBO_SIGMAS)
+        self.assertEqual(self.pipeline.calls[0]["sigmas"], (
+            1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568,
+        ))
         self.assertNotIn("num_inference_steps", self.pipeline.calls[0])
         self.assertGreater(len(base64.b64decode(response["data"][0]["b64_json"])), 0)
 
@@ -61,7 +75,9 @@ class QwenImageServerTests(unittest.TestCase):
 
         response = asyncio.run(server.edit("replace the background", upload, "256x256"))
 
-        self.assertEqual(self.pipeline.calls[0]["sigmas"], server.TURBO_SIGMAS)
+        self.assertEqual(self.pipeline.calls[0]["sigmas"], (
+            1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568,
+        ))
         self.assertNotIn("num_inference_steps", self.pipeline.calls[0])
         self.assertGreater(len(base64.b64decode(response["data"][0]["b64_json"])), 0)
 

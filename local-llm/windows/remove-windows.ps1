@@ -8,12 +8,12 @@
 
     Full mode removes the complete stack:
       Layer 1 (System):     Ollama uninstall + model storage
-      Layer 2 (User-local): Crush and uv uninstall (winget portable packages)
+      Layer 2 (User-local): uv uninstall
       Layer 3 (Isolated):   MCP server venvs, uv-managed Python
-      Layer 4 (Config):     .ollama, .crush configuration
+      Layer 4 (Config):     Ollama and Copilot configuration
 
     Client mode removes only the client-side tooling:
-      Crush, uv, MCP server venvs, and related user-local data.
+      uv, MCP server venvs, and related user-local data.
       Ollama service, model storage, and Ollama-specific environment settings
       are preserved.
 
@@ -22,7 +22,7 @@
 
 .PARAMETER Mode
     Removal mode. Full (default) removes the entire stack. Client removes only
-    Crush + uv + MCP venvs + uv data and skips all Ollama-related cleanup.
+    uv + MCP venvs + uv data and skips all Ollama-related cleanup.
 
 .PARAMETER KeepModels
     Keep downloaded Ollama models (~38+ GB in %USERPROFILE%\.ollama\models).
@@ -30,8 +30,7 @@
     This parameter is irrelevant in Client mode.
 
 .PARAMETER KeepConfig
-    Keep Crush configuration files (~/.crush). Preserves your model aliases,
-    MCP server definitions, and provider settings.
+    Keep Copilot CLI configuration.
 
 .PARAMETER DataRoot
     Off-OS-drive root where the installer placed AI-stack data (image-gen venv,
@@ -92,7 +91,6 @@ if (-not [string]::IsNullOrWhiteSpace($DataRoot)) {
 }
 $UvDir          = Join-Path $LocalAppData "uv"
 $OllamaDir      = Join-Path $UserProfile ".ollama"
-$CrushDir       = Join-Path $UserProfile ".crush"
 $IsFullMode     = $Mode -eq "Full"
 $RemovalLabel   = if ($IsFullMode) { "full removal" } else { "client removal" }
 
@@ -160,6 +158,47 @@ function Remove-SafeItem {
     }
 }
 
+function Remove-InstallerOwnedClientAssets {
+    param(
+        [string]$ProfileRoot,
+        [string]$RoamingAppData,
+        [bool]$PreserveConfig
+    )
+
+    $cliDir = Join-Path $ProfileRoot "Documents\CLI"
+    Remove-SafeItem (Join-Path $cliDir "copilot-local.ps1") "Copilot local PowerShell launcher"
+    Remove-SafeItem (Join-Path $cliDir "copilot-local.cmd") "Copilot local command shim"
+    Remove-SafeItem (Join-Path $ProfileRoot "AppData\Local\ollama-host\ollama-host.exe") "Ollama Host executable"
+
+    $shortcutDir = Join-Path $RoamingAppData "Microsoft\Windows\Start Menu\Programs\AI"
+    Remove-SafeItem (Join-Path $shortcutDir "Copilot (Local).lnk") "Copilot Local shortcut"
+    Remove-SafeItem (Join-Path $shortcutDir "Ollama Host.lnk") "Ollama Host shortcut"
+
+    if ($PreserveConfig) {
+        Write-Info "Keeping Copilot MCP configuration, skills, rosters, and icons as requested (-KeepConfig)."
+        return
+    }
+
+    $localConfig = Join-Path $ProfileRoot ".config\local-llm"
+    Remove-SafeItem (Join-Path $localConfig "local-models.json") "local model roster"
+    Remove-SafeItem (Join-Path $localConfig "server-models.json") "server model roster"
+    $icons = Join-Path $localConfig "icons"
+    if (Test-Path $icons) {
+        Get-ChildItem -LiteralPath $icons -Filter "copilot*.ico" -File -ErrorAction SilentlyContinue |
+            ForEach-Object { Remove-SafeItem $_.FullName "Copilot shortcut icon" }
+    }
+
+    Remove-SafeItem (Join-Path $ProfileRoot ".copilot\skills\office") "Copilot Office skill"
+    $managedState = Join-Path $localConfig ".installer-owned"
+    $mcpMarker = Join-Path $managedState "copilot-mcp-config"
+    if (Test-Path $mcpMarker) {
+        Remove-SafeItem (Join-Path $ProfileRoot ".copilot\mcp-config.json") "installer-managed Copilot MCP config"
+        Remove-SafeItem $mcpMarker "Copilot MCP ownership marker"
+    } else {
+        Write-Info "Copilot MCP config has no installer ownership marker and was preserved."
+    }
+}
+
 function Confirm-Action {
     param([string]$Message)
 
@@ -185,10 +224,6 @@ if ($IsFullMode) {
     if (-not $KeepModels) {
         Write-Host "    • Ollama models + config in $OllamaDir" -ForegroundColor Gray
     }
-}
-Write-Host "    • Crush CLI agent (winget uninstall)" -ForegroundColor Gray
-if (-not $KeepConfig) {
-    Write-Host "    • Crush configuration in $CrushDir" -ForegroundColor Gray
 }
 Write-Host "    • AI tools (image-gen + MCP venvs) in $AiToolsDir" -ForegroundColor Gray
 if (-not $KeepModels) {
@@ -270,33 +305,14 @@ if ($IsFullMode) {
     Write-Info "Client mode selected — skipping Ollama uninstall, model removal, and Ollama settings cleanup."
 }
 
-# ── Step 4: Remove Crush ────────────────────────────────────────────────────
-
-Write-Step "Remove Crush CLI agent"
-
-$crushInstalled = winget list --exact --id charmbracelet.crush 2>&1 | Select-String "charmbracelet.crush"
-if ($crushInstalled) {
-    Write-Host "  Uninstalling Crush via winget..." -ForegroundColor White
-    winget uninstall --exact --id charmbracelet.crush --silent
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "Crush uninstalled."
-    } else {
-        Write-Warn "winget uninstall returned exit code $LASTEXITCODE."
-        Write-Warn "Try manually: winget uninstall --exact --id charmbracelet.crush"
-    }
-} else {
-    Write-Info "Crush is not installed via winget."
-}
-
-if (-not $KeepConfig) {
-    Remove-SafeItem -Path $CrushDir -Description "Crush configuration"
-}
-
 # ── Step 5: Remove AI tools (image-gen + MCP venvs) ─────────────────────────
 
 Write-Step "Remove AI tools (image-gen repo/venv + MCP venvs)"
 
 Remove-SafeItem -Path $AiToolsDir -Description "AI tools (image-gen + MCP venvs)"
+
+Write-Step "Remove installer-owned client assets"
+Remove-InstallerOwnedClientAssets -ProfileRoot $UserProfile -RoamingAppData $env:APPDATA -PreserveConfig ([bool]$KeepConfig)
 
 # HuggingFace model cache (image-gen weights, ~35 GB) — treat like models, so it is
 # only removed on a full uninstall (kept with -KeepModels).
@@ -328,7 +344,7 @@ Remove-SafeItem -Path $UvDir -Description "uv data directory (managed Python ins
 # ── Step 7: Clean user PATH ─────────────────────────────────────────────────
 
 Write-Step "Clean up (no user PATH changes needed)"
-Write-Info "Crush and uv are winget portable packages — winget manages their PATH entries."
+Write-Info "winget manages uv's PATH entries."
 Write-Info "No manual PATH cleanup required."
 
 # ── Step 8: Remove Ollama environment variables ─────────────────────────────
@@ -390,9 +406,9 @@ Write-Info "remove them manually:"
 Write-Host ""
 Write-Host "    1. Open: Control Panel → Credential Manager → Windows Credentials" -ForegroundColor Yellow
 if ($IsFullMode) {
-    Write-Host "    2. Look for entries related to: openrouter, ollama, crush, ai-assistant" -ForegroundColor Yellow
+    Write-Host "    2. Look for entries related to: openrouter, ollama, ai-assistant" -ForegroundColor Yellow
 } else {
-    Write-Host "    2. Look for entries related to: openrouter, crush, ai-assistant" -ForegroundColor Yellow
+    Write-Host "    2. Look for entries related to: openrouter, ai-assistant" -ForegroundColor Yellow
 }
 Write-Host "    3. Remove any that are no longer needed" -ForegroundColor Yellow
 Write-Host ""
@@ -411,10 +427,6 @@ if ($IsFullMode) {
     if (-not $KeepModels) {
         Write-Host "    • Ollama models, config, and data" -ForegroundColor Gray
     }
-}
-Write-Host "    • Crush (winget package)" -ForegroundColor Gray
-if (-not $KeepConfig) {
-    Write-Host "    • Crush configuration" -ForegroundColor Gray
 }
 Write-Host "    • AI tools (image-gen + MCP venvs)" -ForegroundColor Gray
 if (-not $KeepModels) {

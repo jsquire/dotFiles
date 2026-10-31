@@ -8,6 +8,8 @@ from pathlib import Path
 from fastapi import HTTPException, UploadFile
 from PIL import Image
 
+import stub_qwen_runtime  # noqa: F401
+
 server_path = Path(__file__).resolve().parents[1] / "windows" / "qwen-imagegen-server.py"
 spec = importlib.util.spec_from_file_location("qwen_imagegen", server_path)
 server = importlib.util.module_from_spec(spec)

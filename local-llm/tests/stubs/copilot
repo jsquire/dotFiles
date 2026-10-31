@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test stub for `copilot`: capture the resolved launch (model from --model, caps from env, flags from argv).
+# test stub for `copilot`: capture the resolved launch and the complete argv.
 model=""; prev=""; sep=no
 for a in "$@"; do
     [[ "$prev" == "--model" ]] && model="$a"
@@ -12,5 +12,8 @@ office=no
 [[ -n "${COPILOT_CUSTOM_INSTRUCTIONS_DIRS:-}" ]] && office=yes
 echo "CAPTURE model=${model} base=${COPILOT_PROVIDER_BASE_URL:-} prompt=${COPILOT_PROVIDER_MAX_PROMPT_TOKENS:-} out=${COPILOT_PROVIDER_MAX_OUTPUT_TOKENS:-} imagegen=${imagegen} office=${office}"
 echo "IMAGEGEN_HOST=${COPILOT_MCP_IMAGEGEN_HOST:-}"
+echo "IMAGEGEN_PORT=${COPILOT_MCP_IMAGEGEN_PORT:-}"
+echo "IMAGEGEN_BACKEND=${COPILOT_MCP_IMAGEGEN_BACKEND:-}"
 echo "ARGV_HAS_SEP=${sep}"
+python3 -c 'import json,sys; print("ARGV_JSON="+json.dumps(sys.argv[1:],separators=(",",":")))' "$@"
 exit 0

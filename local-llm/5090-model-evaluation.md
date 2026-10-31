@@ -65,7 +65,7 @@ Current plan and corrections (authoritative sources flagged):
   The earlier "dense GQA, 8 KV heads, head_dim 128" description was fabricated and the
   KV-cache math derived from it is unreliable. Treat all KV/VRAM figures below as
   **UNVERIFIED** until measured on the box.
-- **Gemma 4 disappoints locally** in hands-on Crush + Copilot use (verified: the live
+- **Gemma 4 disappoints locally** in hands-on the retired client + Copilot use (verified: the live
   default is a 3.8B-active MoE at temp 1, context capped at 65K/262K). It was kept for a
   while as an optional bench slot and was **removed entirely on 2026-08-01** (see the
   sweep section at the end of this document).
@@ -97,7 +97,7 @@ conflicts with this banner, **this banner wins.**
 
 ### Software Stack
 - **Backend**: Ollama (with vendored llama.cpp)
-- **Frontend**: Crush CLI (task profiles), Copilot CLI (legacy scripts)
+- **Frontend**: the retired client CLI (task profiles), Copilot CLI (legacy scripts)
 - **MCP servers**: imagegen-mcp (HiDream-O1 image gen). Office authoring (Word/PowerPoint/Excel) uses the vendored `office` skill (python-docx/python-pptx/openpyxl via `uv run`), not MCP — see `mcp/README.md`.
 - **Env vars**: `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`
 
@@ -107,7 +107,7 @@ conflicts with this banner, **this banner wins.**
 | Gemma 4 26B (MoE, 3.8B active) | Primary (all tasks) | gemma4:26b | gemma4-65k | 65536 | ~21 GB | 100% |
 | Qwen3 14B | Image gen only | qwen3:14b | — | 8192 | ~9 GB | 100% |
 
-### Task Profiles (from crush-task.ps1 / crush-task.sh)
+### Task Profiles (from the retired task launchers)
 | Profile | MCP Tools | Tool Token Overhead | Typical Session | Key Capability |
 |---------|-----------|--------------------|--------------------|----------------|
 | Coding | None | 0 | 30-60K tokens (long refactors) | Reasoning, code gen |
@@ -117,10 +117,10 @@ conflicts with this banner, **this banner wins.**
 | All tools | 93 tools | ~10-15K | Up to 50K tokens | Tool calling + reasoning |
 
 ### Config Files That Change on Model Switch
-- `config/crush.json` — template (models.large, provider model lists)
-- `~/.config/crush/crush.json` — live config
-- `scripts/crush-task.ps1` — `$DefaultModel` variable (line 26)
-- `scripts/crush-task.sh` — `DEFAULT_MODEL` variable (line 55)
+- `the retired client configuration template` — template (models.large, provider model lists)
+- `the retired deployed client configuration` — live config
+- `scripts/the retired Windows task launcher` — `$DefaultModel` variable (line 26)
+- `scripts/the retired Linux task launcher` — `DEFAULT_MODEL` variable (line 55)
 - `scripts/copilot-local.cmd` — ~22 model references
 - `scripts/copilot-local.sh` — ~20 model references
 - `scripts/imagegen-launch.ps1` — default model (line 3)
@@ -373,15 +373,15 @@ python bench-run.py
 
 ### Step 6: Tool Calling Validation
 For each candidate that passes speed threshold (≥20 tok/s average):
-1. Create a `.crush.json` with the model name
-2. Run Crush with the coding profile — verify it generates correct tool calls
-3. Run Crush with the Documents (office) profile — verify it writes correct python-docx/python-pptx/openpyxl code and runs it via `uv run`
+1. Create a `the retired per-launch configuration` with the model name
+2. Run the retired client with the coding profile — verify it generates correct tool calls
+3. Run the retired client with the Documents (office) profile — verify it writes correct python-docx/python-pptx/openpyxl code and runs it via `uv run`
 
 ### Step 7: Long Session Test
 For the top 1-2 candidates:
-1. Start a Crush coding session
+1. Start a the retired client coding session
 2. Have a 10+ turn conversation about a real codebase
-3. Monitor for compaction events (Crush logs "compacting context" messages)
+3. Monitor for compaction events (the retired client logs "compacting context" messages)
 4. Note when/if context fills up
 
 ---
@@ -417,9 +417,9 @@ For the top 1-2 candidates:
 **Windows 5090 (Ollama):**
 1. `ollama pull qwen3.6:27b`
 2. Create custom model: `FROM qwen3.6:27b\nPARAMETER num_ctx 131072`
-3. Update `crush-task.ps1` → `$DefaultModel = "qwen36-128k"`
-4. Update `crush-task.sh` → `DEFAULT_MODEL="qwen36-128k"`
-5. Update `config/crush.json` → models.large.model = "qwen36-128k"
+3. Update `the retired Windows task launcher` → `$DefaultModel = "qwen36-128k"`
+4. Update `the retired Linux task launcher` → `DEFAULT_MODEL="qwen36-128k"`
+5. Update `the retired client configuration template` → models.large.model = "qwen36-128k"
 6. Update `copilot-local.cmd` and `copilot-local.sh` model references
 7. Update `install-windows.ps1` model profiles and descriptions
 8. Run benchmark suite (bench-run.py) to validate speed/quality
@@ -431,14 +431,14 @@ For the top 1-2 candidates:
    - `VLLM_GPU_MEMORY_UTILIZATION` → 0.90
    - `VLLM_MAX_MODEL_LEN` → 32768
    - Add `--kv-cache-dtype fp8_e5m2` to ExecStart
-3. Update `config/crush.json` → server (vLLM) model list
+3. Update `the retired client configuration template` → server (vLLM) model list
 4. Update server model descriptions in `install-cachyos.sh`
 5. Test: 2 concurrent requests at 32K context (verify no OOM)
 
 **Validation criteria:**
 - 5090: ≥25 tok/s at 128K context, 100% GPU, no CPU spill
 - 4090: No OOM with 2×32K concurrent, ≥10 tok/s per user
-- Both: Tool calling works with Crush (Word, PPTX, coding profiles)
+- Both: Tool calling works with the retired client (Word, PPTX, coding profiles)
 - Both: bench-run.py scores ≥ current Gemma 4 26B baseline (14/15)
 
 ---
@@ -540,7 +540,7 @@ coding sessions where every turn re-reads a large, growing context.
   Qwen3-Next-80B-A3B-Instruct `Q4_K_M` GGUF (`hf.co/Qwen/...`) and creates the
   `qwen3next-80b-offload` alias (`num_gpu 99`, low temp). Use `-ModelPath` to keep models off
   the OS drive.
-- **Launchers:** `crush-task` / `copilot-local` expose offload-bench entry **`[O2]` Qwen3-Next-80B-A3B**.
+- **Launchers:** `the retired client-task` / `copilot-local` expose offload-bench entry **`[O2]` Qwen3-Next-80B-A3B**.
   Selecting it runs `scripts/offload-serve.{ps1,sh} -Action start -NCpuMoe 24` (stops the managed server,
   starts a dedicated `ollama serve` with `LLAMA_ARG_N_CPU_MOE=24`
   + `GGML_CUDA_NO_PINNED=1`), launches the tool, then `-Action stop` restores the managed server.
@@ -586,7 +586,7 @@ Qwen3-Coder-480B-A35B, DeepSeek-V3.x, Kimi K2.7-Code — all exceed 96 GB at eve
 
 #### Decision: we do NOT add the 2–3 bit frontier models (`[O3]/[O4]` rejected)
 
-Local coding here has already been **disappointing at full/native precision** (Gemma 4 in Crush +
+Local coding here has already been **disappointing at full/native precision** (Gemma 4 in the retired client +
 Copilot). Squeezing a 235B / 230B model down to **2–3 bit** to fit 96 GB is the opposite of what that
 feedback calls for — heavy quantization degrades exactly the instruction-following and code-correctness
 that were already weak. Bigger raw parameter count does **not** rescue a 2-bit model; it typically lands
@@ -716,7 +716,7 @@ Ensure these are set before any evaluation:
 - [ ] Created custom models at 65K, 128K, 256K where viable
 - [ ] VRAM measurements recorded for all candidates
 - [ ] bench-run.py executed with passing candidates
-- [ ] Tool calling validated in Crush for top candidates
+- [ ] Tool calling validated in the retired client for top candidates
 - [ ] Long session test completed for top 1-2 candidates
 - [ ] Decision made (Path A, B, or C)
 - [ ] Config files updated per decision path
@@ -776,7 +776,7 @@ coding slot, so the picker sends prose work to a code-tuned model. The durable f
 prose model, rather than swapping the shared `heavy` slot (which would degrade coding).
 
 Concretely, when this leaves report-only status: add a `creative` alias mapped to
-**Mistral-Small-3.2-24B-Instruct** as the default, repoint copilot key 5 / crush "Creative
+**Mistral-Small-3.2-24B-Instruct** as the default, repoint copilot key 5 / the retired client "Creative
 writing" to it, and add Gemma 3 27B it as a bench entry so the two can be compared hands-on.
 This is deferred; it is the natural follow-up once a winner is confirmed by real use.
 
@@ -799,7 +799,7 @@ no winner is declared yet.
   - `qwen3-32b-64k` from `qwen3:32b`, rebuilt to force non-thinking (its template defaults to
     thinking, which returns an empty draft under a normal token budget)
 - They appear as a new "Creative-writing bench" category in the experimental menu of both the
-  copilot and crush launchers, keys `[10]` Mistral-Small-3.2, `[11]` Gemma 3 27B, `[12]` Qwen3 32B.
+  copilot and the retired client launchers, keys `[10]` Mistral-Small-3.2, `[11]` Gemma 3 27B, `[12]` Qwen3 32B.
   Registry aliases `cw1/cw2/cw3` in `scripts/local-models.json` (and the deployed copy).
 - A demo on a shared "match resume to a job description" brief had all three produce clean,
   on-brief professional letters, a clear step up from the GLM-4.7-Flash / Qwen3.6 drafts that
@@ -819,7 +819,7 @@ selection criterion the round-1 research missed entirely.
 - **Gemma 3 27B: rejected, structurally incompatible.** Key `[11]` appeared to hang the CLI.
   It was not slow and it was not resource-starved (the host log shows a clean `63/63` layer GPU
   offload at ~64 tok/s). `POST /api/show` reports its capabilities as `completion, vision`
-  with **no `tools`**. Both Copilot CLI and Crush send a `tools` array on every chat request, so
+  with **no `tools`**. Both Copilot CLI and the retired client send a `tools` array on every chat request, so
   Ollama rejects the call with `HTTP 400 {"error":"... does not support tools"}` in about 0.2s,
   which the client surfaces as an apparent hang. Prose quality was never the issue and is
   irrelevant here: a model that cannot accept a tools array cannot be driven by this stack.
@@ -894,11 +894,11 @@ The rule now applied to local picks in all four launchers:
 |---|---|---|---|---|
 | copilot prompt | `floor(ctx * 0.75)` | 30720 | 49152 | 196608 |
 | copilot output | `min(16384, ctx - prompt)` | 10240 | 16384 | 16384 |
-| crush `max_tokens` | `min(16384, floor(ctx / 4))` | 10240 | 16384 | 16384 |
+| the retired client `max_tokens` | `min(16384, floor(ctx / 4))` | 10240 | 16384 | 16384 |
 
 The squire-server provider is untouched: it keeps the caps advertised by `:4090/models`. An alias
 with no registry `ctx` (for example a direct `-Model` tag that is not in the roster) keeps the old
-global defaults. Crush receives only the reply cap locally, because its `context_window` rides on
+global defaults. the retired client receives only the reply cap locally, because its `context_window` rides on
 the providers block that the launcher writes in server mode only.
 
 Testing: this is a deliberate post-baseline behaviour change, so the frozen parity goldens can no
@@ -924,7 +924,7 @@ architecture that Ollama can load, and `tools` in `POST /api/show`.
 
 | Slot | Menu key | Alias | Source tag | Q4 size | License | Alias ctx | Task profile |
 |---|---|---|---|---|---|---|---|
-| `computer` | production `[8]` / crush `[6]` | `fara15-27b-192k` | `hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M` | 17.2 GB | MIT | 196608 | Computer use / GUI agent |
+| `computer` | production `[8]` / the retired client `[6]` | `fara15-27b-192k` | `hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M` | 17.2 GB | MIT | 196608 | Computer use / GUI agent |
 | `h9` | `[9]` | `katcoder25-35b-256k` | `hf.co/bartowski/Kwaipilot_KAT-Coder-V2.5-Dev-GGUF:Q4_K_M` | 19.9 GB | Apache-2.0 | 262144 | Agentic coding |
 | `h10` | `[10]` | `aquila-mini-35b-256k` | `hf.co/bartowski/XYZAILab_XYZ-Aquila-mini-GGUF:Q4_K_M` | 20.8 GB | Apache-2.0 | 262144 | Coding, provenance unverified |
 | `off1` | `[11]` | `laguna-s21-118b-128k` | `hf.co/wimmmm/poolside-Laguna-S-2.1-GGUF:IQ4_XS` | 58.4 GB | openmdw-1.1 | 131072 | Coding, offload tier |
@@ -935,8 +935,8 @@ Aquila-mini additionally report `vision`; all four report `thinking`.
 **Fara 1.5 27B is a new production category, not a bench entry.** It is Microsoft's
 computer-use / GUI agent line, which is a capability nothing else in the roster had. Benching it
 against Devstral on a bugfix would measure the wrong thing. It gets its own "Computer Use"
-heading in both launchers. On the Crush side it uses the existing `coding` profile rather than a
-new one: Crush profiles map to MCP enablement, no computer-use MCP is installed, so a dedicated
+heading in both launchers. On the the retired client side it uses the existing `coding` profile rather than a
+new one: the retired client profiles map to MCP enablement, no computer-use MCP is installed, so a dedicated
 profile would be behaviourally identical today. Add a real profile when there is an MCP to gate.
 
 ### Context calibration (on-box, 5090, q8 KV)
@@ -996,7 +996,7 @@ lab. It is wired as a bench entry only and its ratio should be treated as promot
 
 ### Gemma 4 31B removed
 
-Deleted from the registry, `task_alias`, both launcher menus, `config/crush.json`, the Windows
+Deleted from the registry, `task_alias`, both launcher menus, `the retired client configuration template`, the Windows
 installer, and Ollama itself (`gemma4-31b-128k` and `gemma4:31b`). Three independent reasons had
 accumulated: it disappointed in hands-on use (recorded in the banner at the top of this document
 since 2026-06), it was the slowest entry in its class at roughly 25 tok/s, and it was the only
@@ -1173,16 +1173,16 @@ matters.
 ### 5. Resulting roster change
 
 A new production category **General & Research** was added to both launchers, occupied by
-`nemotron35-light-256k` via a new `research` task alias. Copilot key 9, Crush key 7 on the
+`nemotron35-light-256k` via a new `research` task alias. Copilot key 9, the retired client key 7 on the
 `docs` profile. The model is therefore both a production slot and bench slot h6, which
 matches the existing pattern for `heavy`/h1 and `agentic`/h4.
 
 Because production models must exist on a default install, `nemotron35-light-256k` was moved
 out of the `-TestProfiles` alias block into the base `$aliasModels` set, added to
-`$ProductionModels` and `$KnownModelDescriptions`, and added to `config/crush.json`. The 5090
+`$ProductionModels` and `$KnownModelDescriptions`, and added to `the retired client configuration template`. The 5090
 profile `RequiredGB` moved from 100 to 130 to cover the extra 25 GB.
 
-GLM-4.7-Flash still holds the `agentic` slot (Copilot keys 4 and 6, Crush key 4) covering
+GLM-4.7-Flash still holds the `agentic` slot (Copilot keys 4 and 6, the retired client key 4) covering
 office and document authoring. That is unchanged and remains open for review. The evidence
 now says GLM is fast and competent at grounded work, and unreliable when asked to recall
 facts it was never given.
@@ -1328,7 +1328,7 @@ keep.
 ### 7. Roster change applied
 
 `heavy` now resolves to `qwen36-35b-256k` and `qwen36-27b-212k` is retired from the registry,
-both launcher menus, `config/crush.json`, the Windows installer and Ollama itself. The base
+both launcher menus, `the retired client configuration template`, the Windows installer and Ollama itself. The base
 tag `hf.co/unsloth/Qwen3.6-27B-MTP-GGUF:Q4_K_M` was removed with it.
 
 The swap reaches further than heavy coding, because Copilot keys 4 and 5 ("Technical docs"
@@ -1526,7 +1526,7 @@ Speed was never the problem. Section BT correctly overturned the "too slow" verd
 was the problem.
 
 **Muse Glimmer 30B takes the `agentic` slot** as `museglimmer-30b-128k` at 131072 ctx, temp
-0.30, covering Copilot keys 4 and 6 and Crush key 4, including Office authoring. The
+0.30, covering Copilot keys 4 and 6 and the retired client key 4, including Office authoring. The
 accepted cost is speed: ~70 tok/s against GLM's ~195. The gain is a model that abstains
 correctly, calls tools natively, and adds vision.
 
@@ -1570,7 +1570,7 @@ zero em-dashes and zero unsupported claims.
 None of the three shortlist entries won, so all three were retired rather than kept as a standing
 bench. Removed from `scripts/local-models.json`: registry entries `qwen3-32b-64k`,
 `qwen25-32b-32k`, `commandr-35b-64k`, the `cw1`/`cw2`/`cw3` aliases, and the "Creative-writing
-bench" category from both the copilot and crush experimental menus. The experimental menu is now
+bench" category from both the copilot and the retired client experimental menus. The experimental menu is now
 contiguous 1 to 10 in both launchers, so no renumbering was needed. The six Ollama artifacts
 (three aliases plus the three base pulls) were deleted from the model store.
 
@@ -1624,7 +1624,7 @@ new Qwen3.8 production selection; the 4090 Ollama tier retains its existing mode
 ## §BY. Muse Glimmer DFlash promoted and non-roster models removed (2026-09-19)
 
 `muse-glimmer:30b-q4_K_M-dflash` replaces `muse-glimmer:30b` beneath the existing
-`museglimmer-30b-128k` production alias. The public alias remains stable for Copilot, Crush,
+`museglimmer-30b-128k` production alias. The public alias remains stable for Copilot, the retired client,
 and task-launcher consumers. Its deployed parameters are 131072 context, temperature 0.30,
 and `draft_num_predict 3`.
 

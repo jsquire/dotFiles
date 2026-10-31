@@ -72,6 +72,22 @@ internal sealed class DisplayWakeCoordinator : IDisposable
     }
 
     /// <summary>
+    /// Schedules the initial restart that repairs Polychrome after logon.
+    /// </summary>
+    public void ScheduleInitialRestart()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (!Tracker.ScheduleInitialRestart(DateTimeOffset.UtcNow))
+        {
+            return;
+        }
+
+        Log.Information($"Scheduling initial Polychrome restart in {Options.RestartDelay.TotalSeconds:0.###} second(s).");
+        RestartTimer.Change(Options.RestartDelay, Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>
     /// Restarts Polychrome immediately and applies the normal restart cooldown.
     /// </summary>
     ///

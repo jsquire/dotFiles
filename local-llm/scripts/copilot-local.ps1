@@ -28,6 +28,8 @@ $env:COPILOT_PROVIDER_MAX_OUTPUT_TOKENS = "16384"
 function Invoke-SquireSwitch {
     param([string]$Mode)
     $port = "4090"
+    $attempts = if ($env:LL_SWITCH_POLL_ATTEMPTS) { [int]$env:LL_SWITCH_POLL_ATTEMPTS } else { 30 }
+    $delay = if ($env:LL_SWITCH_POLL_DELAY) { [double]$env:LL_SWITCH_POLL_DELAY } else { 3 }
     try {
         Invoke-RestMethod -Uri "http://${SquireIp}:${port}/switch" -Method Post -ContentType 'application/json' `
             -Body "{`"mode`":`"$Mode`"}" -TimeoutSec 10 -ErrorAction Stop | Out-Null
@@ -36,13 +38,13 @@ function Invoke-SquireSwitch {
         return
     }
     Write-Host -NoNewline "  ... switching server to $Mode"
-    for ($i = 0; $i -lt 30; $i++) {
+    for ($i = 0; $i -lt $attempts; $i++) {
         try {
             $st = Invoke-RestMethod -Uri "http://${SquireIp}:${port}/status" -TimeoutSec 5 -ErrorAction Stop
             if ($st.mode -eq $Mode -and $st.api_up) { Write-Host " - ready."; return }
         } catch {}
         Write-Host -NoNewline "."
-        Start-Sleep -Seconds 3
+        if ($delay -gt 0) { Start-Sleep -Milliseconds ([int]($delay * 1000)) }
     }
     Write-Host " (still loading; give it a few more seconds)"
 }

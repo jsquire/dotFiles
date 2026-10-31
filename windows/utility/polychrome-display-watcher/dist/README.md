@@ -3,7 +3,8 @@
 The executable in this directory is a self-contained NativeAOT tray utility for Windows x64. It does
 not require a separately installed .NET runtime. The adjacent `.sha256` file is verified by
 `Install.ps1` before deployment. `security.ico` is deployed beside the executable and provides the
-watcher's distinct notification-area icon.
+watcher's distinct notification-area icon. Version 1.2 schedules one repair restart after logon and
+retries tray registration while Explorer initializes.
 
 Rebuild and refresh the shipping artifact from a Visual Studio Developer PowerShell session.
 

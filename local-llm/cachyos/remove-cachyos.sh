@@ -16,13 +16,9 @@ VLLM_VENV_DIR="${HOME}/.local/share/vllm-env"
 HF_CACHE_DIR="${HOME}/.cache/huggingface"
 UV_BIN_PATH="${HOME}/.local/bin/uv"
 UVX_BIN_PATH="${HOME}/.local/bin/uvx"
-CRUSH_BIN_PATH="${HOME}/.local/bin/crush"
-CRUSH_HOME_DIR="${HOME}/.crush"
-CRUSH_CONFIG_DIR="${HOME}/.config/crush"
 OLLAMA_DIR="${HOME}/.ollama"
 COPILOT_LOCAL_LAUNCHER="${HOME}/.local/bin/copilot-local"
 COPILOT_SERVER_LAUNCHER="${HOME}/.local/bin/copilot-server"
-CRUSH_TASK_LAUNCHER="${HOME}/.local/bin/crush-task"
 COPILOT_MCP_CONFIG="${HOME}/.copilot/mcp-config.json"
 LOCAL_MODELS_JSON="${HOME}/.config/local-llm/local-models.json"
 SERVER_MODELS_JSON="${HOME}/.config/local-llm/server-models.json"
@@ -51,7 +47,7 @@ Options:
   --mode full|server|client   Deprecated alias for --install (full==local).
   --ollama-models 4090|5090   Accepted for CLI parity with the installer; ignored on removal.
   --keep-models        Keep ~/.ollama/models and ~/.cache/huggingface (vLLM/imagegen weights)
-  --keep-config        Keep ~/.crush and ~/.config/crush
+  --keep-config        Keep Copilot CLI configuration
   --force              Skip confirmation prompts
   --help               Show this help text
 
@@ -268,24 +264,17 @@ if [[ "$MODE" == "full" ]]; then
         printf '%b\n' "    • Hugging Face weights kept (--keep-models)"
     fi
 fi
-printf '%b\n' "    • ${CRUSH_BIN_PATH} (or pacman package if installed)"
 printf '%b\n' "    • ${HOME}/.local/bin/uv and uvx"
 printf '%b\n' "    • ${UV_SHARE_DIR}"
 printf '%b\n' "    • ${AI_TOOLS_DIR}"
-printf '%b\n' "    • copilot-local, copilot-server, crush-task launchers + Ollama tier config"
+printf '%b\n' "    • copilot-local and copilot-server launchers + Ollama tier config"
 if [[ "$KEEP_CONFIG" == false ]]; then
     printf '%b\n' "    • ${COPILOT_MCP_CONFIG}"
-fi
-if [[ "$KEEP_CONFIG" == false ]]; then
-    printf '%b\n' "    • ${CRUSH_HOME_DIR} and ${CRUSH_CONFIG_DIR}"
 fi
 printf '%b\n' ""
 
 if [[ "$MODE" == "client" && "$KEEP_MODELS" == true ]]; then
     add_warning "--keep-models is irrelevant in client mode because Ollama data is not removed."
-fi
-if [[ "$KEEP_CONFIG" == true ]]; then
-    add_warning "Crush configuration will be kept."
 fi
 
 if ! confirm_action "Proceed with ${MODE} removal?"; then
@@ -403,25 +392,6 @@ else
     info 'Client mode selected — Ollama service, binary, and models are preserved.'
 fi
 
-step "Remove Crush"
-if command_exists pacman && pacman -Q crush >/dev/null 2>&1; then
-    if [[ "$MODE" == "full" ]]; then
-        if run_privileged pacman -Rns --noconfirm crush; then
-            success 'Removed Crush pacman package.'
-        else
-            add_warning 'pacman could not remove Crush cleanly. Remove it manually if needed.'
-        fi
-    else
-        add_warning 'Crush is installed via pacman; re-run with sudo or remove it manually: sudo pacman -Rns crush'
-    fi
-else
-    remove_user_path "$CRUSH_BIN_PATH" 'Crush binary'
-fi
-remove_user_path "${HOME}/bin/crush" 'alternate Crush binary'
-if [[ "$MODE" == "full" ]]; then
-    remove_system_path "/usr/local/bin/crush" 'system-wide Crush binary link'
-fi
-
 step "Remove uv binaries"
 remove_user_path "$UV_BIN_PATH" 'uv binary'
 remove_user_path "$UVX_BIN_PATH" 'uvx binary'
@@ -435,7 +405,6 @@ remove_user_path "$AI_TOOLS_DIR" 'AI tools directory'
 step "Remove launcher scripts and tier config"
 remove_user_path "$COPILOT_LOCAL_LAUNCHER" 'copilot-local launcher'
 remove_user_path "$COPILOT_SERVER_LAUNCHER" 'copilot-server launcher'
-remove_user_path "$CRUSH_TASK_LAUNCHER" 'crush-task launcher'
 remove_user_path "${HOME}/.local/bin/ollama-compat-proxy.py" 'ollama compat proxy'
 remove_user_path "$LOCAL_MODELS_JSON" 'local model roster'
 remove_user_path "$SERVER_MODELS_JSON" 'server model roster fallback'
@@ -444,15 +413,6 @@ if [[ "$KEEP_CONFIG" == false ]]; then
     remove_user_path "${HOME}/.copilot/skills/office" 'Copilot office skill'
 else
     info 'Keeping ~/.copilot/mcp-config.json as requested (--keep-config).'
-fi
-
-if [[ "$KEEP_CONFIG" == false ]]; then
-    step "Remove Crush configuration"
-    remove_user_path "$CRUSH_HOME_DIR" 'Crush home directory'
-    remove_user_path "$CRUSH_CONFIG_DIR" 'Crush config directory'
-else
-    step "Keep Crush configuration"
-    info 'Keeping ~/.crush and ~/.config/crush as requested.'
 fi
 
 echo
@@ -484,13 +444,9 @@ if [[ "$MODE" == "full" ]]; then
         printf '%b\n' '  • Hugging Face weights kept (--keep-models)'
     fi
 fi
-printf '%b\n' '  • Crush'
 printf '%b\n' '  • uv / uvx'
 printf '%b\n' '  • uv shared data'
 printf '%b\n' '  • MCP environments'
-if [[ "$KEEP_CONFIG" == false ]]; then
-    printf '%b\n' '  • Crush configuration'
-fi
 
 if (( ${#WARNINGS[@]} > 0 )); then
     echo

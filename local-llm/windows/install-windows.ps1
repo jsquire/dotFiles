@@ -4,17 +4,17 @@
     Installs the self-hosted AI coding assistant stack on Windows.
 
 .DESCRIPTION
-    Sets up Ollama (model server), Crush (CLI agent), uv (Python toolchain),
-    and supporting infrastructure for local LLM-powered coding assistance.
+    Sets up Ollama, GitHub Copilot CLI, uv, and supporting infrastructure for
+    local LLM-powered coding assistance.
 
     Follows the Installation Containment Strategy:
       Layer 1 (System):   Ollama only (GPU access, runs as service)
-      Layer 2 (User-local): uv + Crush via winget (portable packages)
+      Layer 2 (User-local): uv and GitHub Copilot CLI
       Layer 3 (Isolated):  Python 3.12 via uv, MCP server venvs
-      Layer 4 (Config):    %USERPROFILE%\.ollama and %USERPROFILE%\.config\crush
+      Layer 4 (Config):    %USERPROFILE%\.ollama, .copilot, and .config\local-llm
 
     Full mode installs the complete local stack. Client mode installs only the
-    client tooling and points Crush at a remote Ollama endpoint.
+    client tooling and points Copilot CLI at remote model endpoints.
 
 .PARAMETER Mode
     Installation mode. Full installs Ollama locally and can pull models. Client
@@ -25,14 +25,14 @@
     Ollama roster GPU tier that determines which models to pull:
       5090 — (default) RTX 5090 (32GB). Pulls the seven production models
              (Qwen3.8 27B, Fara 1.5 27B, Qwen3-Coder 30B, Muse Glimmer 30B,
-             Nemotron 3.5 Lightning, Ornith-1.0-35B, Qwen3 8B) (~130 GB) — coherent with config\crush.json.
+             Nemotron 3.5 Lightning, Ornith-1.0-35B, Qwen3 8B) (~130 GB).
     The Windows host is the 5090 gaming desktop; a real 24GB (4090) box runs the
     CachyOS installer, which has its own tier. -TestProfiles installs the same roster
     PLUS the heavy-coding bench contenders. Ignored in Client mode.
 
 .PARAMETER SquireServerIP
     IP/host of the CachyOS vLLM "Squire Server" used by the launcher Remote
-    [S]/[C]/[V]/[I] options and the crush.json 'server' provider. Default:
+    [S]/[C]/[V]/[I] options. Default:
     192.168.1.99.
 
 .PARAMETER SquireSSHTarget
@@ -40,8 +40,8 @@
     'cachyos-switch-model' on the Squire Server. Default: jesse@192.168.1.99.
 
 .PARAMETER OllamaHost
-    Optional. An additional remote Ollama endpoint to keep available as a Crush
-    provider (for example: http://192.168.1.100:11434). Not required for Client
+    Optional. An additional remote Ollama endpoint to keep available to the
+    launcher (for example: http://192.168.1.100:11434). Not required for Client
     mode — Client mode targets the vLLM server via -SquireServerIP.
 
 .PARAMETER ModelPath
@@ -75,7 +75,7 @@
 
 .EXAMPLE
     .\install-windows.ps1 -Mode Client
-    Client-only install (Profile 2): tools only, Crush defaults to the vLLM server (192.168.1.99).
+    Client-only install (Profile 2): Copilot CLI tools target the vLLM server (192.168.1.99).
 
 .EXAMPLE
     .\install-windows.ps1 -ModelPath D:\OllamaModels
@@ -150,10 +150,10 @@ if ($Help) {
 
   INSTALL (what to install; -Install supersedes the legacy -Mode alias):
     -Install Full        (default) Local Ollama server + models + client tools
-    -Install Client      Client tools only (Crush, Copilot CLI, uv, MCP) — no local Ollama
+    -Install Client      Client tools only (Copilot CLI, uv, MCP) — no local Ollama
     -Install OllamaOnly  Local Ollama server + models only — no client tools
 
-  PROVIDERS (which crush providers + launcher entries; cloud providers always kept):
+  PROVIDERS (which launcher entries to enable):
     -Providers <list>        Comma list of: local, server  (default: Full->both, Client->server)
                              local = local Ollama · server = CachyOS vLLM server. ('squire-server' accepted as a deprecated alias.)
     -DefaultProvider <p>     local | server  (default: Full->local, Client->server)
@@ -193,7 +193,7 @@ if ($Help) {
     -ModelsOnly          Skip software installation; only pull/update models
     -EnableLAN           Set OLLAMA_HOST=0.0.0.0 so other machines can connect
     -SkipWslNetworking   Don't configure WSL2 mirrored networking (.wslconfig)
-    -Force               Overwrite existing crush.json + Copilot mcp-config.json (skipped by default).
+    -Force               Overwrite existing Copilot mcp-config.json (skipped by default).
                          Overwrites in place (no .bak; rely on git). Use to refresh outdated client
                          config, e.g. after a provider/roster change.
     -Theme <Dark|Light>  Shortcut icon theme (default: Dark)
@@ -220,18 +220,16 @@ if ($Help) {
     ComfyUI Desktop  (removed — replaced by diffusers+FastAPI image gen service)
     Image Gen        <DataRoot>\ai-tools\imagegen           No
                      (default %LOCALAPPDATA%\ai-tools\imagegen)
-    Crush            winget portable                       No
     uv + Python      %USERPROFILE%\.local\bin              No
     MCP venvs        <DataRoot>\ai-tools\mcp-*              No
                      (default %LOCALAPPDATA%\ai-tools\mcp-*)
     HF model cache   <DataRoot>\hf-cache (HF_HOME)          No
                      (default %USERPROFILE%\.cache\huggingface)
     copilot-local    %USERPROFILE%\Documents\CLI           No
-    Config           %USERPROFILE%\.config\crush           No
+    Config           %USERPROFILE%\.copilot and .config\local-llm  No
 
   AFTER INSTALL:
     copilot-local      Launch Copilot CLI with task picker
-    crush              Launch Crush (MCP-enabled agent)
     ollama list        Check installed models
     ollama ps          Check loaded models + VRAM usage
 
@@ -282,7 +280,6 @@ if (-not [string]::IsNullOrWhiteSpace($DataRoot)) {
     }
 }
 $AiToolsDir     = Join-Path $AiToolsRoot "ai-tools"
-$CrushDir       = Join-Path $UserProfile ".config\crush"
 # OPTIONAL override: if a user drops a `config\ollama-models.txt` in place (see the
 # shipped .example), the installer pulls those tags instead of the profile's models.
 # Absent by default, so the built-in profile roster is authoritative.
@@ -302,10 +299,10 @@ $KnownModelDescriptions = @{
     "qwen3:8b"        = "Qwen3 8B Dense — image-gen companion (32k ctx), ~5 GB"
 }
 
-# Production roster — the seven daily models exposed in config\crush.json + the launcher
+# Production roster — the seven daily models exposed through the launcher
 # Tier-1 profiles. The default (non -TestProfiles) install pulls exactly these and builds
 # the matching aliases (see $aliasModels below), so a generic install is coherent
-# with crush.json. -TestProfiles is a SUPERSET that adds the bench contenders.
+# with the local model aliases. -TestProfiles is a SUPERSET that adds the bench contenders.
 $ProductionModels = [ordered]@{
     "qwen3.8:27b"     = $KnownModelDescriptions["qwen3.8:27b"]
     "hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M" = $KnownModelDescriptions["hf.co/bartowski/Fara1.5-27B-GGUF:Q4_K_M"]
@@ -318,7 +315,7 @@ $ProductionModels = [ordered]@{
 
 $ProfileDefinitions = @{
     "5090" = @{
-        Description = "RTX 5090 (32GB) — the seven production models (coherent with crush.json + launchers)"
+        Description = "RTX 5090 (32GB) — the seven production models used by the launcher"
         RequiredGB = 130
         Models = $ProductionModels
     }
@@ -611,7 +608,7 @@ function Get-EffectiveModelConfig {
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Magenta
 Write-Host "║   Self-Hosted AI Coding Assistant — Windows Installer        ║" -ForegroundColor Magenta
-Write-Host "║   Ollama · Crush · uv · MCP Servers                          ║" -ForegroundColor Magenta
+Write-Host "║   Ollama · Copilot CLI · uv · MCP Servers                   ║" -ForegroundColor Magenta
 Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Magenta
 
 if (-not (Test-CommandExists "winget")) {
@@ -634,7 +631,7 @@ if (-not [string]::IsNullOrWhiteSpace($Install)) {
     $Install = $Mode   # legacy -Mode path
 }
 
-# Provider selection (crush providers + launcher entries). Defaults depend on install type.
+# Provider selection for launcher entries. Defaults depend on install type.
 # 'server' is the canonical vLLM provider token; 'squire-server' is a deprecated input alias.
 if ([string]::IsNullOrWhiteSpace($Providers)) {
     $Providers = if ($IsFullMode) { "local,server" } else { "server" }
@@ -870,26 +867,18 @@ if ($ShouldInstallSoftware) {
         }
     }
 
-    # ── Step: Crush (CLI agent) ──────────────────────────────────────────
-
     if ($InstallClientTools) {
-    Write-Step "Install Crush (CLI agent, formerly OpenCode)"
-    Write-Info "Crush is the terminal-based AI agent with MCP support, LSP context, and multi-provider."
-    Write-Info "Installed as a winget portable package (no admin required)."
-
-    Install-WinGetPackage -Id "charmbracelet.crush" -Name "Crush" -Critical | Out-Null
-
     if ($IsClientMode) {
-        Write-Info "Client (server-only) mode: Crush defaults to the vLLM server at http://${SquireServerIP}:8000/v1."
+        Write-Info "Client mode targets the vLLM server at http://${SquireServerIP}:8000/v1."
         Write-Info "Switch server models with 'copilot-local' or the browser page http://${SquireServerIP}:4090/ ."
         if (-not [string]::IsNullOrWhiteSpace($OllamaHost)) {
-            Write-Info "Optional remote Ollama provider available at $OllamaHost."
+            Write-Info "Optional remote Ollama endpoint available at $OllamaHost."
         }
     }
 
-    # ── Step: csharp-ls (C# language server for Crush's LSP) ─────────────
-    Write-Step "Install csharp-ls (C# language server for Crush LSP)"
-    Write-Info "crush.json declares a csharp-ls LSP; it is a .NET global tool (not a winget package)."
+    # ── Step: csharp-ls (C# language server) ──────────────────────────────
+    Write-Step "Install csharp-ls (C# language server)"
+    Write-Info "csharp-ls provides C# language intelligence to compatible clients."
 
     # Resolve a dotnet executable. 'dotnet tool install' needs an SDK (not just a runtime).
     $dotnetExe = $null
@@ -926,7 +915,7 @@ if ($ShouldInstallSoftware) {
             }
         }
 
-        # Ensure the dotnet global-tools dir is on the user PATH so Crush can launch csharp-ls.
+        # Ensure the dotnet global-tools dir is on the user PATH.
         $csToolsDir = Join-Path $env:USERPROFILE ".dotnet\tools"
         $csUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
         if ($csUserPath -notlike "*$csToolsDir*") {
@@ -943,7 +932,7 @@ if ($ShouldInstallSoftware) {
             else { Write-Warn "csharp-ls installed but did not run cleanly (may need a specific .NET runtime)." }
         }
     } else {
-        Write-Warn "No .NET SDK available — skipping csharp-ls (Crush works without it; C# LSP disabled)."
+        Write-Warn "No .NET SDK available — skipping csharp-ls."
         $script:Failures += "csharp-ls (no .NET SDK)"
     }
 
@@ -971,94 +960,9 @@ if ($ShouldInstallSoftware) {
         Write-Warn "Office library warm-up skipped: $_"
     }
 
-    if (-not (Test-Path $CrushDir)) {
-        New-Item -ItemType Directory -Path $CrushDir -Force | Out-Null
-        Write-Success "Created $CrushDir"
-    }
-
-    # ── Step: Deploy Crush configuration ─────────────────────────────────
-
-    Write-Step "Deploy Crush configuration"
-    $crushConfigSource = Join-Path $PSScriptRoot "..\config\crush.json"
-    $crushConfigDest = Join-Path $CrushDir "crush.json"
-
-    if (Test-Path $crushConfigSource) {
-        if ((Test-Path $crushConfigDest) -and -not $Force) {
-            Write-Info "Crush config already exists at $crushConfigDest — skipping (won't overwrite; use -Force to refresh)."
-        } else {
-            # Expand template placeholders for this platform
-            $crushContent = Get-Content $crushConfigSource -Raw
-            $expandedLocalAppData = ($AiToolsRoot -replace '\\', '/') # ai-tools root (DataRoot or LocalAppData), fwd slashes for JSON
-            $expandedConfigDir = ($CrushDir -replace '\\', '/')
-            $crushContent = $crushContent -replace '__LOCALAPPDATA__', $expandedLocalAppData
-            $crushContent = $crushContent -replace '__VENV_BIN__', '.venv/Scripts'
-            $crushContent = $crushContent -replace '__EXE_SUFFIX__', '.exe'
-            $crushContent = $crushContent -replace '__EXE__', '.exe'
-            $crushContent = $crushContent -replace '__CONFIG_DIR__', $expandedConfigDir
-            $crushContent = $crushContent -replace '__SQUIRE_SERVER_IP__', $SquireServerIP
-
-            # Prune crush providers + set the default per -Providers / -DefaultProvider.
-            # 'local' -> the localhost Ollama provider ('ollama'); 'server' -> the vLLM server.
-            # Cloud providers (mistral/google/groq/openrouter) are always kept.
-            try {
-                $cfg = $crushContent | ConvertFrom-Json
-                $provList = $Providers -split ','
-                if ($provList -notcontains 'local' -and $cfg.providers.PSObject.Properties.Name -contains 'ollama') {
-                    $cfg.providers.PSObject.Properties.Remove('ollama')
-                }
-                if ($provList -notcontains 'server' -and $cfg.providers.PSObject.Properties.Name -contains 'server') {
-                    $cfg.providers.PSObject.Properties.Remove('server')
-                }
-                if ($DefaultProvider -eq 'local') {
-                    $cfg.default_provider = 'ollama'   # template models.large/small are already the Ollama defaults
-                } else {
-                    $cfg.default_provider = 'server'
-                    $cfg.models.large = [PSCustomObject]@{ model = 'active-model'; provider = 'server'; max_tokens = 8192 }
-                    $cfg.models.small = [PSCustomObject]@{ model = 'active-model'; provider = 'server'; max_tokens = 8192 }
-                }
-                $crushContent = $cfg | ConvertTo-Json -Depth 100
-                Write-Info "Crush providers=$Providers, default=$DefaultProvider."
-            } catch {
-                Add-NonFatalWarning "Could not apply crush provider selection: $($_.Exception.Message)"
-            }
-
-            Set-Content -Path $crushConfigDest -Value $crushContent -Encoding UTF8
-            Write-Success "Deployed crush.json to $crushConfigDest"
-            if ($IsClientMode) {
-                Write-Info "server (vLLM, active-model = whatever is loaded) is the default provider. Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
-            } else {
-                Write-Info "Local Ollama is the default provider. server (vLLM), Mistral, Google AI Studio, Groq, and OpenRouter available as fallbacks."
-            }
-            Write-Info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
-            Write-Info "Office authoring (Word/PowerPoint/Excel) uses the 'office' skill — the model writes python-docx/python-pptx/openpyxl code and runs it via 'uv run'. The imagegen-mcp server is the only MCP enabled."
-        }
-    } else {
-        Write-Warn "Config template not found at $crushConfigSource — skipping Crush config."
-    }
-
-    # ── Step: Deploy Crush skills and MCP servers ───────────────────────
-
-    Write-Step "Deploy Crush skills and MCP servers"
-
-    # Deploy custom MCP servers (if any)
-    $mcpSourceDir = Join-Path $PSScriptRoot "..\config\mcp"
-    $mcpDestDir = Join-Path $CrushDir "mcp"
-    if (Test-Path $mcpSourceDir) {
-        New-Item -ItemType Directory -Path $mcpDestDir -Force | Out-Null
-        Copy-Item "$mcpSourceDir\*" $mcpDestDir -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Success "Deployed MCP servers to $mcpDestDir"
-    }
-
-    # Deploy local skills from dotFiles (includes the vendored 'office' authoring skill)
+    # Deploy the vendored Office authoring skill for Copilot CLI.
     $skillsSourceDir = Join-Path $PSScriptRoot "..\config\skills"
-    $skillsDestDir = Join-Path $CrushDir "skills"
     if (Test-Path $skillsSourceDir) {
-        New-Item -ItemType Directory -Path $skillsDestDir -Force | Out-Null
-        Copy-Item "$skillsSourceDir\*" $skillsDestDir -Recurse -Force
-        Write-Success "Deployed local skills (git-safety, office) to $skillsDestDir"
-
-        # Copilot discovers skills from ~/.copilot/skills (NOT the crush dir, and its custom-instructions
-        # loader ignores SKILL.md) — deploy the 'office' skill there so Copilot sees it in every session.
         $officeSkillSrc = Join-Path $skillsSourceDir "office"
         if (Test-Path $officeSkillSrc) {
             $copilotSkillsDir = Join-Path $env:USERPROFILE ".copilot\skills\office"
@@ -1074,6 +978,8 @@ if ($ShouldInstallSoftware) {
     $copilotMcpSource = Join-Path $PSScriptRoot "..\config\copilot-mcp-config.json"
     $copilotDir = Join-Path $env:USERPROFILE ".copilot"
     $copilotMcpDest = Join-Path $copilotDir "mcp-config.json"
+    $managedStateDir = Join-Path $env:USERPROFILE ".config\local-llm\.installer-owned"
+    $copilotMcpMarker = Join-Path $managedStateDir "copilot-mcp-config"
 
     if (Test-Path $copilotMcpSource) {
         if (-not (Test-Path $copilotDir)) { New-Item -ItemType Directory -Path $copilotDir -Force | Out-Null }
@@ -1082,13 +988,13 @@ if ($ShouldInstallSoftware) {
         } else {
             $mcpContent = Get-Content $copilotMcpSource -Raw
             $expandedLocalAppData = ($AiToolsRoot -replace '\\', '/') # ai-tools root (DataRoot or LocalAppData)
-            $expandedConfigDir = ($CrushDir -replace '\\', '/')
             $mcpContent = $mcpContent -replace '__LOCALAPPDATA__', $expandedLocalAppData
             $mcpContent = $mcpContent -replace '__VENV_BIN__', '.venv/Scripts'
             $mcpContent = $mcpContent -replace '__EXE_SUFFIX__', '.exe'
             $mcpContent = $mcpContent -replace '__EXE__', '.exe'
-            $mcpContent = $mcpContent -replace '__CONFIG_DIR__', $expandedConfigDir
             Set-Content -Path $copilotMcpDest -Value $mcpContent -Encoding UTF8
+            New-Item -ItemType Directory -Path $managedStateDir -Force | Out-Null
+            Set-Content -Path $copilotMcpMarker -Value "managed" -Encoding ASCII
             Write-Success "Deployed mcp-config.json to $copilotMcpDest"
         }
     } else {
@@ -1144,7 +1050,7 @@ if ($ShouldInstallSoftware) {
         Write-Warn "Copilot roster extension source not found — skipping."
     }
 
-    if ($InstallQwenImageExperimental -and (Test-Path $copilotMcpDest)) {
+    if ($InstallQwenImageExperimental -and (Test-Path $copilotMcpDest) -and (Test-Path $copilotMcpMarker)) {
         $mcpConfig = Get-Content $copilotMcpDest -Raw | ConvertFrom-Json
         $imageEntry = $mcpConfig.mcpServers.'imagegen-mcp'
         if (-not $imageEntry) { throw "Existing Copilot MCP config has no imagegen-mcp entry to update" }
@@ -1152,6 +1058,8 @@ if ($ShouldInstallSoftware) {
         $imageEntry.env | Add-Member -NotePropertyName IMAGEGEN_BACKEND -NotePropertyValue '${COPILOT_MCP_IMAGEGEN_BACKEND:-hidream-o1}' -Force
         $mcpConfig | ConvertTo-Json -Depth 20 | Set-Content -Path $copilotMcpDest -Encoding UTF8
         Write-Success "Updated only the imagegen MCP routing in the existing Copilot config."
+    } elseif ($InstallQwenImageExperimental -and (Test-Path $copilotMcpDest)) {
+        Write-Warn "Existing Copilot MCP config is user-owned; Qwen routing was not injected."
     }
 
     # ── Step: Set up Image Generation service (diffusers + FastAPI) ─────
@@ -1354,28 +1262,6 @@ TIMESTEP_TOKEN_NUM = 1
         Write-Warn "ollama-host.exe not found at $ollamaHostSource. Skipping; the launchers will fall back to Ollama direct on :11434 (content:null 400s possible). The python compat proxy is CachyOS-only and must not be used on Windows."
     }
 
-    # ── Step: Deploy crush-task launcher ──────────────────────────────────
-
-    Write-Step "Deploy crush-task launcher"
-    $crushSource = Join-Path $PSScriptRoot "..\scripts\crush-task.ps1"
-    $crushDest = Join-Path $UserProfile "Documents\CLI\crush-task.ps1"
-
-    if (Test-Path $crushSource) {
-        $cliDir = Split-Path $crushDest
-        if (-not (Test-Path $cliDir)) {
-            New-Item -ItemType Directory -Path $cliDir -Force | Out-Null
-        }
-        # Substitute the provider gating + Squire Server placeholders so the Remote [S/G/C/D/I]
-        # server group works. BOM-free UTF-8 write for consistency with the other launchers.
-        $crushContent = Get-Content $crushSource -Raw
-        $crushContent = $crushContent -replace '__LL_PROVIDERS__', $Providers
-        $crushContent = $crushContent -replace '__SQUIRE_SERVER_IP__', $SquireServerIP
-        [System.IO.File]::WriteAllText($crushDest, $crushContent, (New-Object System.Text.UTF8Encoding($false)))
-        Write-Success "Deployed crush-task.ps1 to $crushDest (providers $Providers, server IP $SquireServerIP)"
-    } else {
-        Write-Warn "Crush task script not found at $crushSource — skipping."
-    }
-
     # ── Step: Deploy model roster data files ──────────────────────────────
     # The launchers read the local roster (local-models.json; Windows uses the 5090-tier default) and
     # the server roster fallback (server-models.json) from ~/.config/local-llm/. Copied verbatim.
@@ -1405,11 +1291,12 @@ TIMESTEP_TOKEN_NUM = 1
         New-Item -ItemType Directory -Path $aiFolder -Force | Out-Null
     }
 
-    # Deploy all icon variants to ~/.config/crush/
+    # Deploy Copilot icon variants under the local stack configuration.
     $iconsSource = Join-Path $PSScriptRoot "icons"
-    $iconsDest = Join-Path $UserProfile ".config\crush"
+    $iconsDest = Join-Path $UserProfile ".config\local-llm\icons"
+    if (-not (Test-Path $iconsDest)) { New-Item -ItemType Directory -Path $iconsDest -Force | Out-Null }
     if (Test-Path $iconsSource) {
-        Get-ChildItem (Join-Path $iconsSource "*.ico") | ForEach-Object {
+        Get-ChildItem (Join-Path $iconsSource "copilot*.ico") | ForEach-Object {
             Copy-Item $_.FullName $iconsDest -Force -ErrorAction SilentlyContinue
         }
         Write-Info "Deployed icon variants to $iconsDest"
@@ -1417,7 +1304,6 @@ TIMESTEP_TOKEN_NUM = 1
 
     # Select icons based on theme: Dark bg → light variant, Light bg → dark variant
     $themeVariant = if ($Theme -eq "Light") { "dark" } else { "light" }
-    $crushIconPath = Join-Path $iconsDest "crush-$themeVariant.ico"
     $copilotIconPath = Join-Path $iconsDest "copilot-$themeVariant.ico"
     # Fallback for Copilot if new naming not found
     if (-not (Test-Path $copilotIconPath)) {
@@ -1427,20 +1313,10 @@ TIMESTEP_TOKEN_NUM = 1
             Join-Path $iconsDest "copilot-white.ico"
         }
     }
-    Write-Info "Theme: $Theme → Crush: $(Split-Path $crushIconPath -Leaf), Copilot: $(Split-Path $copilotIconPath -Leaf)"
+    Write-Info "Theme: $Theme → Copilot: $(Split-Path $copilotIconPath -Leaf)"
 
     $shell = New-Object -ComObject WScript.Shell
     $cliDir = Join-Path $UserProfile "Documents\CLI"
-
-    # Crush (Local) shortcut — launches crush-task.ps1 picker
-    $crushLnk = $shell.CreateShortcut((Join-Path $aiFolder "Crush (Local).lnk"))
-    $crushLnk.TargetPath = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
-    $crushLnk.Arguments = "-NoExit -ExecutionPolicy Bypass -File `"$cliDir\crush-task.ps1`""
-    $crushLnk.WorkingDirectory = $UserProfile
-    $crushLnk.Description = "Crush CLI with local Ollama — task profile picker"
-    if (Test-Path $crushIconPath) { $crushLnk.IconLocation = "$crushIconPath,0" }
-    $crushLnk.Save()
-    Write-Success "Created shortcut: Crush (Local)"
 
     # Copilot (Local) shortcut — launches copilot-local.cmd picker
     $copilotLnk = $shell.CreateShortcut((Join-Path $aiFolder "Copilot (Local).lnk"))
@@ -1567,9 +1443,9 @@ PARAMETER num_ctx $ctx
 
             # Create named alias models used by launcher scripts
             Write-Host "  Creating launcher model aliases..." -ForegroundColor White
-            # Production launcher aliases (the seven daily models in crush.json + the Tier-1
+            # Production launcher aliases (the seven daily models in the Tier-1
             # menus). Built on EVERY install — default AND -TestProfiles — so a generic
-            # install is coherent with crush.json. Coders get lower temp; the agentic and
+            # install is coherent with the roster. Coders get lower temp; the agentic and
             # prose models sit slightly higher.
             $aliasModels = @{
                 # Production heavy-coding and technical-document slot as of 2026-08-23.
@@ -1694,13 +1570,10 @@ if ($ShouldInstallSoftware) {
         Write-Host "    • Ollama          Model server (system service, GPU access)" -ForegroundColor Gray
         Write-Host "    • ollama-host     Default tray supervisor: Ollama + content:null proxy (:11435)" -ForegroundColor Gray
     }
-    Write-Host "    • Crush           CLI agent (winget portable)" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  Directories created:" -ForegroundColor White
     Write-Host "    • $AiToolsDir\mcp-*  (MCP server venvs)" -ForegroundColor Gray
-    if ($IsClientMode) {
-        Write-Host "    • $CrushDir  (Crush configuration)" -ForegroundColor Gray
-    } elseif (-not [string]::IsNullOrWhiteSpace($ModelPath)) {
+    if (-not [string]::IsNullOrWhiteSpace($ModelPath)) {
         Write-Host "    • $ModelPath  (Ollama model storage)" -ForegroundColor Gray
     }
     Write-Host ""
@@ -1711,10 +1584,10 @@ Write-Host "    1. Restart your terminal (PATH changes need a new session)" -For
 if ($IsFullMode) {
     Write-Host "    2. Launch 'Ollama Host' from the Start Menu (supervises Ollama + proxy from the tray)" -ForegroundColor Yellow
     Write-Host "    3. Verify: ollama list" -ForegroundColor Yellow
-    Write-Host "    4. Test:   crush" -ForegroundColor Yellow
+    Write-Host "    4. Test:   copilot-local" -ForegroundColor Yellow
 } else {
-    Write-Host "    2. Crush defaults to the vLLM server (http://${SquireServerIP}:8000/v1); switch models via copilot-local" -ForegroundColor Yellow
-    Write-Host "    3. Test remote inference:  crush" -ForegroundColor Yellow
+    Write-Host "    2. Copilot CLI targets the vLLM server through copilot-local" -ForegroundColor Yellow
+    Write-Host "    3. Test remote inference:  copilot-local" -ForegroundColor Yellow
 }
 Write-Host ""
 Write-Host "  See README.md for 'How to Test' and 'How to Get Started' guides." -ForegroundColor Gray

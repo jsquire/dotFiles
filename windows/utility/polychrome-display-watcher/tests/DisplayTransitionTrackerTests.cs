@@ -92,4 +92,35 @@ public class DisplayTransitionTrackerTests
 
         Assert.That(action, Is.EqualTo(DisplayTransitionAction.ScheduleRestart), "A transition after the cooldown should schedule another restart.");
     }
+
+    /// <summary>
+    /// Verifies functionality of the <see cref="DisplayTransitionTracker.ScheduleInitialRestart"/> method.
+    /// </summary>
+    [Test]
+    public void InitialRestartCanBeScheduledOnce()
+    {
+        var now = new DateTimeOffset(2026, 10, 26, 10, 0, 0, TimeSpan.Zero);
+        var tracker = new DisplayTransitionTracker(TimeSpan.FromMinutes(1));
+
+        var firstResult = tracker.ScheduleInitialRestart(now);
+        var secondResult = tracker.ScheduleInitialRestart(now.AddSeconds(1));
+
+        Assert.That(firstResult, Is.True, "The initial restart should be scheduled.");
+        Assert.That(secondResult, Is.False, "A second restart should not be scheduled while the first is pending.");
+    }
+
+    /// <summary>
+    /// Verifies functionality of the <see cref="DisplayTransitionTracker.ScheduleInitialRestart"/> method.
+    /// </summary>
+    [Test]
+    public void DisplayOffCancelsInitialRestart()
+    {
+        var now = new DateTimeOffset(2026, 10, 26, 10, 0, 0, TimeSpan.Zero);
+        var tracker = new DisplayTransitionTracker(TimeSpan.FromMinutes(1));
+
+        tracker.ScheduleInitialRestart(now);
+        var action = tracker.Observe(MonitorDisplayState.Off, now.AddSeconds(1));
+
+        Assert.That(action, Is.EqualTo(DisplayTransitionAction.CancelRestart), "Display-off should cancel the pending initial restart.");
+    }
 }

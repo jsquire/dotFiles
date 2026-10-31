@@ -16,6 +16,9 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
     private const int ExitCommand = 1003;
     private const string IconFileName = "security.ico";
     private const string Tooltip = "Polychrome Display Watcher";
+    private const uint RetryIntervalMilliseconds = 2000;
+    private const int MaximumRetryAttempts = 30;
+    private const nuint RetryTimerIdentifier = 1;
 
     private readonly DisplayWakeCoordinator Coordinator;
     private readonly FileLog Log;
@@ -28,6 +31,8 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
     private bool _disposed;
     private bool _iconAdded;
     private bool _ownsIcon;
+    private int _retryAttempts;
+    private bool _retryTimerActive;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NativeTrayIcon"/> class.
@@ -111,9 +116,16 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
             return true;
         }
 
+        if ((message == Native.WmTimer) && (wParam == RetryTimerIdentifier))
+        {
+            RetryAddIcon();
+            return true;
+        }
+
         if ((_taskbarCreatedMessage != 0) && (message == _taskbarCreatedMessage))
         {
             _iconAdded = false;
+            _retryAttempts = 0;
             AddIcon();
             return true;
         }
@@ -130,6 +142,7 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
         }
 
         _disposed = true;
+        StopRetryTimer();
         RemoveIcon();
 
         if (_menuHandle != nint.Zero)
@@ -156,12 +169,72 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
 
         if (_iconAdded)
         {
+            StopRetryTimer();
             Log.Information("Tray icon added.");
         }
         else
         {
-            Log.Error("Windows did not add the tray icon.", CreateWin32Exception());
+            StartRetryTimer();
         }
+    }
+
+    private void RetryAddIcon()
+    {
+        if (_iconAdded || _disposed)
+        {
+            StopRetryTimer();
+            return;
+        }
+
+        _retryAttempts++;
+
+        fixed (Native.NotifyIconData* data = &_iconData)
+        {
+            _iconAdded = Native.ShellNotifyIcon(Native.NotifyIconAdd, data);
+        }
+
+        if (_iconAdded)
+        {
+            StopRetryTimer();
+            Log.Information($"Tray icon added after {_retryAttempts} retry attempt(s).");
+            return;
+        }
+
+        if (_retryAttempts >= MaximumRetryAttempts)
+        {
+            StopRetryTimer();
+            Log.Error(
+                "Windows did not add the tray icon after 30 retry attempts.",
+                new InvalidOperationException("The Windows notification area was not available."));
+        }
+    }
+
+    private void StartRetryTimer()
+    {
+        if (_retryTimerActive)
+        {
+            return;
+        }
+
+        if (Native.SetTimer(_windowHandle, RetryTimerIdentifier, RetryIntervalMilliseconds, nint.Zero) == 0)
+        {
+            Log.Error("Windows did not create the tray icon retry timer.", CreateWin32Exception());
+            return;
+        }
+
+        _retryTimerActive = true;
+        Log.Information("The Windows notification area is not ready. Retrying the tray icon for up to 60 seconds.");
+    }
+
+    private void StopRetryTimer()
+    {
+        if (!_retryTimerActive)
+        {
+            return;
+        }
+
+        Native.KillTimer(_windowHandle, RetryTimerIdentifier);
+        _retryTimerActive = false;
     }
 
     private void RemoveIcon()

@@ -1,0 +1,40 @@
+{
+  "local": {
+    "production": {
+      "1": "qwen38-27b-192k",
+      "2": "qwen3coder-144k",
+      "3": "qwen3coder-144k",
+      "4": "qwen38-27b-192k",
+      "5": "ornith-35b-256k",
+      "6": "museglimmer-30b-128k",
+      "7": "qwen3:8b",
+      "8": "fara15-27b-192k",
+      "9": "nemotron35-light-256k"
+    },
+    "experimental": {
+      "1": "qwen36-35b-256k",
+      "2": "qwen3coder-144k",
+      "3": "museglimmer-30b-128k",
+      "4": "northmini-code-256k",
+      "5": "nemotron35-light-256k",
+      "6": "ornith-35b-256k",
+      "7": "devstral2-24b-128k",
+      "8": "katcoder25-35b-256k",
+      "9": "aquila-mini-35b-256k",
+      "10": "laguna-s21-118b-128k"
+    },
+    "windows_experimental": {
+      "11": "qwen3:8b"
+    }
+  },
+  "server": {
+    "1": "mistral-small",
+    "2": "qwen3-coder",
+    "3": "qwen3-coder",
+    "4": "devstral",
+    "5": "qwen3-4b",
+    "6": "nemotron-3.5-lightning",
+    "7": "kat-coder-v2.5",
+    "8": "ornith-1.0-35b"
+  }
+}

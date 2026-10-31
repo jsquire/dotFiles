@@ -1,6 +1,6 @@
 # Local LLM Stack — CachyOS Server
 
-Multi-user AI inference server on CachyOS (Arch-based Linux) with vLLM, Crush, and MCP.
+Multi-user AI inference server on CachyOS (Arch-based Linux) with vLLM, Copilot CLI, and MCP.
 
 **Hardware:** RTX 4090 (24GB dedicated VRAM)
 **Inference engine:** vLLM (multi-user, continuous batching, PagedAttention)
@@ -13,8 +13,8 @@ This server hosts multiple users simultaneously. vLLM provides:
 |---------|---------|
 | **Continuous batching** | 2-4 concurrent users at near-single-user speed |
 | **PagedAttention** | Efficient KV-cache sharing — more users per GB of VRAM |
-| **Prefix caching** | Shared system prompts stored once (e.g., Crush's coding prompt) |
-| **OpenAI-compatible API** | Crush/Copilot clients connect identically to Ollama |
+| **Prefix caching** | Shared system prompts stored once |
+| **OpenAI-compatible API** | Copilot CLI connects through the same API as Ollama |
 | **HuggingFace models** | Direct safetensors/GPTQ/AWQ — no GGUF conversion |
 
 Clients connect via `http://server-ip:8000/v1` — same OpenAI API as Ollama.
@@ -26,7 +26,7 @@ Clients connect via `http://server-ip:8000/v1` — same OpenAI API as Ollama.
 | **NVIDIA drivers + CUDA** | GPU acceleration | pacman |
 | **vLLM** | Multi-user inference server | pip (Python package) |
 | **Image Gen API** | OpenAI-compatible image generation | pip (SGLang-Diffusion) |
-| **Crush** | Terminal AI agent with MCP | pacman or user-local |
+| **GitHub Copilot CLI** | Terminal AI agent with MCP and skill support | User-local |
 | **uv** | Python toolchain (MCP venvs) | Official installer |
 | **copilot-local** | Task picker launcher | `~/.local/bin/` |
 | **Copilot roster extension** | Native `/server` or `/local` plus dynamic OpenRouter `/cloud` | Journaled user extension |
@@ -77,14 +77,14 @@ The `--install` value makes the **inference engine explicit**:
 |------|--------|
 | `--install server` | vLLM server (Ollama-free) — the standing role for this box |
 | `--install local` | Local Ollama server + client tools |
-| `--install client` | Client only (Crush + MCP, no local inference) |
+| `--install client` | Client only (Copilot CLI + MCP, no local inference) |
 | `--ollama-models 4090\|5090` | Ollama roster GPU tier: 4090 (24GB) or 5090 (32GB). Applies to `--install local`, and to `--install client` when `--providers` includes `local` |
 | `--test-profiles` | Also install the experimental/bench models (North Mini Code, Nemotron 3 Nano, Ornith-1.0-35B, Devstral Small 2); default is the 6 production models only |
-| `--no-client-tools` | With `--install local`: install the Ollama server + models only (no Crush/MCP) |
-| `--providers local,server` | Crush providers to enable (`server` = the vLLM provider) |
+| `--no-client-tools` | With `--install local`: install the Ollama server + models only (no Copilot/MCP) |
+| `--providers local,server` | Launcher providers to enable (`server` = the vLLM provider) |
 | `--skip-models` | Install software only |
 | `--models-only` | Download models only |
-| `--force` | Overwrite existing `crush.json` + Copilot `mcp-config.json` (backs up each to a timestamped `.bak` first) |
+| `--force` | Overwrite existing Copilot `mcp-config.json` after creating a timestamped backup |
 | `--model-path /path` | Custom HuggingFace cache location |
 | `--ollama-host URL` | Remote endpoint (client mode) |
 
@@ -127,21 +127,6 @@ sudo systemctl edit vllm
 # Change VLLM_MODEL to the desired model
 # Then restart
 sudo systemctl restart vllm
-```
-
-### Crush (agent on this server)
-
-Config: `~/.config/crush/crush.json`
-```json
-{
-  "providers": {
-    "local": {
-      "kind": "openai",
-      "baseURL": "http://localhost:8000/v1",
-      "apiKey": "unused"
-    }
-  }
-}
 ```
 
 ### Firewall
@@ -203,10 +188,7 @@ curl http://localhost:8001/v1/images/generations \
 curl http://server-ip:8000/v1/models
 curl http://server-ip:8001/health
 
-# 8. Crush connects
-crush run "Say hello"
-
-# 9. GPU is being used
+# 8. GPU is being used
 nvidia-smi
 # Expected: vLLM using ~20 GB VRAM when model loaded
 ```
@@ -254,19 +236,6 @@ edit its env-file (e.g. `sudo nano /etc/vllm/modes/coder.env`) and re-run the sw
 ### Client Connection
 
 Any machine on the LAN can connect using OpenAI-compatible clients:
-
-**Crush (on Windows desktop or laptop):**
-```json
-{
-  "providers": {
-    "server": {
-      "kind": "openai",
-      "baseURL": "http://server-ip:8000/v1",
-      "apiKey": "unused"
-    }
-  }
-}
-```
 
 **Copilot CLI:**
 ```bash

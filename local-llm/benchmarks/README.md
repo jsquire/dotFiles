@@ -22,7 +22,7 @@ This directory supports the bake-off evaluation framework (Phase 4) and ongoing 
 ### How to Use
 
 1. Pick a task from `tasks/` (or define a new one following the format)
-2. Run it against a model using Crush or `ollama run`
+2. Run it against a model using Copilot CLI or `ollama run`
 3. Record the result in `results/` using the format below
 4. Compare across runs to make data-driven model/hardware decisions
 

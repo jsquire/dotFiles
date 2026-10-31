@@ -1,114 +1,92 @@
 #!/usr/bin/env bash
-# Behavioural parity suite for the .sh launchers.
-#
-# For every menu selection (and the direct/arg paths) it captures the FUNCTIONAL result the launcher
-# would produce — the resolved model, provider base URL, token caps, MCP/imagegen flags, office skill,
-# and (for crush) the emitted .crush.json — and asserts it equals a frozen golden.
-#
-# The golden is generated ONCE from the PRE-REFACTOR launchers (git ref cf852ee^, the commit before
-# the data-drive refactor) via `--rebuild-golden`, then committed. So "no functional behaviour changed"
-# is proven against the real old scripts, and the frozen golden guards against future drift.
-#
-# Cosmetic output (banner label/tag text, the "Profile:" line) is deliberately NOT part of the tuple —
-# only functional resolution is asserted.
-
+# Exercises every canonical Bash launcher row against the shared semantic oracle.
 set -uo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
-GIT_ROOT="$(cd "$REPO_DIR/.." && pwd)"
-BASELINE_REF="${LL_BASELINE_REF:-cf852ee^}"
-GOLDEN_COPILOT="$FIX_DIR/golden-copilot.tsv"
-GOLDEN_CRUSH="$FIX_DIR/golden-crush.tsv"
+COP="$REPO_DIR/scripts/copilot-local.sh"
+ORACLE="$TESTS_DIR/semantic_oracle.py"
+EXPECTED="$TESTS_DIR/expected-launcher-semantics.json"
+SERVER_IP="10.9.9.9"
+export LL_TEST_SQUIRE_IP="$SERVER_IP"
 
-# ── Functional-tuple extractors ──────────────────────────────────────────────
-copilot_tuple() {   # <src> <providers> <input> <args>
-    ll_run_sh "$1" "$2" "$3" "" "" "$4"
-    local cap; cap="$(ll_capture_line)"; cap="${cap#CAPTURE }"
-    printf '%s' "$cap"
-}
-crush_tuple() {     # <src> <providers> <input> <args>
-    ll_run_sh "$1" "$2" "$3" "" "" "$4"
-    local js="NONE"; [[ -n "$LL_CRUSH_JSON" ]] && js="$(norm_crush_json "$LL_CRUSH_JSON")"
-    printf 'json=%s' "$js"
-}
+required_safety=(
+    "--deny-tool=shell(git add)"
+    "--deny-tool=shell(git commit)"
+    "--deny-tool=shell(git push)"
+    "--deny-tool=shell(git merge)"
+    "--deny-tool=shell(git rebase)"
+    "--deny-tool=shell(git reset)"
+    "--deny-tool=shell(git stash)"
+    "--deny-tool=shell(git cherry-pick)"
+    "--deny-tool=shell(git revert)"
+    "--deny-tool=shell(git tag)"
+)
 
-# Blank the three token-budget values on BOTH sides of the comparison. They are intentionally
-# different from the baseline now (local caps derive from the roster's registry ctx), so the frozen
-# golden can no longer be the authority on them; test_token_budgets.sh asserts them instead. The
-# value is masked rather than the key removed, so a field disappearing entirely is still a failure.
-mask_budget() {
-    printf '%s' "$1" | sed -E 's/ prompt=[^[:space:]]+/ prompt=X/; s/ out=[^[:space:]]+/ out=X/; s/"max_tokens":[0-9]+/"max_tokens":X/g'
-}
-
-do_copilot() {      # <mode> <name> <src> <providers> <input> <args>
-    local mode="$1" name="$2"; shift 2
-    local t; t="$(copilot_tuple "$@")"
-    if [[ "$mode" == "golden" ]]; then
-        printf '%s\t%s\n' "$name" "$t" >> "$GOLDEN_COPILOT"
+assert_argv() {
+    local name="$1" model="$2" imagegen="$3" argv_json="$4"
+    local required; required="$(printf '%s\n' "${required_safety[@]}")"
+    if REQUIRED="$required" python3 - "$model" "$imagegen" "$argv_json" <<'PY'
+import json, os, sys
+model, imagegen, raw = sys.argv[1:]
+argv = json.loads(raw)
+required = os.environ["REQUIRED"].splitlines()
+assert "--" not in argv
+i = argv.index("--model")
+assert argv[i + 1] == model
+for flag in required:
+    assert flag in argv
+disabled = any(
+    argv[i:i + 2] == ["--disable-mcp-server", "imagegen-mcp"]
+    for i in range(len(argv) - 1)
+)
+assert disabled == (imagegen == "off")
+PY
+    then
+        LL_PASS=$((LL_PASS + 1))
     else
-        local exp; exp="$(grep -m1 -F "$name"$'\t' "$GOLDEN_COPILOT" | cut -f2-)"
-        assert_eq "copilot/$name" "$(mask_budget "$exp")" "$(mask_budget "$t")"
-    fi
-}
-do_crush() {        # <mode> <name> <src> <providers> <input> <args>
-    local mode="$1" name="$2"; shift 2
-    local t; t="$(crush_tuple "$@")"
-    if [[ "$mode" == "golden" ]]; then
-        printf '%s\t%s\n' "$name" "$t" >> "$GOLDEN_CRUSH"
-    else
-        local exp; exp="$(grep -m1 -F "$name"$'\t' "$GOLDEN_CRUSH" | cut -f2-)"
-        assert_eq "crush/$name" "$(mask_budget "$exp")" "$(mask_budget "$t")"
+        LL_FAIL=$((LL_FAIL + 1))
+        printf '  FAIL: %s argv=%s\n' "$name" "$argv_json"
     fi
 }
 
-run_copilot_matrix() {  # <mode> <src>
-    local mode="$1" src="$2" k
-    for k in 1 2 3 4 5 6 7;            do do_copilot "$mode" "cl-$k" "$src" "local,server" "$(printf '1\n%s' "$k")" ""; done
-    for k in 1 2 3 4 5 6 7 8 9;        do do_copilot "$mode" "ce-$k" "$src" "local,server" "$(printf '2\n%s' "$k")" ""; done
-    for k in 1 2 3 4 5 6 7 8;          do do_copilot "$mode" "cs-$k" "$src" "local,server" "$(printf '3\n%s' "$k")" ""; done
-    do_copilot "$mode" "cdirect" "$src" "local,server" "" "qwen3:8b"
-}
-run_crush_matrix() {    # <mode> <src>
-    local mode="$1" src="$2" k t
-    for k in 1 2 3 4 5;                do do_crush "$mode" "kl-$k" "$src" "local,server" "$(printf '1\n%s' "$k")" ""; done
-    for k in 1 2 3 4 5 6 7 8 9;        do do_crush "$mode" "ke-$k" "$src" "local,server" "$(printf '2\n%s' "$k")" ""; done
-    for k in 1 2 3 4 5 6 7 8;          do do_crush "$mode" "ks-$k" "$src" "local,server" "$(printf '3\n%s' "$k")" ""; done
-    for t in coding review docs image; do do_crush "$mode" "karg-$t" "$src" "local,server" "" "$t"; done
+check_row() {
+    local name="$1" first="$2" second="$3" model="$4" base="$5"
+    local prompt="$6" out="$7" imagegen="$8" host="$9"
+    ll_run_sh "$COP" "local,server" "$(printf '%s\n%s' "$first" "$second")"
+    local expected actual
+    expected="CAPTURE model=$model base=$base prompt=$prompt out=$out imagegen=$imagegen office=no"
+    actual="$(ll_capture_line)"
+    assert_eq "$name semantics" "$expected" "$actual"
+    assert_eq "$name image host" "$host" "$(grep -m1 '^IMAGEGEN_HOST=' <<<"$LL_LAST_OUT" | cut -d= -f2-)"
+    assert_argv "$name" "$model" "$imagegen" "$(ll_argv_json)"
 }
 
-extract_baseline() {    # <script-name> -> echoes temp path (empty on failure)
-    local name="$1" tmp; tmp="$(mktemp)"
-    if git -C "$GIT_ROOT" show "${BASELINE_REF}:local-llm/scripts/${name}" > "$tmp" 2>/dev/null; then
-        # The baseline has a latent `set -u` bug in box_center (`local s="$1" p=$((...${#s}...))`
-        # expands ${#s} before s is assigned) that crashes it in a clean sandbox. Patch ONLY that
-        # cosmetic line so the baseline runs; it cannot affect the functional resolution we compare.
-        sed -i 's/local s="$1" p=$((/local s="$1"; local p=$((/' "$tmp"
-        printf '%s' "$tmp"
-    else
-        rm -f "$tmp"; printf ''
-    fi
-}
+local_rows="$(mktemp)"
+server_rows="$(mktemp)"
+trap 'rm -f "$local_rows" "$server_rows"' EXIT
 
-if [[ "${1:-}" == "--rebuild-golden" ]]; then
-    [[ -n "${2:-}" ]] && BASELINE_REF="$2"
-    echo "Rebuilding golden from baseline: $BASELINE_REF"
-    cp_src="$(extract_baseline copilot-local.sh)"
-    cr_src="$(extract_baseline crush-task.sh)"
-    if [[ -z "$cp_src" || -z "$cr_src" ]]; then
-        echo "ERROR: could not extract baseline launchers at $BASELINE_REF" >&2; exit 1
-    fi
-    : > "$GOLDEN_COPILOT"; : > "$GOLDEN_CRUSH"
-    run_copilot_matrix golden "$cp_src"
-    run_crush_matrix   golden "$cr_src"
-    rm -f "$cp_src" "$cr_src"
-    echo "Golden written: $(wc -l < "$GOLDEN_COPILOT") copilot + $(wc -l < "$GOLDEN_CRUSH") crush selections."
-    exit 0
+if ! ORACLE_KIND=local ORACLE_PLATFORM=bash ORACLE_EXPECTED="$EXPECTED" \
+    python3 "$ORACLE" < "$REPO_DIR/scripts/local-models.json" > "$local_rows"; then
+    echo "  FAIL: local semantic oracle rejected the canonical roster"
+    LL_FAIL=$((LL_FAIL + 1))
 fi
+while IFS=$'\t' read -r name first second model base prompt out imagegen host; do
+    check_row "$name" "$first" "$second" "$model" "$base" "$prompt" "$out" "$imagegen" "$host"
+done < "$local_rows"
 
-echo "== launcher parity (current vs frozen golden) =="
-if [[ ! -s "$GOLDEN_COPILOT" || ! -s "$GOLDEN_CRUSH" ]]; then
-    echo "  golden missing — run: $0 --rebuild-golden" >&2; exit 1
+if ! ORACLE_KIND=server ORACLE_PLATFORM=bash ORACLE_SERVER_IP="$SERVER_IP" ORACLE_EXPECTED="$EXPECTED" \
+    python3 "$ORACLE" < "$REPO_DIR/cachyos/server-models.json" > "$server_rows"; then
+    echo "  FAIL: server semantic oracle rejected the canonical roster"
+    LL_FAIL=$((LL_FAIL + 1))
 fi
-run_copilot_matrix check "$REPO_DIR/scripts/copilot-local.sh"
-run_crush_matrix   check "$REPO_DIR/scripts/crush-task.sh"
-ll_summary "launcher-parity"
+while IFS=$'\t' read -r name first second model base prompt out imagegen host; do
+    check_row "$name" "$first" "$second" "$model" "$base" "$prompt" "$out" "$imagegen" "$host"
+done < "$server_rows"
+
+ll_run_sh "$COP" "local,server" "" "" "" "qwen3:8b"
+assert_eq "direct semantics" \
+    "CAPTURE model=qwen3:8b base=http://localhost:11435/v1 prompt=24576 out=8192 imagegen=on office=no" \
+    "$(ll_capture_line)"
+assert_argv "direct" "qwen3:8b" "on" "$(ll_argv_json)"
+
+ll_summary "launcher-semantics"

@@ -12,7 +12,10 @@ cleanup() { [[ -n "$DPID" ]] && kill "$DPID" 2>/dev/null; rm -f "$LOCK"; }
 trap cleanup EXIT
 
 start_daemon() {  # <roster_path> <port>
-    VLLM_SERVER_MODELS="$1" VLLM_SWITCH_WEB_PORT="$2" VLLM_SWITCH_CMD=/bin/true VLLM_SWITCH_LOCK="$LOCK" \
+    PATH="$STUBS_DIR:$PATH" \
+        VLLM_SERVER_MODELS="$1" VLLM_SWITCH_WEB_PORT="$2" VLLM_SWITCH_CMD=/bin/true VLLM_SWITCH_LOCK="$LOCK" \
+        VLLM_API_URL="http://127.0.0.1:45999/v1/models" \
+        IMAGEGEN_HEALTH_URL="http://127.0.0.1:45998/health" \
         python3 "$DAEMON" >/dev/null 2>&1 &
     DPID=$!
     local i
@@ -26,7 +29,7 @@ code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 jq_count() { python3 -c 'import json,sys;print(len(json.load(sys.stdin)["modes"]))'; }
 
 # ── Roster-backed daemon ──
-assert_true "daemon starts (roster)" start_daemon "$FIX_DIR/server-models.json" "$PORT"
+assert_true "daemon starts (roster)" start_daemon "$REPO_DIR/cachyos/server-models.json" "$PORT"
 BASE="http://127.0.0.1:$PORT"
 models="$(curl -fsS "$BASE/models")"
 assert_eq "GET /models mode count" "7" "$(jq_count <<<"$models")"
@@ -66,9 +69,9 @@ rm -f "$bad"
 xss="$(mktemp)"
 cat > "$xss" <<'JSON'
 {
-  "schema_version": 1, "api_port": 8000, "default_mode": "mistral",
+  "schema_version": 1, "api_port": 8000, "default_mode": "m\"><svg/onload=alert(1)>",
   "modes": [
-    {"mode":"mistral","key":"1","label":"A<b>&\"x","task":"t</script>bad","model_id":"mistral-small","ctx":65536,"max_output":8192,"max_prompt":54272,"unit":"vllm.service","imagegen_disabled":true,"default":true}
+    {"mode":"m\"><svg/onload=alert(1)>","key":"1","label":"A<b>&\"x","task":"t</script>bad","model_id":"mistral-small","ctx":65536,"max_output":8192,"max_prompt":54272,"unit":"vllm.service","imagegen_disabled":true,"default":true}
   ]
 }
 JSON
@@ -77,9 +80,11 @@ xpage="$(curl -fsS http://127.0.0.1:45093/)"
 assert_contains "page escapes label '<' -> &lt;" "$xpage" "A&lt;b&gt;"
 assert_contains "page escapes label '&' -> &amp;" "$xpage" "&amp;"
 assert_contains "NAMES escapes '<' -> \\u003c" "$xpage" '\u003c'
+assert_contains "page escapes mode attribute" "$xpage" 'data-m="m&quot;&gt;&lt;svg/onload=alert(1)&gt;"'
 # The raw roster markup must NOT survive into the page (would be stored-XSS if it did).
 if [[ "$xpage" != *"</script>bad"* ]]; then LL_PASS=$((LL_PASS+1)); else LL_FAIL=$((LL_FAIL+1)); echo "  FAIL: raw </script> from roster task leaked into page"; fi
 if [[ "$xpage" != *"A<b>"* ]]; then LL_PASS=$((LL_PASS+1)); else LL_FAIL=$((LL_FAIL+1)); echo "  FAIL: raw <b> from roster label leaked into page"; fi
+if [[ "$xpage" != *'data-m="m"><svg'* ]]; then LL_PASS=$((LL_PASS+1)); else LL_FAIL=$((LL_FAIL+1)); echo "  FAIL: raw mode markup leaked into data-m"; fi
 kill "$DPID" 2>/dev/null; wait "$DPID" 2>/dev/null || true; DPID=""
 rm -f "$xss"
 

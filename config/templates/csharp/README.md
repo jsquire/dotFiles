@@ -38,7 +38,7 @@ The template generates into the current directory by default. Add `--location <p
 
 Generated repositories include NUnit, NSubstitute, native Microsoft.Testing.Platform, Central Package Management, GitHub Actions, Dependabot, `AGENTS.md`, and portable agent skills.
 
-GitHub Copilot CLI reads the generated `AGENTS.md`, `.agents/skills`, and `.github/instructions` assets.  Crush reads the generated `AGENTS.md` and `.agents/skills` assets.
+GitHub Copilot CLI reads the generated `AGENTS.md`, `.agents/skills`, and `.github/instructions` assets.
 
 Remove the installed package with:
 

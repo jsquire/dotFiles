@@ -2,7 +2,7 @@
 #
 # This is an EXAMPLE/template. By default the installer uses the built-in model
 # roster (-OllamaModels 5090 = the seven production models, coherent with
-# config\crush.json + the launcher aliases). You do NOT need this file.
+# the canonical launcher aliases). You do NOT need this file.
 #
 # To override the profile's pull list, copy this file to `ollama-models.txt`
 # (drop the .example suffix) and list one Ollama tag per line. When that file
@@ -11,7 +11,7 @@
 # IMPORTANT: the launcher aliases (qwen38-27b-192k, qwen3coder-144k, etc.) are
 # built FROM specific base tags in install-windows.ps1. If you change the pull
 # list here, make sure the base tags the aliases reference are still pulled, or
-# those aliases (and the crush.json / launcher entries that use them) will break.
+# those aliases and launcher entries will break.
 #
 # Tags correspond to Ollama library entries: https://ollama.com/library
 # The hf.co/... tags are pulled via Ollama's HuggingFace passthrough.

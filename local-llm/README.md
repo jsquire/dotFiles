@@ -12,7 +12,7 @@ Self-hosted AI assistant with NVIDIA GPUs. Two platforms, two inference engines,
 | **Users** | 1 (you, locally) | 2-4 concurrent (LAN) |
 | **Models** | GGUF (Ollama ecosystem) | GPTQ-Int4 (HuggingFace) |
 
-Both expose OpenAI-compatible APIs. Crush and Copilot CLI connect identically — only the base URL changes.
+Both expose OpenAI-compatible APIs. Copilot CLI uses the same client workflow with only the base URL changed.
 
 ## Quick Start
 
@@ -44,8 +44,7 @@ cd local-llm/cachyos
 | Component | Purpose |
 |-----------|---------|
 | **Ollama** / **vLLM** | Model serving (platform-dependent) |
-| **Crush** | Terminal AI agent with MCP support |
-| **GitHub Copilot CLI** | Alternative terminal agent |
+| **GitHub Copilot CLI** | Terminal AI agent with MCP and skill support |
 | **ComfyUI Desktop** | Image generation (HiDream-O1, SD3.5) — Windows only |
 | **MCP servers** | Office document editing (Word, PowerPoint) |
 | **copilot-local** | Task picker launcher |
@@ -63,7 +62,7 @@ local-llm/
 │   ├── Modelfile.qwen3coder-65k     # Ollama custom model definition
 │   ├── imagegen-server.py           # ComfyUI API bridge
 │   ├── imagegen-start.cmd           # ComfyUI launcher
-│   └── icons/                       # Shortcut icons (copilot/crush, dark/light)
+│   └── icons/                       # Copilot shortcut icons (dark/light)
 ├── cachyos/
 │   ├── README.md                    # Server documentation
 │   ├── install-cachyos.sh           # CachyOS installer
@@ -71,12 +70,8 @@ local-llm/
 ├── scripts/
 │   ├── copilot-local.cmd            # Windows task picker
 │   ├── copilot-local.sh             # Linux task picker
-│   ├── crush-task.ps1               # Crush launcher (Windows)
-│   ├── crush-task.sh                # Crush launcher (Linux)
-│   ├── crush-task.cmd               # Crush launcher (cmd wrapper)
 │   └── imagegen-launch.ps1          # Image gen session launcher
 ├── config/
-│   ├── crush.json                   # Crush config template (all providers)
 │   ├── copilot-mcp-config.json      # Copilot CLI MCP server config
 │   ├── ollama-models.txt            # Custom model list (optional)
 │   ├── mcp/                         # MCP server configs (placeholder)

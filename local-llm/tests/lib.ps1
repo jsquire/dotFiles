@@ -1,16 +1,14 @@
 # Shared helpers for the PowerShell-side test suites: asserts + a sandboxed .ps1 launcher runner.
-# Isolation mirrors the bash lib: temp USERPROFILE seeded with fixtures, temp CWD for .crush.json,
-# copilot/crush/Clear-Host/Read-Host/Invoke-RestMethod overridden (no network, no real launch).
-# Reuses the SAME golden as the bash parity suite, so a pass also proves bash/PowerShell equivalence.
+# Isolation mirrors the bash lib: temp USERPROFILE seeded with canonical rosters and
+# copilot/Clear-Host/Read-Host/Invoke-RestMethod overridden (no network, no real launch).
+# Shared launcher semantics come from tests/semantic_oracle.py.
 
 $PS_TESTS_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $PS_REPO      = Split-Path -Parent $PS_TESTS_DIR
-$PS_FIX       = Join-Path $PS_TESTS_DIR "fixtures"
 
 $script:PS_PASS = 0
 $script:PS_FAIL = 0
 $script:PS_LAST_OUT = ""
-$script:PS_CRUSH = ""
 
 function Assert-Eq($name, $expected, $actual) {
     if ($expected -ceq $actual) {
@@ -35,11 +33,36 @@ function PS-Summary($name) {
 $script:PS_PY = $null
 foreach ($_c in @('python', 'python3')) {
     $_cmd = Get-Command $_c -ErrorAction SilentlyContinue
-    if ($_cmd) { $script:PS_PY = $_cmd.Source; break }
+    if ($_cmd) {
+        if ($_cmd.Source -like "*\WindowsApps\*") { continue }
+        & $_cmd.Source -c "import sys; sys.exit(0)" 2>$null
+        if ($LASTEXITCODE -eq 0) { $script:PS_PY = $_cmd.Source; break }
+    }
 }
 function Invoke-PyJson([string]$code, [string]$stdin) {
     if ($script:PS_PY) { $stdin | & $script:PS_PY -c $code }
     else { $stdin | wsl python3 -c $code }
+}
+function Invoke-PyFile([string]$path, [string]$stdin) {
+    if ($script:PS_PY) {
+        $stdin | & $script:PS_PY $path
+    } else {
+        $drive = $path.Substring(0, 1).ToLowerInvariant()
+        $rest = $path.Substring(2).Replace('\', '/')
+        $wslPath = "/mnt/$drive$rest"
+        $expectedPath = $env:ORACLE_EXPECTED
+        if ($expectedPath -match '^[A-Za-z]:') {
+            $expectedDrive = $expectedPath.Substring(0, 1).ToLowerInvariant()
+            $expectedRest = $expectedPath.Substring(2).Replace('\', '/')
+            $expectedPath = "/mnt/$expectedDrive$expectedRest"
+        }
+        $stdin | wsl env `
+            "ORACLE_KIND=$($env:ORACLE_KIND)" `
+            "ORACLE_PLATFORM=$($env:ORACLE_PLATFORM)" `
+            "ORACLE_SERVER_IP=$($env:ORACLE_SERVER_IP)" `
+            "ORACLE_EXPECTED=$expectedPath" `
+            python3 $wslPath
+    }
 }
 
 # Normalise a JSON file identically to the bash side (python sort_keys/compact) so goldens match.
@@ -48,17 +71,17 @@ function Norm-Json($path) {
     Invoke-PyJson "import json,sys;print(json.dumps(json.load(sys.stdin),sort_keys=True,separators=(',',':')))" (Get-Content $path -Raw)
 }
 
-# Like Norm-Json but drops the imagegen-mcp env (covered by the imagegen-context suite, not parity).
-function Norm-CrushJson($path) {
-    if (-not $path -or -not (Test-Path $path)) { return "NONE" }
-    Invoke-PyJson "import json,sys;d=json.load(sys.stdin);d.get('mcp',{}).get('imagegen-mcp',{}).pop('env',None);print(json.dumps(d,sort_keys=True,separators=(',',':')))" (Get-Content $path -Raw)
-}
-
 $script:PS_WRAPPER_TMPL = @'
 $env:USERPROFILE = '__SB__'
 $env:LL_TEST = '1'
+$env:LL_STUB_SERVER_JSON = '__SERVER_JSON__'
+$env:LL_STUB_SWITCH_MODE = '__SWITCH_MODE__'
+$env:LL_STUB_SWITCH_LOG = '__SWITCH_LOG__'
+$env:LL_SWITCH_POLL_ATTEMPTS = '2'
+$env:LL_SWITCH_POLL_DELAY = '0'
 function Clear-Host {}
 function copilot {
+    $capturedArgs = @($args)
     $ig = if ("$args" -match 'disable-mcp-server imagegen-mcp') { 'off' } else { 'on' }
     $of = if ($env:COPILOT_CUSTOM_INSTRUCTIONS_DIRS) { 'yes' } else { 'no' }
     $sep = if ($args -contains '--') { 'yes' } else { 'no' }
@@ -67,24 +90,57 @@ function copilot {
     Write-Host ("IMAGEGEN_PORT=" + $env:COPILOT_MCP_IMAGEGEN_PORT)
     Write-Host ("IMAGEGEN_BACKEND=" + $env:COPILOT_MCP_IMAGEGEN_BACKEND)
     Write-Host ("ARGV_HAS_SEP=" + $sep)
+    $jsonArgs = @($capturedArgs | ForEach-Object { ConvertTo-Json -Compress -InputObject ([string]$_) })
+    Write-Host ("ARGV_JSON=[" + ($jsonArgs -join ',') + "]")
+    foreach ($arg in $capturedArgs) { Write-Host ("ARGV_ITEM=" + $arg) }
 }
-function crush { Write-Host "CAPTURE crush" }
-function Invoke-RestMethod { throw "no network in tests" }
+$script:__switchMode = ""
+function Invoke-RestMethod {
+    param($Uri, $Method, $ContentType, $Body, $TimeoutSec, $ErrorAction)
+    if ($Uri -like '*/models') {
+        return (Get-Content $env:LL_STUB_SERVER_JSON -Raw | ConvertFrom-Json)
+    }
+    if ($Uri -like '*/switch') {
+        if ($env:LL_STUB_SWITCH_LOG) {
+            Add-Content $env:LL_STUB_SWITCH_LOG "SWITCH_URL=$Uri"
+            Add-Content $env:LL_STUB_SWITCH_LOG "SWITCH_BODY=$Body"
+        }
+        if ($env:LL_STUB_SWITCH_MODE -eq 'failure') { throw "stubbed switch failure" }
+        $script:__switchMode = (ConvertFrom-Json $Body).mode
+        return [pscustomobject]@{ ok = $true; mode = $script:__switchMode }
+    }
+    if ($Uri -like '*/status') {
+        if ($env:LL_STUB_SWITCH_LOG) { Add-Content $env:LL_STUB_SWITCH_LOG "STATUS_URL=$Uri" }
+        return [pscustomobject]@{
+            mode = $script:__switchMode
+            api_up = ($env:LL_STUB_SWITCH_MODE -eq 'success')
+        }
+    }
+    throw "test double refused URL: $Uri"
+}
 $script:__in = @(__INPUTS__); $script:__i = 0
 function Read-Host { param($p) $v = $script:__in[$script:__i]; $script:__i++; $v }
 Set-Location (Join-Path '__SB__' 'work')
 . (Join-Path '__SB__' 'launcher.ps1') __LARGS__
 '@
 
-# Run a .ps1 launcher headless. Sets $script:PS_LAST_OUT and $script:PS_CRUSH (path or "").
+# Run a .ps1 launcher headless. Sets $script:PS_LAST_OUT.
 function Invoke-LauncherPs1 {
-    param([string]$Src, [string]$Providers, [string[]]$Inputs, [string]$ModelArg, [string]$TaskArg, [string]$LocalRoster)
+    param(
+        [string]$Src,
+        [string]$Providers,
+        [string[]]$Inputs,
+        [string]$ModelArg,
+        [string]$LocalRoster,
+        [string]$SwitchMode = "failure",
+        [string]$SwitchLog = ""
+    )
     $sb = Join-Path $env:TEMP ("llt_" + [guid]::NewGuid().ToString("N").Substring(0, 10))
-    New-Item -ItemType Directory -Force -Path (Join-Path $sb ".config\local-llm"), (Join-Path $sb "work"), (Join-Path $sb ".config\crush\skills\office") | Out-Null
-    $roster = if ($LocalRoster) { $LocalRoster } else { Join-Path $PS_FIX "local-models.5090.json" }
+    New-Item -ItemType Directory -Force -Path (Join-Path $sb ".config\local-llm"), (Join-Path $sb "work") | Out-Null
+    $roster = if ($LocalRoster) { $LocalRoster } else { Join-Path $PS_REPO "scripts\local-models.json" }
     Copy-Item $roster (Join-Path $sb ".config\local-llm\local-models.json")
-    Copy-Item (Join-Path $PS_FIX "server-models.json") (Join-Path $sb ".config\local-llm\server-models.json")
-    Set-Content (Join-Path $sb ".config\crush\skills\office\SKILL.md") "office skill (test fixture)" -Encoding UTF8
+    $serverRoster = Join-Path $PS_REPO "cachyos\server-models.json"
+    Copy-Item $serverRoster (Join-Path $sb ".config\local-llm\server-models.json")
     $bomless = New-Object System.Text.UTF8Encoding($false)
     # PS 5.1's script loader mis-decodes some UTF-8-no-BOM files at load time (not at static parse),
     # so write the sandbox copies WITH a BOM to force correct UTF-8 loading (e.g. the pre-refactor
@@ -98,21 +154,17 @@ function Invoke-LauncherPs1 {
     $inLit = ($Inputs | ForEach-Object { "'" + ($_ -replace "'", "''") + "'" }) -join ','
     $largs = ""
     if ($ModelArg) { $largs = "-Model '$ModelArg'" }
-    if ($TaskArg)  { $largs = "-Task '$TaskArg'" }
-    $wrapper = $script:PS_WRAPPER_TMPL.Replace('__SB__', $sb).Replace('__INPUTS__', $inLit).Replace('__LARGS__', $largs)
+    $wrapper = $script:PS_WRAPPER_TMPL.Replace('__SB__', $sb).
+        Replace('__SERVER_JSON__', (Join-Path $sb ".config\local-llm\server-models.json")).
+        Replace('__SWITCH_MODE__', $SwitchMode).
+        Replace('__SWITCH_LOG__', $SwitchLog).
+        Replace('__INPUTS__', $inLit).
+        Replace('__LARGS__', $largs)
     [System.IO.File]::WriteAllText((Join-Path $sb "wrapper.ps1"), $wrapper, $withBom)
 
     $raw = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $sb "wrapper.ps1") 2>&1 |
         ForEach-Object { ($_ | Out-String).TrimEnd("`r", "`n") -replace "$([char]27)\[[0-9;]*m", "" }
     $script:PS_LAST_OUT = ($raw -join "`n")
 
-    $cj = Join-Path $sb "work\.crush.json"
-    if (Test-Path $cj) {
-        $dst = Join-Path $env:TEMP ("cj_" + [guid]::NewGuid().ToString("N").Substring(0, 10) + ".json")
-        Copy-Item $cj $dst
-        $script:PS_CRUSH = $dst
-    } else {
-        $script:PS_CRUSH = ""
-    }
     Remove-Item -Recurse -Force $sb
 }

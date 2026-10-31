@@ -22,8 +22,8 @@ This is unfixable by token tuning, so office MCP was removed entirely.
 
 ## The replacement: the `office` skill (code generation)
 
-Office authoring now runs as a lean, vendored Crush skill at
-`config/skills/office/SKILL.md` (deployed to `~/.config/crush/skills/office/SKILL.md`).
+Office authoring now runs as a lean, vendored Copilot instruction skill at
+`config/skills/office/SKILL.md`.
 
 Instead of calling MCP tools, the model **writes a short Python script** using
 [`python-docx`](https://python-docx.readthedocs.io/),
@@ -34,13 +34,12 @@ Instead of calling MCP tools, the model **writes a short Python script** using
 uv run --with python-docx --with python-pptx --with openpyxl script.py
 ```
 
-This costs **zero standing tokens** (Crush loads the skill body on demand via progressive
-disclosure; Copilot CLI injects it via `--custom-instructions`), works on every window including
-the 32K server modes, and is host-agnostic (uv caches the wheels — no venv paths baked in).
+This keeps the standing tool schema small. Copilot CLI injects the skill via
+`--custom-instructions`, it works on every window including the 32K server modes, and it is
+host-agnostic because uv caches the wheels without baked-in venv paths.
 
 ### How each launcher exposes it
 
-- **crush-task** — the office skill is discovered natively from the deployed skills directory.
 - **copilot-local** — the "Office documents" profile passes
   `--custom-instructions <deployed office SKILL.md>` (Copilot CLI has no native skill discovery).
 

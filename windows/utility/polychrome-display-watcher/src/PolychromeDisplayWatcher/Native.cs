@@ -19,6 +19,9 @@ internal static partial class Native
     /// <summary>The window message sent when a menu command is selected.</summary>
     internal const uint WmCommand = 0x0111;
 
+    /// <summary>The window message sent when a window timer expires.</summary>
+    internal const uint WmTimer = 0x0113;
+
     /// <summary>The base value for private application messages.</summary>
     internal const uint WmApp = 0x8000;
 
@@ -358,6 +361,13 @@ internal static partial class Native
     [LibraryImport("user32.dll", EntryPoint = "PostMessageW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool PostMessage(nint window, uint message, nuint wParam, nint lParam);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    internal static partial nuint SetTimer(nint window, nuint identifier, uint intervalMilliseconds, nint callback);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool KillTimer(nint window, nuint identifier);
 
     [LibraryImport("shell32.dll", EntryPoint = "Shell_NotifyIconW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

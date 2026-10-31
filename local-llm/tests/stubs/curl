@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# test stub for `curl`: fail-closed. Serves the fixture server roster for GET /models; fails
-# /switch and /status fast (so Invoke-SquireSwitch / squire_switch warns and returns immediately
-# instead of polling). Any other real URL is a hard error so a test can never hit the network.
-url=""
+# test stub for `curl`: fail-closed. Serves the selected server roster and provides an optional
+# stateful switch/status double. Any other URL is rejected before the network can be reached.
+url="" body=""
 for a in "$@"; do
     case "$a" in http://*|https://*) url="$a" ;; esac
+done
+prev=""
+for a in "$@"; do
+    [[ "$prev" == "-d" || "$prev" == "--data" || "$prev" == "--data-raw" ]] && body="$a"
+    prev="$a"
 done
 case "$url" in
     *"/models"*)
@@ -12,8 +16,26 @@ case "$url" in
         cat "${LL_STUB_SERVER_JSON:?LL_STUB_SERVER_JSON not set}"
         exit 0
         ;;
-    *"/switch"*|*"/status"*)
-        exit 7
+    *"/switch"*)
+        [[ -n "${LL_STUB_SWITCH_LOG:-}" ]] && {
+            printf 'SWITCH_URL=%s\nSWITCH_BODY=%s\n' "$url" "$body" >> "$LL_STUB_SWITCH_LOG"
+        }
+        [[ "${LL_STUB_SWITCH_MODE:-failure}" == "failure" ]] && exit 7
+        mode="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["mode"])' "$body" 2>/dev/null)" || exit 98
+        [[ -n "${LL_STUB_SWITCH_STATE:-}" ]] && printf '%s' "$mode" > "$LL_STUB_SWITCH_STATE"
+        printf '{"ok":true,"mode":"%s"}\n' "$mode"
+        exit 0
+        ;;
+    *"/status"*)
+        [[ -n "${LL_STUB_SWITCH_LOG:-}" ]] && printf 'STATUS_URL=%s\n' "$url" >> "$LL_STUB_SWITCH_LOG"
+        mode=""
+        [[ -n "${LL_STUB_SWITCH_STATE:-}" && -f "$LL_STUB_SWITCH_STATE" ]] && mode="$(cat "$LL_STUB_SWITCH_STATE")"
+        if [[ "${LL_STUB_SWITCH_MODE:-failure}" == "success" ]]; then
+            printf '{"mode": "%s", "api_up": true}\n' "$mode"
+        else
+            printf '{"mode": "%s", "api_up": false}\n' "$mode"
+        fi
+        exit 0
         ;;
     "")
         # non-URL curl usage (not expected in these launchers)

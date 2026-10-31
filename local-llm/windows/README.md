@@ -1,6 +1,6 @@
 # Local LLM Stack — Windows Desktop
 
-Single-user AI assistant on Windows with Ollama, Crush, Copilot CLI, MCP, and local image generation.
+Single-user AI assistant on Windows with Ollama, Copilot CLI, MCP, and local image generation.
 
 **Hardware:** RTX 5090 (32GB)
 **Inference engine:** Ollama (single-user, GGUF models)
@@ -11,13 +11,12 @@ Single-user AI assistant on Windows with Ollama, Crush, Copilot CLI, MCP, and lo
 |-----------|---------|---------------|
 | **Ollama** | GPU-accelerated model server | winget |
 | **ollama-host** | Tray supervisor: owns Ollama + content:null compat proxy on `:11435` | Prebuilt from `dist/` |
-| **Crush** | Terminal AI agent with MCP support | winget |
-| **GitHub Copilot CLI** | Alternative terminal agent | User-local |
+| **GitHub Copilot CLI** | Terminal AI agent with MCP and skill support | User-local |
 | **uv** | Python toolchain (manages MCP venvs) | winget |
 | **Image Gen** | HiDream-O1-Image-Dev image generation (OpenAI API) | Python venv |
 | **copilot-local** | Task picker launcher for Copilot CLI | `~/Documents/CLI/` + PATH |
 | **Copilot roster extension** | Native `/local`, `/server`, and dynamic OpenRouter `/cloud` | Journaled user extension |
-| **imagegen MCP** | Image-generation tool for Crush/Copilot (Office authoring is a skill, not MCP) | Isolated Python venv |
+| **imagegen MCP** | Image-generation tool for Copilot CLI (Office authoring is a skill, not MCP) | Isolated Python venv |
 
 ### Models — RTX 5090 (~135 GB disk)
 
@@ -51,7 +50,7 @@ cd local-llm\windows
 ### Install Options
 
 The Windows box runs the **local Ollama** engine (or acts as a **client**); the CachyOS box
-provides the **vLLM** engine, reached here as the `server` Crush provider.
+provides the **vLLM** engine, reached here as the `server` provider.
 Provider tokens: `local` = local Ollama · `server` = CachyOS vLLM server.
 
 | Flag | Effect |
@@ -59,8 +58,8 @@ Provider tokens: `local` = local Ollama · `server` = CachyOS vLLM server.
 | `-Install Full` | Local Ollama server + models + client tools (default) |
 | `-Install OllamaOnly` | Local Ollama server + models only (no client tools) |
 | `-Install Client` | Client tools only — no local Ollama; targets the vLLM `server` |
-| `-Providers local,server` | Crush providers to enable (`server` = the CachyOS vLLM provider) |
-| `-DefaultProvider local\|server` | Default Crush provider |
+| `-Providers local,server` | Launcher providers to enable (`server` = the CachyOS vLLM provider) |
+| `-DefaultProvider local\|server` | Default launcher provider |
 | `-OllamaModels 5090` | RTX 5090 roster (default; the only Windows tier) |
 | `-SkipModels` | Install software only; pull models later |
 | `-ModelsOnly` | Skip software; just pull/update models |
@@ -85,19 +84,6 @@ Start Menu shortcut (under `AI\`); launch it to bring the local stack up. The bi
 never builds from source, so **updating `dist/` is the responsibility of whoever changes the
 ollama-host code.** See [`ollama-host/README.md`](ollama-host/README.md) for build, configuration, and
 design details.
-
-### Crush (primary agent)
-
-Config: `~/.config/crush/crush.json` (created by installer)
-- **Models** — `large` and `small` for Crush's internal routing
-- **MCP** — imagegen server (auto-configured); Office authoring uses the `office` skill (python-docx/python-pptx/openpyxl via `uv run`)
-- **Providers** — Local Ollama is default; add API keys for cloud fallback
-
-Cloud fallback (set environment variables):
-```
-OPENROUTER_API_KEY=sk-or-...
-GOOGLE_AI_API_KEY=AIza...
-```
 
 ### Copilot CLI
 
@@ -137,16 +123,10 @@ ollama list
 # 2. Inference works
 ollama run qwen3:8b "Say hello in one sentence"
 
-# 3. Crush connects
-crush run "Say hello"
-
-# 4. Copilot CLI launcher
+# 3. Copilot CLI launcher
 copilot-local
 
-# 5. MCP server (imagegen) configured
-crush --debug run "list your tools" 2>&1 | findstr mcp_
-
-# 6. Image generation API
+# 4. Image generation API
 curl http://localhost:8001/health
 ```
 
@@ -204,13 +184,6 @@ categories:
 The Windows launchers read this list from the live server and fall back to the bundled
 `~/.config/local-llm/server-models.json` copy when the switch service is unavailable.
 
-### Crush (agentic tasks)
-
-```powershell
-crush                            # Interactive session
-crush run "create a slide deck"  # One-shot; Office docs via the office skill
-```
-
 ### Image Generation
 
 **HiDream-O1-Image-Dev** (8B params, MIT) — OpenAI-compatible API on `localhost:8001`:
@@ -264,10 +237,9 @@ nvidia-smi                       # GPU VRAM usage
 
 ### Connecting to the CachyOS Server
 
-The CachyOS vLLM box is already wired as the `server` Crush provider — no hand-editing. Install with
+The CachyOS vLLM box is already wired as the `server` provider. Install with
 `-Providers local,server` (the default for `-Install Full`) and point it at the box with
-`-SquireServerIP <ip>`. In the launchers it shows up as the **Squire-Server** environment; Crush
-exposes it directly as the `server` provider.
+`-SquireServerIP <ip>`. In the launcher it shows up as the **Squire-Server** environment.
 
 ## Uninstall
 

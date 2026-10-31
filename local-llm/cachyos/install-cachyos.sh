@@ -2,9 +2,9 @@
 # install-cachyos.sh — CachyOS Server Bootstrap
 #
 # Installs the local LLM stack on a CachyOS (Arch-based) machine.
-#   client — Crush + uv + MCP only, connects to a remote vLLM/Ollama endpoint (no engine here).
-#   local  — Ollama engine: local Ollama + NVIDIA + models + Crush + uv + MCP (localhost, single-user).
-#   server — vLLM engine: vLLM (multi-user) + NVIDIA + HuggingFace models + Crush + uv + MCP + LAN firewall.
+#   client — Copilot CLI + uv + MCP only, connects to remote model endpoints.
+#   local  — Ollama engine: local Ollama + NVIDIA + models + Copilot CLI + uv + MCP.
+#   server — vLLM engine: vLLM + NVIDIA + models + Copilot CLI + uv + MCP + LAN firewall.
 
 set -euo pipefail
 
@@ -30,8 +30,6 @@ IS_SERVER_MODE=false
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CUSTOM_MODEL_LIST_PATH="${SCRIPT_DIR}/../config/ollama-models.txt"
 AI_TOOLS_DIR="${HOME}/.local/share/ai-tools"
-CRUSH_HOME_DIR="${HOME}/.crush"
-CRUSH_CONFIG_DIR="${HOME}/.config/crush"
 DEFAULT_MODEL_ROOT="${HOME}/.ollama/models"
 VLLM_PORT=8000
 VLLM_VERSION="0.29.0"
@@ -89,14 +87,14 @@ Options:
                                client  — no engine here: client tools only, talks to remote provider(s)
                                (Legacy values 'full' and 'ollama-only' are still accepted: full == local,
                                 ollama-only == local --no-client-tools.)
-  --no-client-tools            With --install local: install the Ollama server + models only (no Crush/MCP).
+  --no-client-tools            With --install local: install the Ollama server + models only (no Copilot/MCP).
   --mode client|full|server    Legacy alias for --install (kept for back-compat; prints a nudge).
-  --providers <list>           Comma list of crush client providers to wire: local,server
+  --providers <list>           Comma list of launcher providers to wire: local,server
                                local  == this box's Ollama (localhost:11434)
                                server == the remote vLLM (Squire) server
                                (default: local->local,server; server/client->server)
                                ('squire-server' is accepted as a legacy alias for 'server'.)
-  --default-provider <p>       Default crush provider: local | server
+  --default-provider <p>       Default launcher provider: local | server
                                (default: local->local; server/client->server)
   --ollama-models 4090|5090    Ollama roster GPU tier: 4090 (24GB) or 5090 (32GB). Default: 4090.
                                Distinct per-tier aliases + tier-safe contexts. Applies to local installs
@@ -113,7 +111,7 @@ Options:
                                Examples: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
   --skip-models                Skip model downloads
   --models-only                Only download models; skip software installation
-  --force                      Overwrite existing crush.json + Copilot mcp-config.json
+  --force                      Overwrite existing Copilot mcp-config.json
                                (each backed up to a timestamped .bak first)
   --help                       Show this help text
 
@@ -125,7 +123,7 @@ Examples:
   ./install-cachyos.sh --install client --providers local,server        # client, both, default local
   ./install-cachyos.sh --install client --providers local               # client, local Ollama only
   ./install-cachyos.sh --install client                                 # server-only client (pointed at remote)
-  ./install-cachyos.sh --install client --force                         # refresh client configs (crush.json + mcp-config.json)
+  ./install-cachyos.sh --install client --force                         # refresh client configuration
 EOF
 }
 
@@ -456,6 +454,17 @@ out = {
     "task_alias": slots,
     "launchers": tmpl["launchers"],
 }
+for launcher in out["launchers"].values():
+    for page in launcher.values():
+        categories = []
+        for category in page.get("categories", []):
+            rows = [
+                row for row in category.get("rows", [])
+                if not row.get("slot") or row["slot"] in slots
+            ]
+            if rows:
+                categories.append({**category, "rows": rows})
+        page["categories"] = categories
 with open(sys.argv[1], "w") as fh:
     json.dump(out, fh, indent=2)
 PY
@@ -600,86 +609,6 @@ install_uv() {
     return 1
 }
 
-install_crush_from_github() {
-    local arch asset_url release_json download_dir archive_path arch_pattern binary_path
-
-    case "$(uname -m)" in
-        x86_64|amd64) arch_pattern='(amd64|x86_64)' ;;
-        aarch64|arm64) arch_pattern='(arm64|aarch64)' ;;
-        *) arch_pattern="$(uname -m)" ;;
-    esac
-
-    release_json="$(curl -fsSL https://api.github.com/repos/charmbracelet/crush/releases/latest)" || return 1
-    asset_url="$({ printf '%s' "$release_json" | grep -Eo 'https://[^"[:space:]]+' | grep '/download/' | grep -Ei 'linux' | grep -Ei "$arch_pattern" | grep -E '\.(tar\.gz|tgz)$' | head -n 1; } || true)"
-    [[ -z "$asset_url" ]] && return 1
-
-    download_dir="${AI_TOOLS_DIR}/.downloads/crush"
-    archive_path="${download_dir}/crush.tar.gz"
-    rm -rf "$download_dir"
-    mkdir -p "$download_dir" "${HOME}/.local/bin"
-
-    curl -fsSL "$asset_url" -o "$archive_path"
-    tar -xzf "$archive_path" -C "$download_dir"
-    binary_path="$({ find "$download_dir" -type f -name crush | head -n 1; } || true)"
-    [[ -z "$binary_path" ]] && return 1
-
-    install -m 0755 "$binary_path" "${HOME}/.local/bin/crush"
-    rm -rf "$download_dir"
-    return 0
-}
-
-install_crush() {
-    ensure_local_bin_on_path
-
-    if command_exists crush; then
-        info "Crush is already installed: $(crush --version 2>/dev/null || true)"
-        return 0
-    fi
-
-    if command_exists pacman && pacman -Si crush >/dev/null 2>&1; then
-        if [[ ${EUID} -eq 0 ]] || command_exists sudo; then
-            info "Installing Crush from pacman repositories."
-            if run_privileged pacman -S --needed --noconfirm crush; then
-                ensure_local_bin_on_path
-                success "Crush installed via pacman."
-                return 0
-            fi
-            warn "pacman install for Crush failed — falling back to user-local install."
-        fi
-    fi
-
-    # Crush is not in the official Arch/CachyOS repos but is in the AUR (crush-bin =
-    # prebuilt binary). Prefer it when a helper (yay) is present and we're non-root.
-    if command_exists yay && [[ ${EUID} -ne 0 ]]; then
-        info "Installing Crush from the AUR (crush-bin) via yay."
-        if yay -S --needed --noconfirm crush-bin; then
-            ensure_local_bin_on_path
-            success "Crush installed from the AUR (crush-bin)."
-            return 0
-        fi
-        warn "AUR install for Crush failed — falling back to user-local install."
-    fi
-
-    info "Trying Charm installer for Crush."
-    if curl -fsSL https://crush.charm.sh/install.sh | sh; then
-        ensure_local_bin_on_path
-        if command_exists crush || [[ -x "${HOME}/.local/bin/crush" ]]; then
-            success "Crush installed successfully."
-            return 0
-        fi
-    fi
-
-    warn "Charm installer for Crush was unavailable. Trying GitHub release fallback."
-    if install_crush_from_github; then
-        ensure_local_bin_on_path
-        success "Crush installed from GitHub release to ${HOME}/.local/bin/crush"
-        return 0
-    fi
-
-    add_failure "Crush installation failed."
-    return 1
-}
-
 ensure_dotnet_tools_on_path() {
     case ":${PATH}:" in
         *":${HOME}/.dotnet/tools:"*) ;;
@@ -688,8 +617,7 @@ ensure_dotnet_tools_on_path() {
 }
 
 install_csharp_ls() {
-    # csharp-ls is the C# language server referenced by crush.json's lsp block. It is a
-    # .NET global tool (dotnet tool install), NOT a pacman/AUR package.
+    # csharp-ls is a .NET global tool that provides C# language intelligence.
     ensure_dotnet_tools_on_path
 
     if command_exists csharp-ls || [[ -x "${HOME}/.dotnet/tools/csharp-ls" ]]; then
@@ -702,7 +630,7 @@ install_csharp_ls() {
         if command_exists pacman && { [[ ${EUID} -eq 0 ]] || command_exists sudo; }; then
             info "Installing the .NET SDK (dotnet-sdk) — required to install csharp-ls."
             if ! run_privileged pacman -S --needed --noconfirm dotnet-sdk; then
-                warn "Could not install dotnet-sdk — skipping csharp-ls (Crush works without it)."
+                warn "Could not install dotnet-sdk — skipping csharp-ls."
                 return 1
             fi
         else
@@ -713,15 +641,15 @@ install_csharp_ls() {
 
     info "Installing csharp-ls (dotnet global tool)."
     if ! dotnet tool install --global csharp-ls >/dev/null 2>&1; then
-        warn "csharp-ls install failed — skipping (Crush works without it; C# LSP disabled)."
+        warn "csharp-ls install failed — skipping."
         return 1
     fi
     ensure_dotnet_tools_on_path
 
-    # Persist ~/.dotnet/tools on PATH so Crush finds csharp-ls in future interactive shells.
+    # Persist ~/.dotnet/tools on PATH for future interactive shells.
     local rc="${HOME}/.bashrc"
     if [[ -f "$rc" ]] && ! grep -q '\.dotnet/tools' "$rc" 2>/dev/null; then
-        printf '\n# Added by install-cachyos.sh: .NET global tools (csharp-ls for Crush LSP)\nexport PATH="$HOME/.dotnet/tools:$PATH"\n' >> "$rc"
+        printf '\n# Added by install-cachyos.sh: .NET global tools\nexport PATH="$HOME/.dotnet/tools:$PATH"\n' >> "$rc"
         info "Added ~/.dotnet/tools to PATH in ~/.bashrc."
     fi
 
@@ -827,7 +755,7 @@ parse_args "$@"
 printf '%b\n' ""
 printf '%b\n' "${COLOR_MAGENTA}╔══════════════════════════════════════════════════════════════╗${COLOR_RESET}"
 printf '%b\n' "${COLOR_MAGENTA}║   CachyOS Server — Local LLM Stack Installer                 ║${COLOR_RESET}"
-printf '%b\n' "${COLOR_MAGENTA}║   Ollama · Crush · uv · MCP Servers                          ║${COLOR_RESET}"
+printf '%b\n' "${COLOR_MAGENTA}║   Ollama · Copilot CLI · uv · MCP Servers                   ║${COLOR_RESET}"
 printf '%b\n' "${COLOR_MAGENTA}╚══════════════════════════════════════════════════════════════╝${COLOR_RESET}"
 printf '%b\n' ""
 
@@ -935,7 +863,7 @@ else
     OLLAMA_TIER_LABEL="n/a (client mode)"
 fi
 
-# Client-side provider selection (crush providers + launcher entries). N/A for --no-client-tools.
+# Client-side provider selection for launcher entries. N/A for --no-client-tools.
 # 'server' is the canonical name for the vLLM provider; 'squire-server' is a deprecated input alias.
 if [[ -n "$PROVIDERS" ]]; then
     PROVIDERS="$(printf '%s' "$PROVIDERS" | sed -E 's/(^|,)squire-server($|,)/\1server\2/g; s/(^|,)squire-server($|,)/\1server\2/g')"
@@ -1415,7 +1343,7 @@ WantedBy=multi-user.target
                 || add_failure "Failed to create vllm@.service template."
 
             # Mode env-files. coder/coder-alt get full VRAM; image companion shares with HiDream.
-            # qwen3_coder tool parser is REQUIRED for agentic use: crush drives coding with tool_choice=auto,
+            # qwen3_coder tool parser is required for agentic use because clients send tool_choice=auto,
             # which vLLM 400s without --enable-auto-tool-choice + --tool-call-parser. (Instruct, non-thinking
             # -> no reasoning parser.)
             local coder_env="VLLM_MODEL=btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit
@@ -1446,8 +1374,8 @@ VLLM_KV_CACHE_DTYPE=fp8_e5m2
             # That validation predates moving the Plasma session and UI to the integrated graphics
             # card; the 4090 is now compute-only, so the old desktop-up vs headless distinction (and
             # the ~530 MiB it used to free) no longer applies and no larger tier warrants a swap.
-            # served-name stays qwen3-4b so crush/copilot are unchanged. hermes tool parser + qwen3 reasoning
-            # parser are REQUIRED: crush's image flow sends the imagegen MCP tools with tool_choice=auto, which
+            # served-name stays qwen3-4b so Copilot CLI remains unchanged. The Hermes tool parser and Qwen3
+            # reasoning parser are required because image flows send MCP tools with tool_choice=auto, which
             # vLLM rejects with HTTP 400 unless --enable-auto-tool-choice + --tool-call-parser are set; the
             # reasoning parser keeps the 1.7B's <think> out of the message content.
             local image_env="VLLM_MODEL=Orion-zhen/Qwen3-1.7B-AWQ
@@ -1770,11 +1698,11 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
         fi
     else
         step "Client mode (squire-only)"
-        info "Crush will default to the server (vLLM); switch models with copilot-local or the :4090 browser page."
+        info "Copilot CLI will target the server through copilot-local or the :4090 browser page."
         [[ -n "$OLLAMA_HOST_ARG" ]] && info "Optional extra remote Ollama provider: $OLLAMA_HOST_ARG"
     fi
 
-    # Client tools (Crush/Copilot/uv/MCP/launchers) — skipped for --install ollama-only.
+    # Client tools (Copilot/uv/MCP/launchers) — skipped for --install ollama-only.
     if [[ "$SHOULD_INSTALL_CLIENT_TOOLS" == true ]]; then
     step "Install uv"
     info "uv manages Python versions and isolated environments without touching system Python."
@@ -1794,12 +1722,8 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
         add_failure "uv is not available, so Python could not be installed."
     fi
 
-    step "Install Crush"
-    info "Crush is the CLI agent. Prefer user-local install; use pacman when available."
-    install_crush || true
-
-    step "Install csharp-ls (C# language server for Crush LSP)"
-    info "crush.json declares a csharp-ls LSP; it is a .NET global tool (dotnet tool install)."
+    step "Install csharp-ls (C# language server)"
+    info "csharp-ls is a .NET global tool that provides C# language intelligence."
     install_csharp_ls || true
 
     step "Warm office authoring libraries (uv cache)"
@@ -1815,90 +1739,6 @@ Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"\n"
     else
         add_warning "uv not found — cannot warm office libraries. Install uv first."
     fi
-    mkdir -p "$CRUSH_HOME_DIR" "$CRUSH_CONFIG_DIR"
-    success "Prepared Crush config directories: ${CRUSH_HOME_DIR} and ${CRUSH_CONFIG_DIR}"
-
-    # ── Deploy Crush configuration ───────────────────────────────────────
-    step "Deploy Crush configuration"
-    local crush_config_source="${SCRIPT_DIR}/../config/crush.json"
-    local crush_config_dest="${CRUSH_CONFIG_DIR}/crush.json"
-
-    if [[ -f "$crush_config_source" ]]; then
-        if [[ -f "$crush_config_dest" && "$FORCE" != true ]]; then
-            info "Crush config already exists at $crush_config_dest — skipping (won't overwrite). Use --force to refresh."
-        else
-            if [[ -f "$crush_config_dest" ]]; then
-                local crush_backup="${crush_config_dest}.$(date +%Y%m%d-%H%M%S).bak"
-                cp "$crush_config_dest" "$crush_backup" && info "Backed up existing crush.json to $crush_backup"
-            fi
-            # Expand template placeholders for Linux
-            local linux_app_data="${HOME}/.local/share"
-            # Determine vLLM server IP for the placeholder. Non-server installs (5090 full + server-only
-            # client) point at the vLLM server, which is fixed at 192.168.1.99 unless overridden.
-            local vllm_ip
-            if [[ "$IS_SERVER_MODE" == true ]]; then
-                vllm_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' || echo '192.168.1.99')"
-            elif [[ "$IS_CLIENT_MODE" == true && -n "$OLLAMA_HOST_ARG" ]]; then
-                # Back-compat: derive the squire host from a provided --ollama-host URL.
-                vllm_ip="$(echo "$OLLAMA_HOST_ARG" | sed -E 's|https?://||;s|:[0-9]+.*||')"
-            else
-                vllm_ip="192.168.1.99"
-            fi
-            # Explicit --squire-server-ip overrides the derived value.
-            [[ -n "$SQUIRE_SERVER_IP" ]] && vllm_ip="$SQUIRE_SERVER_IP"
-            sed -e "s|__LOCALAPPDATA__|${linux_app_data}|g" \
-                -e "s|__VENV_BIN__|bin|g" \
-                -e "s|__EXE__||g" \
-                -e "s|__EXE_SUFFIX__||g" \
-                -e "s|__CONFIG_DIR__|${CRUSH_CONFIG_DIR}|g" \
-                -e "s|__SQUIRE_SERVER_IP__|${vllm_ip}|g" \
-                "$crush_config_source" > "$crush_config_dest"
-
-            # Prune crush providers + set the default per --providers / --default-provider.
-            # 'local' -> the localhost Ollama provider ('ollama'); 'server' -> the vLLM server.
-            # Cloud providers (mistral/google/groq/openrouter) are always kept. Single-GPU server hosts
-            # one model at a time; every mode also answers to the constant 'active-model' name, so crush
-            # addresses 'active-model' and always hits whatever is loaded (no 404 from /model).
-            CRUSH_PROVIDERS="$PROVIDERS" CRUSH_DEFAULT="$DEFAULT_PROVIDER" python3 -c "
-import json, os
-p = '$crush_config_dest'
-prov = os.environ['CRUSH_PROVIDERS'].split(',')
-default = os.environ['CRUSH_DEFAULT']
-with open(p) as f:
-    cfg = json.load(f)
-providers = cfg['providers']
-if 'local' not in prov and 'ollama' in providers:
-    del providers['ollama']
-if 'server' not in prov and 'server' in providers:
-    del providers['server']
-if default == 'local':
-    cfg['default_provider'] = 'ollama'   # template models.large/small are already the Ollama defaults
-else:
-    cfg['default_provider'] = 'server'
-    cfg['models'] = {
-        'large': {'model': 'active-model', 'provider': 'server', 'max_tokens': 8192},
-        'small': {'model': 'active-model', 'provider': 'server', 'max_tokens': 8192},
-    }
-with open(p, 'w') as f:
-    json.dump(cfg, f, indent=2)
-" 2>/dev/null && info "Crush providers=${PROVIDERS}, default=${DEFAULT_PROVIDER}." || add_warning "Could not apply crush provider selection."
-
-            success "Deployed crush.json to $crush_config_dest"
-            if [[ ",$PROVIDERS," == *",server,"* ]]; then
-                info "server (vLLM) provider configured at http://${vllm_ip}:${VLLM_PORT}/v1"
-            fi
-            if [[ "$DEFAULT_PROVIDER" == "local" ]]; then
-                info "Default provider: local Ollama. Enabled: ${PROVIDERS} (+ Mistral/Google/Groq/OpenRouter when keys are set)."
-            else
-                info "Default provider: server (vLLM, active-model = whatever is loaded). Enabled: ${PROVIDERS} (+ Mistral/Google/Groq/OpenRouter when keys are set)."
-            fi
-            info "Set MISTRAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY to enable cloud providers."
-            info "MCP servers (Word, PowerPoint) are enabled. Run setup-mcp-venvs.sh to install them."
-        fi
-    else
-        warn "Config template not found at $crush_config_source — skipping Crush config."
-    fi
-
     # ── Install ComfyUI (image generation) ────────────────────────────────
     if [[ "$MODE" != "client" ]]; then
         step "Install ComfyUI (image generation)"
@@ -1960,26 +1800,7 @@ with open(p, 'w') as f:
         install -m 0644 "$proxy_source" "$proxy_dest"
         success "Deployed ollama-compat-proxy.py to $proxy_dest"
     else
-        warn "ollama-compat-proxy.py not found at $proxy_source — copilot/crush will use Ollama directly."
-    fi
-
-    # ── Deploy crush-task launcher ────────────────────────────────────────
-    step "Deploy crush-task launcher"
-    local crush_task_source="${SCRIPT_DIR}/../scripts/crush-task.sh"
-    local crush_task_dest="${HOME}/.local/bin/crush-task"
-
-    if [[ -f "$crush_task_source" ]]; then
-        mkdir -p "${HOME}/.local/bin"
-        # Substitute the provider gating + Squire Server placeholders so the Remote [S/G/C/D/I]
-        # server group works. Reuses $squire_ip resolved by the copilot-local deploy above.
-        sed -e "s|__SQUIRE_SERVER_IP__|${squire_ip:-192.168.1.99}|g" \
-            -e "s|__LL_PROVIDERS__|${PROVIDERS}|g" \
-            "$crush_task_source" > "$crush_task_dest"
-        chmod 0755 "$crush_task_dest"
-        success "Deployed crush-task to $crush_task_dest (providers $PROVIDERS, server ${squire_ip:-192.168.1.99})"
-        info "Usage: crush-task (from any directory)"
-    else
-        warn "crush-task script not found at $crush_task_source — skipping."
+        warn "ollama-compat-proxy.py not found at $proxy_source — Copilot CLI will use Ollama directly."
     fi
 
     # ── Generate the local model roster the launchers read ────────────────
@@ -2003,28 +1824,9 @@ with open(p, 'w') as f:
         fi
     fi
 
-    # ── Deploy Crush skills and MCP servers ─────────────────────────────
-    step "Deploy Crush skills and MCP servers"
-
-    # Deploy custom MCP servers (if any)
-    local mcp_source_dir="${SCRIPT_DIR}/../config/mcp"
-    local mcp_dest_dir="${CRUSH_CONFIG_DIR}/mcp"
-    if [[ -d "$mcp_source_dir" ]]; then
-        mkdir -p "$mcp_dest_dir"
-        cp -r "$mcp_source_dir"/* "$mcp_dest_dir"/ 2>/dev/null || true
-        success "Deployed MCP servers to $mcp_dest_dir"
-    fi
-
-    # Deploy local skills from dotFiles (includes the vendored 'office' authoring skill)
+    # Deploy the vendored Office authoring skill for Copilot CLI.
     local skills_source_dir="${SCRIPT_DIR}/../config/skills"
-    local skills_dest_dir="${CRUSH_CONFIG_DIR}/skills"
     if [[ -d "$skills_source_dir" ]]; then
-        mkdir -p "$skills_dest_dir"
-        cp -r "$skills_source_dir"/* "$skills_dest_dir"/
-        success "Deployed local skills (git-safety, office) to $skills_dest_dir"
-
-        # Copilot discovers skills from ~/.copilot/skills (NOT the crush dir, and its custom-instructions
-        # loader ignores SKILL.md) — deploy the 'office' skill there so Copilot sees it in every session.
         if [[ -d "${skills_source_dir}/office" ]]; then
             local copilot_skills_office="${HOME}/.copilot/skills/office"
             mkdir -p "$copilot_skills_office"
@@ -2053,7 +1855,6 @@ with open(p, 'w') as f:
                 -e "s|__VENV_BIN__|bin|g" \
                 -e "s|__EXE__||g" \
                 -e "s|__EXE_SUFFIX__||g" \
-                -e "s|__CONFIG_DIR__|${CRUSH_CONFIG_DIR}|g" \
                 "$copilot_mcp_source" > "$copilot_mcp_dest"
             success "Deployed mcp-config.json to $copilot_mcp_dest"
         fi
@@ -2282,16 +2083,14 @@ if [[ "$SHOULD_INSTALL_SOFTWARE" == true ]]; then
         printf '%b\n' '  • Ollama (system service)'
     fi
     printf '%b\n' '  • uv + Python (user-local / uv-managed)'
-    printf '%b\n' '  • Crush (CLI agent)'
     printf '%b\n' "  • ${AI_TOOLS_DIR}/mcp-*"
-    printf '%b\n' "  • ${CRUSH_HOME_DIR} and ${CRUSH_CONFIG_DIR}"
     [[ -n "$MODEL_PATH" && "$IS_FULL_MODE" == true ]] && printf '%b\n' "  • Custom model path: ${MODEL_PATH}"
 fi
 
 if [[ "$IS_CLIENT_MODE" == true ]]; then
     echo
     printf '%b\n' 'Next steps:'
-    printf '%b\n' "  1. Run 'crush' — it defaults to the server (vLLM); switch models with 'copilot-local' (or http://<server>:4090/)"
+    printf '%b\n' "  1. Run 'copilot-local' to select a server model"
     printf '%b\n' "  2. Verify the server: curl http://${SQUIRE_SERVER_IP:-192.168.1.99}:8000/v1/models"
     printf '%b\n' '  3. Create MCP venvs under ~/.local/share/ai-tools as needed'
 elif [[ "$IS_SERVER_MODE" == true ]]; then
@@ -2333,7 +2132,7 @@ else
     printf '%b\n' 'Next steps:'
     printf '%b\n' '  1. Check service status: sudo systemctl status ollama'
     printf '%b\n' '  2. Verify API: curl http://127.0.0.1:11434/api/tags'
-    printf '%b\n' '  3. Launch Crush and select your preferred model'
+    printf '%b\n' '  3. Launch copilot-local and select your preferred model'
 fi
 
 if (( ${#WARNINGS[@]} > 0 )); then

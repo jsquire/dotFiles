@@ -155,23 +155,33 @@ PY
 # is loaded (bounded), so the client isn't launched against a not-yet-ready model.
 squire_switch() {
     local mode="$1" ip="__SQUIRE_SERVER_IP__" port="4090" i st
+    local attempts="${LL_SWITCH_POLL_ATTEMPTS:-30}" delay="${LL_SWITCH_POLL_DELAY:-3}"
     if ! curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
             -d "{\"mode\":\"${mode}\"}" "http://${ip}:${port}/switch" >/dev/null 2>&1; then
         echo "  ⚠  Could not reach the model-switch service at http://${ip}:${port}/ — is the server up?"
         return 0
     fi
     printf '  ⋯ switching server to %s' "$mode"
-    for i in $(seq 1 30); do
+    for i in $(seq 1 "$attempts"); do
         st="$(curl -fsS -m 5 "http://${ip}:${port}/status" 2>/dev/null || true)"
         if [[ "$st" == *"\"mode\": \"${mode}\""* && "$st" == *'"api_up": true'* ]]; then
             echo " — ready."
             return 0
         fi
         printf '.'
-        sleep 3
+        sleep "$delay"
     done
     echo " (still loading; give it a few more seconds)"
 }
+
+# Git safety: block git write operations in every launch path, including a direct model argument.
+GIT_SAFETY=(
+    --deny-tool='shell(git add)' --deny-tool='shell(git commit)'
+    --deny-tool='shell(git push)' --deny-tool='shell(git merge)'
+    --deny-tool='shell(git rebase)' --deny-tool='shell(git reset)'
+    --deny-tool='shell(git stash)' --deny-tool='shell(git cherry-pick)'
+    --deny-tool='shell(git revert)' --deny-tool='shell(git tag)'
+)
 
 # If a model was passed as first argument (contains ':'), use it directly
 if [[ "${1:-}" == *":"* ]]; then
@@ -180,7 +190,7 @@ if [[ "${1:-}" == *":"* ]]; then
     echo "  ▶ $(model_label "$COPILOT_MODEL")  ·  alias=$COPILOT_MODEL"
     apply_local_token_caps "$COPILOT_MODEL"
     export COPILOT_PROVIDER_BASE_URL="$(local_ollama_base)"
-    exec copilot --model "$COPILOT_MODEL" "$@"
+    exec copilot --model "$COPILOT_MODEL" "${GIT_SAFETY[@]}" "$@"
 fi
 
 # No model specified — show the two-level environment picker (colour box UI, data-driven).
@@ -316,15 +326,6 @@ if [[ "$SEL_IMAGEGEN" == "1" ]]; then MCP_FLAGS=(); else MCP_FLAGS=(--disable-mc
 # Point the imagegen MCP tool at the selected environment's image server (the mcp-config expands
 # ${COPILOT_MCP_IMAGEGEN_HOST}): local -> localhost, server -> the squire-server.
 if [[ "$SEL_REMOTE" == "1" ]]; then export COPILOT_MCP_IMAGEGEN_HOST="$SQUIRE_IP"; else export COPILOT_MCP_IMAGEGEN_HOST="127.0.0.1"; fi
-
-# Git safety: block git write operations
-GIT_SAFETY=(
-    --deny-tool='shell(git add)' --deny-tool='shell(git commit)'
-    --deny-tool='shell(git push)' --deny-tool='shell(git merge)'
-    --deny-tool='shell(git rebase)' --deny-tool='shell(git reset)'
-    --deny-tool='shell(git stash)' --deny-tool='shell(git cherry-pick)'
-    --deny-tool='shell(git revert)' --deny-tool='shell(git tag)'
-)
 
 # Office authoring: the 'office' skill is deployed to ~/.copilot/skills/office and discovered natively by
 # Copilot (see `copilot skill list`), so it is available in every session regardless of model/provider. The

@@ -62,6 +62,7 @@ internal sealed class DisplayPowerWatcher : IDisposable
         CreateMessageWindow();
         RegisterForDisplayNotifications();
         TrayIcon.Initialize(_windowHandle, Exit);
+        Coordinator.ScheduleInitialRestart();
 
         Log.Information("Display watcher started.");
 

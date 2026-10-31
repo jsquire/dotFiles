@@ -62,6 +62,28 @@ internal sealed class DisplayTransitionTracker
     }
 
     /// <summary>
+    /// Marks an initial restart as pending when the cooldown permits it.
+    /// </summary>
+    ///
+    /// <param name="scheduledAt">The time at which the restart is scheduled.</param>
+    ///
+    /// <returns><see langword="true"/> when the restart was scheduled.</returns>
+    ///
+    public bool ScheduleInitialRestart(DateTimeOffset scheduledAt)
+    {
+        lock (Gate)
+        {
+            if (_restartPending || !CooldownElapsed(scheduledAt))
+            {
+                return false;
+            }
+
+            _restartPending = true;
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Records completion of the pending restart attempt.
     /// </summary>
     ///
