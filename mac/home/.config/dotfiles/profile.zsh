@@ -12,6 +12,12 @@ if command -v brew &>/dev/null; then
     fi
 fi
 
+vscode_bin="/Applications/Visual Studio Code.app/Contents/Resources/app/bin"
+
+if [[ -d "$vscode_bin" ]]; then
+    PATH="$vscode_bin:$PATH"
+fi
+
 if [[ -d "$HOME/bin" ]]; then
     PATH="$HOME/bin:$PATH"
 fi

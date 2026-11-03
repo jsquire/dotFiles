@@ -194,7 +194,6 @@ nvm install --lts
 nvm alias default 'lts/*'
 nvm use default
 
-npm install -g npm
 npm install -g \
     typescript \
     @babel/cli \

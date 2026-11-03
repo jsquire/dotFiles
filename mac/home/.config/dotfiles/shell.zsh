@@ -6,7 +6,7 @@ if [[ -s "$ZSH/oh-my-zsh.sh" ]]; then
 fi
 
 if command -v brew &>/dev/null; then
-    p10k_theme="$(brew --prefix powerlevel10k 2>/dev/null)/powerlevel10k.zsh-theme"
+    p10k_theme="$(brew --prefix powerlevel10k 2>/dev/null)/share/powerlevel10k/powerlevel10k.zsh-theme"
     [[ -s "$p10k_theme" ]] && source "$p10k_theme"
 fi
 

@@ -1,13 +1,13 @@
 # Appearance
 theme = Jesse
 font-family = CaskaydiaMono Nerd Font Mono
-font-size = 11
+font-size = 14
 background-opacity = 0.96
 alpha-blending = native
 
 # Window
 title = macOS
-window-width = 162
+window-width = 170
 window-height = 40
 window-padding-balance = true
 window-theme = dark

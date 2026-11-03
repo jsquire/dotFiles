@@ -4,8 +4,8 @@
 
 This directory contains a public, general-purpose macOS workstation bootstrap.
 It installs cross-platform applications and command-line development tools,
-then adds shell and editor configuration without replacing existing user or
-organization-managed files.
+then adds shell and editor configuration. Files changed after deployment are
+preserved unless replacement is explicitly requested.
 
 The scripts target macOS 14 or later. Homebrew casks enforce any stricter
 application requirements.
@@ -44,6 +44,12 @@ Homebrew cleanup is opt-in.
 
 ```bash
 bash ./bootstrap.sh --package-maintenance
+```
+
+Replace locally modified managed configuration files.
+
+```bash
+bash ./bootstrap.sh --force
 ```
 
 ### Applications
@@ -95,16 +101,26 @@ PowerShell, uv, common build tools, and the shared C# project template.
 ### Shell Configuration
 
 The tracked `.zprofile` and `.zshrc` are small loaders for configuration under
-`~/.config/dotfiles`. On an existing machine, `init-shell.sh` backs up the
-current files and appends the loader only when it is missing.
+`~/.config/dotfiles`. On an existing machine, `init-shell.sh` appends the
+loader only when it is missing.
+
+Managed files are tracked in `~/.config/dotfiles/install-state.tsv`. Files that
+still match the last deployed version receive repository updates automatically.
+Locally modified files are preserved unless `--force` is used, and replacements
+receive timestamped backups.
 
 The shell uses zsh, Oh My Zsh, the shared Powerlevel10k configuration, and
 Caskaydia Mono Nerd Font. NVM is initialized before mise to match the other
 tracked environments.
 
-An existing `.gitconfig` is never overwritten. A fresh installation receives a
-template with identity and signing-key placeholders that must be configured
-before signed commits will work.
+The same Jesse color palette, font, and window dimensions are installed as an
+Apple Terminal profile and selected as its default. Unmodified installed
+profiles receive tracked updates. GnuPG uses Homebrew's pinentry while
+preserving the configured agent cache duration.
+
+An existing modified `.gitconfig` is preserved unless `--force` is used. A
+fresh installation receives a template with identity and signing-key
+placeholders that must be configured before signed commits will work.
 
 ### Structure
 
@@ -120,11 +136,11 @@ before signed commits will work.
   and shared development assets._
 
 * **init-shell.sh**  
-  _Deploys additive shell, Git, Ghostty, Zed, and Powerlevel10k configuration
-  with timestamped backups._
+  _Deploys additive shell, Git, GnuPG, Ghostty, Terminal, Zed, and Powerlevel10k
+  configuration with timestamped backups._
 
 * **home**  
-  _Contains portable user configuration and macOS-specific Ghostty settings._
+  _Contains portable user configuration and macOS-specific terminal settings._
 
 Organization-specific enrollment, authentication, security controls, and
 internal documentation are intentionally outside this public repository.

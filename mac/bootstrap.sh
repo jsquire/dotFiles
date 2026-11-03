@@ -8,6 +8,7 @@ INSTALL_APPLICATIONS=true
 INSTALL_DEVELOPMENT=true
 INSTALL_SHELL=true
 RUN_PACKAGE_MAINTENANCE=false
+FORCE_CONFIGURATION=false
 
 usage() {
     cat <<'EOF'
@@ -18,6 +19,7 @@ Options:
   --skip-applications      Skip graphical application installation.
   --skip-development       Skip language runtimes and development tooling.
   --skip-shell             Skip shell and editor configuration deployment.
+  --force                  Replace modified managed configuration files.
   --package-maintenance    Run Homebrew cleanup after installation.
   -h, --help               Show this help.
 EOF
@@ -36,6 +38,9 @@ while [ "$#" -gt 0 ]; do
             ;;
         --skip-shell)
             INSTALL_SHELL=false
+            ;;
+        --force)
+            FORCE_CONFIGURATION=true
             ;;
         --package-maintenance)
             RUN_PACKAGE_MAINTENANCE=true
@@ -186,7 +191,13 @@ if [ "$INSTALL_APPLICATIONS" = true ]; then
 fi
 
 if [ "$INSTALL_SHELL" = true ]; then
-    bash "$SCRIPT_DIR/init-shell.sh"
+    shell_args=()
+
+    if [ "$FORCE_CONFIGURATION" = true ]; then
+        shell_args+=(--force)
+    fi
+
+    bash "$SCRIPT_DIR/init-shell.sh" "${shell_args[@]}"
 fi
 
 if [ "$INSTALL_DEVELOPMENT" = true ]; then
