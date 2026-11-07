@@ -29,13 +29,7 @@ Included are projects, documents, and presentations that were either created as 
   _Cross-platform scripts and configuration for a self-hosted AI stack, with a focus on coding assistants.  Supports full local install or client-only mode connecting to a remote server._  
 
 * **mac**  
-  _The container for items used for configuring and operating a macOS machine._  
-
-* **ubuntu**  
-  _The container for items used for building and configuring the baseline image of an Ubuntu-flavored distribution for use as a workstation or server._  
-
-* **ubuntu-server**  
-  _The container for items used for building and configuring a multi-purpose linux server used for home-related services._  
+  _The container for items used for configuring and operating a macOS machine._ 
 
 * **windows**  
   _The container for items used for configuring and operating a Windows desktop machine for general, development, and gaming use._  
