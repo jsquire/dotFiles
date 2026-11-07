@@ -3,7 +3,7 @@ theme = Jesse
 font-family = CaskaydiaMono Nerd Font Mono
 font-size = 11
 background-opacity = 0.96
-alpha-blending = native
+alpha-blending = linear-corrected
 
 # Window
 title = CachyOS

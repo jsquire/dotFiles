@@ -15,7 +15,7 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
     _Alacritty terminal emulator configuration with a custom Nord-inspired dark theme._
 
   * **home/.config/ghostty**  
-    _Shared Ghostty terminal configuration for Plasma and COSMIC. It uses CaskaydiaMono Nerd Font Mono at 11 pt, native sRGB alpha blending, a 162-column by 40-row startup size, the Jesse color theme, native tabs and splits, persistent tab renaming, and shell integration. GTK client-side decorations keep the tab controls and application menu consistent across both desktops. The full bootstrap installs Ghostty and its font, and `init-shell.sh` deploys the configuration._
+    _Shared Ghostty terminal configuration for Plasma and COSMIC. It uses CaskaydiaMono Nerd Font Mono at 11 pt, linear-corrected alpha blending, a 162-column by 40-row startup size, the Jesse color theme, native tabs and splits, persistent tab renaming, and shell integration. GTK client-side decorations keep the tab controls and application menu consistent across both desktops. The full bootstrap installs Ghostty and its font, and `init-shell.sh` deploys the configuration._
 
   * **home/.config/cosmic/com.system76.CosmicTerm**  
     _COSMIC Terminal settings and the custom Jesse color scheme matching the Alacritty palette, font size, opacity, bright-bold colors, and supported shortcuts. COSMIC Terminal does not currently expose equivalent settings for the underline cursor, fixed initial dimensions, copy-on-select, mouse hiding, or line-based scrollback._
