@@ -10,6 +10,3 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
 
 * **cachyos**  
   _Authored in 2026, this directory contains the bootstrap script and home directory configuration for a CachyOS (Arch-based) WSL instance, focused on a CLI development environment with ZSH._
-
-* **ubuntu**  
-  _Originally authored in 2019 and revised in 2026, this directory contains the bootstrap script and home directory configuration for an Ubuntu WSL instance, focused on a CLI development environment with ZSH._

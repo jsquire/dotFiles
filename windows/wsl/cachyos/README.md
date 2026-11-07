@@ -4,7 +4,7 @@
 
 Included in this section are the artifacts and references used for building and configuring a CachyOS WSL instance as a CLI development environment.  The bootstrap is a single consolidated script that handles system configuration, shell setup, development tooling, and home directory provisioning.
 
-The CachyOS WSL rootfs is sourced from [okrc/CachyOS-WSL](https://github.com/okrc/CachyOS-WSL) and ships with a pre-configured ZSH environment via `cachyos-zsh-config`.  The bootstrap layers user customizations on top of that base rather than replacing it.
+The CachyOS WSL rootfs is sourced from [CachyOS-WSL](https://wiki.cachyos.org/virtualization/wsl/) and ships with a pre-configured ZSH environment via `cachyos-zsh-config`.  The bootstrap layers user customizations on top of that base rather than replacing it.
 
 ### Development Environments
 
