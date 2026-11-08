@@ -2,6 +2,27 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DISTRO_NAME="${WSL_DISTRO_NAME:-cachyos}"
+
+if [ "$EUID" -eq 0 ]; then
+    echo "ERROR: Run this script as the default WSL user, not as root." >&2
+    exit 1
+fi
+
+if [ "$(ps -p 1 -o comm=)" != "systemd" ]; then
+    echo "ERROR: systemd is required for this WSL environment." >&2
+    exit 1
+fi
+
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
+
+if [ ! -S "${XDG_RUNTIME_DIR}/bus" ]; then
+    echo "ERROR: User D-Bus is not available at ${XDG_RUNTIME_DIR}/bus." >&2
+    echo "       Terminate the distribution from PowerShell, then launch it again:" >&2
+    echo "         wsl --terminate ${DISTRO_NAME}" >&2
+    exit 1
+fi
 
 ############################################
 # Version Targets
@@ -17,18 +38,37 @@ NVM_VERSION=0.40.4
 WSL_CONF="/etc/wsl.conf"
 WSL_CONF_CHANGED=false
 
-if ! grep -q "\[automount\]" "$WSL_CONF" 2>/dev/null; then
+if ! grep -q '^\[automount\][[:space:]]*$' "$WSL_CONF" 2>/dev/null; then
     echo "Adding [automount] section to wsl.conf..."
     sudo tee -a "$WSL_CONF" > /dev/null <<'EOF'
 
 [automount]
 enabled=true
-options=metadata,uid=1000,gid=1000,umask=022
+options=metadata,umask=022
 EOF
     WSL_CONF_CHANGED=true
+elif ! awk '
+    /^\[automount\][[:space:]]*$/ { in_automount=1; next }
+    /^\[[^]]+\][[:space:]]*$/ { in_automount=0 }
+    in_automount && /^[[:space:]]*options[[:space:]]*=/ {
+        value=$0
+        sub(/^[^=]*=/, "", value)
+        gsub(/[[:space:]"]/, "", value)
+        count=split(value, options, ",")
+        for (item=1; item<=count; item++) {
+            if (options[item] == "metadata") {
+                found=1
+            }
+        }
+    }
+    END { exit found ? 0 : 1 }
+' "$WSL_CONF"; then
+    echo "ERROR: Existing [automount] options in $WSL_CONF do not enable metadata." >&2
+    echo "       Add metadata to the options value, terminate ${DISTRO_NAME}, and rerun." >&2
+    exit 1
 fi
 
-if ! grep -q "\[boot\]" "$WSL_CONF" 2>/dev/null; then
+if ! grep -q '^\[boot\][[:space:]]*$' "$WSL_CONF" 2>/dev/null; then
     echo "Adding [boot] section to wsl.conf..."
     sudo tee -a "$WSL_CONF" > /dev/null <<'EOF'
 
@@ -38,41 +78,68 @@ EOF
     WSL_CONF_CHANGED=true
 fi
 
-if ! grep -q "\[interop\]" "$WSL_CONF" 2>/dev/null; then
-    echo "Adding [interop] section to wsl.conf..."
-    sudo tee -a "$WSL_CONF" > /dev/null <<'EOF'
-
-[interop]
-enabled = true
-appendWindowsPath = true
-EOF
-    WSL_CONF_CHANGED=true
+if [ "$WSL_CONF_CHANGED" = true ]; then
+    echo "WSL configuration was updated."
+    echo "Terminate the distribution from PowerShell, then rerun this script:"
+    echo "  wsl --terminate ${DISTRO_NAME}"
+    exit 0
 fi
 
+if ! findmnt -rn --mountpoint /mnt/c -o OPTIONS 2>/dev/null |
+     grep -Eq '(^|[;,])metadata([;,]|$)'; then
+    echo "ERROR: /mnt/c is not mounted with DrvFS metadata enabled." >&2
+    echo "       Terminate the distribution from PowerShell, then rerun this script:" >&2
+    echo "         wsl --terminate ${DISTRO_NAME}" >&2
+    exit 1
+fi
 
 ############################################
 # Detect Windows username for symlinks
 ############################################
 
-# Try cmd.exe directly, fall back to /init wrapper (interop may not be
-# registered when systemd is enabled until wsl.conf [interop] is set).
+# Read the actual Windows profile path instead of reconstructing it from the
+# account name.
 
-WIN_USER=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r' || true)
+WIN_PROFILE=$(cmd.exe /c "echo %USERPROFILE%" 2>/dev/null | tr -d '\r' || true)
 
-if [ -z "$WIN_USER" ]; then
-    WIN_USER=$(/init /mnt/c/Windows/System32/cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r' || true)
+if [ -z "$WIN_PROFILE" ]; then
+    WIN_PROFILE=$(
+        /init /mnt/c/Windows/System32/cmd.exe /c "echo %USERPROFILE%" 2>/dev/null |
+            tr -d '\r' || true
+    )
 fi
 
-WIN_HOME="/mnt/c/Users/${WIN_USER}"
+WIN_HOME=$(wslpath -u "$WIN_PROFILE" 2>/dev/null || true)
 
-if [ -z "$WIN_USER" ] || [ ! -d "$WIN_HOME" ]; then
-    if [ "$WSL_CONF_CHANGED" = true ]; then
-        echo "ERROR: Could not detect Windows username."
-        echo "       wsl.conf was updated. Restart WSL and re-run this script:"
-        echo "         wsl --shutdown && wsl -d CachyOS"
-    else
-        echo "ERROR: Could not detect Windows username or home directory not found at $WIN_HOME"
+if [ -z "$WIN_PROFILE" ] || [ -z "$WIN_HOME" ] || [ ! -d "$WIN_HOME" ]; then
+    echo "ERROR: Could not resolve Windows profile directory from $WIN_PROFILE"
+    exit 1
+fi
+
+if [ -L "$HOME/.gnupg" ]; then
+    echo "ERROR: $HOME/.gnupg is a symlink." >&2
+    echo "       The official instance requires a native GnuPG directory." >&2
+    exit 1
+fi
+
+
+############################################
+# Ensure optimized CachyOS repositories
+############################################
+
+if ! grep -Eq '^\[cachyos-(znver4|v4|v3)\]$' /etc/pacman.conf; then
+    echo "Selecting optimized CachyOS repositories..."
+
+    if [ ! -x /usr/lib/wsl/optimize-repos ]; then
+        echo "ERROR: /usr/lib/wsl/optimize-repos is unavailable." >&2
+        exit 1
     fi
+
+    sudo /usr/lib/wsl/optimize-repos
+fi
+
+if ! grep -Eq '^\[cachyos-(znver4|v4|v3)\]$' /etc/pacman.conf; then
+    echo "ERROR: No optimized CachyOS repository is active." >&2
     exit 1
 fi
 
@@ -92,26 +159,17 @@ sudo pacman -S --needed --noconfirm cachyos-zsh-config
 
 
 ############################################
-# Install yay (AUR helper)
+# Install yay
 ############################################
 
-if ! command -v yay &>/dev/null; then
-    sudo pacman -S --needed --noconfirm base-devel git
-    git clone https://aur.archlinux.org/yay.git /tmp/yay
-    cd /tmp/yay
-    makepkg -si --noconfirm
-    cd "$SCRIPT_DIR"
-    rm -rf /tmp/yay
-fi
+sudo pacman -S --needed --noconfirm yay
 
 
 ############################################
 # Base development & utilities
 ############################################
 #
-# NOTE: gnupg, gpgme, ca-certificates, curl,
-#       nano, openssl already in CachyOS rootfs.
-#       zlib intentionally omitted (CachyOS uses zlib-ng).
+# zlib is intentionally omitted because CachyOS uses zlib-ng.
 
 sudo pacman -S --needed --noconfirm \
     base-devel \
@@ -119,6 +177,8 @@ sudo pacman -S --needed --noconfirm \
     openssh \
     wget \
     net-tools \
+    less \
+    nano \
     bison \
     openssl \
     gdbm \
@@ -175,7 +235,6 @@ mkdir -p "$HOME/src"
 declare -A SYMLINKS=(
     ["$HOME/.aws"]="${WIN_HOME}/.aws"
     ["$HOME/.azure"]="${WIN_HOME}/.azure"
-    ["$HOME/.gnupg"]="${WIN_HOME}/.gnupg"
     ["$HOME/.ssh"]="${WIN_HOME}/.ssh"
     ["$HOME/Desktop"]="${WIN_HOME}/Desktop"
     ["$HOME/Downloads"]="${WIN_HOME}/Downloads"
@@ -186,12 +245,22 @@ declare -A SYMLINKS=(
 for link in "${!SYMLINKS[@]}"; do
     target="${SYMLINKS[$link]}"
 
+    if [ ! -e "$target" ]; then
+        echo "NOTICE: Skipping $link because $target does not exist."
+        continue
+    fi
+
     if [ -L "$link" ] && [ "$(readlink -f "$link")" = "$(readlink -f "$target")" ]; then
         continue
     fi
 
     # Remove existing file/directory if it's not already a symlink
     if [ -e "$link" ] && [ ! -L "$link" ]; then
+        if [ -e "${link}.bak" ] || [ -L "${link}.bak" ]; then
+            echo "ERROR: Cannot back up $link because ${link}.bak already exists." >&2
+            exit 1
+        fi
+
         echo "Backing up existing $link to ${link}.bak"
         mv "$link" "${link}.bak"
     fi
@@ -222,9 +291,13 @@ fi
 
 if [ -d "$HOME/.ssh" ]; then
     chmod 700 "$HOME/.ssh"
-    chmod 600 "$HOME/.ssh"/* 2>/dev/null || true
-    chmod 640 "$HOME/.ssh"/*.pub 2>/dev/null || true
-    [ -f "$HOME/.ssh/known_hosts" ] && chmod 644 "$HOME/.ssh/known_hosts"
+    find -L "$HOME/.ssh/" -mindepth 1 -maxdepth 1 -type f \
+        ! -name '*.pub' \
+        ! -name 'known_hosts*' \
+        -exec chmod 600 {} +
+    find -L "$HOME/.ssh/" -mindepth 1 -maxdepth 1 -type f \
+        \( -name '*.pub' -o -name 'known_hosts*' \) \
+        -exec chmod 644 {} +
 fi
 
 
@@ -232,7 +305,9 @@ fi
 # Shell configuration
 ############################################
 
-chsh -s /usr/bin/zsh
+if [ "$(getent passwd "$USER" | cut -d: -f7)" != "/usr/bin/zsh" ]; then
+    sudo chsh -s /usr/bin/zsh "$USER"
+fi
 
 cp "${SCRIPT_DIR}/home/.bashrc"    "$HOME/.bashrc"
 cp "${SCRIPT_DIR}/home/.profile"   "$HOME/.profile"
@@ -241,6 +316,12 @@ cp "${SCRIPT_DIR}/home/.gitconfig" "$HOME/.gitconfig"
 cp "${SCRIPT_DIR}/home/.gitignore" "$HOME/.gitignore"
 cp "${SCRIPT_DIR}/home/.dircolors" "$HOME/.dircolors"
 cp "${SCRIPT_DIR}/home/.p10k.zsh"  "$HOME/.p10k.zsh"
+
+install -d -m 700 "$HOME/.gnupg"
+install -m 600 \
+    "${SCRIPT_DIR}/home/.gnupg/gpg.conf" \
+    "${SCRIPT_DIR}/home/.gnupg/gpg-agent.conf" \
+    "$HOME/.gnupg/"
 
 mkdir -p "$HOME/.config/zed"
 cp "${SCRIPT_DIR}/home/.config/zed/settings.json" "$HOME/.config/zed/settings.json"
@@ -277,19 +358,6 @@ wget -qO- https://gh.io/copilot-install | bash
 sudo pacman -S --needed --noconfirm \
     gnome-keyring \
     libsecret
-
-if [ "$(ps -p 1 -o comm=)" != "systemd" ]; then
-    echo "ERROR: GNOME Keyring requires the systemd user session configured for this WSL environment." >&2
-    exit 1
-fi
-
-export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
-
-if [ ! -S "${XDG_RUNTIME_DIR}/bus" ]; then
-    echo "ERROR: User D-Bus socket not available at ${XDG_RUNTIME_DIR}/bus." >&2
-    exit 1
-fi
 
 if systemctl --user is-active --quiet secretsd.service ||
    systemctl --user is-enabled --quiet secretsd.service; then
@@ -356,7 +424,8 @@ export NVM_DIR="$HOME/.nvm"
 if [ ! -d "$NVM_DIR" ]; then
     echo "Installing NVM..."
     mkdir -p "$NVM_DIR"
-    curl -o- "https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh" | bash
+    curl -o- "https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh" |
+        PROFILE=/dev/null bash
 else
     echo "NVM already installed at $NVM_DIR"
 fi
@@ -535,7 +604,8 @@ sudo pacman -S --needed --noconfirm \
 ORPHANS=$(pacman -Qtdq || true)
 
 if [ -n "$ORPHANS" ]; then
-    sudo pacman -Rns --noconfirm $ORPHANS
+    echo "NOTICE: The following orphaned packages were not removed automatically:"
+    printf '  %s\n' $ORPHANS
 fi
 
 if command -v paccache &>/dev/null; then

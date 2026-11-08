@@ -42,10 +42,6 @@
   changes = diff --pretty --name-status
   slog = log --pretty --name-status
 
-[github]
-  user = jsquire
-  token = << ADD TOKEN HERE >>
-
 [push]
   default = simple
 
