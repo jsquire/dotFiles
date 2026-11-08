@@ -2,7 +2,7 @@
 export GPG_TTY=$(tty)
 
 # Set plugins BEFORE sourcing CachyOS config (it respects pre-set plugins)
-plugins=(git fzf extract nvm dotnet docker docker-compose)
+plugins=(git fzf extract dotnet docker docker-compose)
 
 # Source CachyOS system config (oh-my-zsh, p10k, autosuggestions, etc.)
 source /usr/share/cachyos-zsh-config/cachyos-config.zsh
@@ -10,7 +10,7 @@ source /usr/share/cachyos-zsh-config/cachyos-config.zsh
 # Disable zsh-syntax-highlighting (colored text while typing)
 ZSH_HIGHLIGHT_HIGHLIGHTERS=()
 
-# Tell the systemd-managed gpg-agent to use this terminal for pinentry
+# Tell gpg-agent to use this terminal for pinentry
 gpg-connect-agent updatestartuptty /bye >/dev/null 2>&1
 
 # Load customized .dircolors, if it exists

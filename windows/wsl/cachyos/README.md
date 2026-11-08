@@ -4,7 +4,41 @@
 
 Included in this section are the artifacts and references used for building and configuring a CachyOS WSL instance as a CLI development environment.  The bootstrap is a single consolidated script that handles system configuration, shell setup, development tooling, and home directory provisioning.
 
-The CachyOS WSL rootfs is sourced from [CachyOS-WSL](https://wiki.cachyos.org/virtualization/wsl/) and ships with a pre-configured ZSH environment via `cachyos-zsh-config`.  The bootstrap layers user customizations on top of that base rather than replacing it.
+The CachyOS WSL rootfs is sourced from the official [CachyOS WSL image](https://wiki.cachyos.org/virtualization/wsl/). The image creates a sudo-enabled user whose initial shell is Fish. The bootstrap installs the official `cachyos-zsh-config` package, changes the login shell to Zsh, and layers user customizations on top of the CachyOS configuration.
+
+The bootstrap runs in two phases on a new installation. The first phase adds DrvFs metadata support to `/etc/wsl.conf` and exits. Terminate the distribution from PowerShell, launch it again, and rerun the bootstrap. The second phase verifies that metadata is active before configuring Windows-host links or SSH permissions.
+
+### Fresh Installation
+
+The official image requires WSL 2.4.4 or newer. From PowerShell, download and install the latest release:
+
+```powershell
+$Version = (
+  Invoke-RestMethod https://api.github.com/repos/CachyOS/cachyos-wsl/releases/latest
+).tag_name
+
+$Image = Join-Path $env:TEMP "cachyos-$Version.wsl"
+
+Invoke-WebRequest `
+  "https://github.com/CachyOS/cachyos-wsl/releases/download/$Version/cachyos-$Version.wsl" `
+  -OutFile $Image
+
+wsl --install --from-file $Image
+```
+
+Launch the distribution with `wsl -d cachyos` and complete the official first setup. It initializes the package keyring, ranks mirrors, selects the best repository available for the CPU, and creates the default sudo-enabled user.
+
+After first setup:
+
+1. Run `sudo pacman -Syu`.
+2. Run `bootstrap.sh`. It updates `/etc/wsl.conf` and exits.
+3. From PowerShell, run `wsl --terminate cachyos`.
+4. Launch the distribution again and rerun `bootstrap.sh`.
+5. Configure the email and signing key placeholders in `home/.gitconfig` before running the bootstrap.
+6. Import the GnuPG signing key from secure backup when signed commits are required. The bootstrap creates a native `~/.gnupg` and installs only non-secret configuration.
+7. Authenticate GitHub CLI and Copilot through the Linux Secret Service.
+8. Enable Docker Desktop integration for `cachyos` when Docker tooling is required.
+9. Validate SSH, signed commits, Secret Service, Zed, Zsh, Powerlevel10k, and each development toolchain.
 
 ### Development Environments
 
@@ -96,9 +130,9 @@ The Windows Zed installation and extensions remain managed on Windows.  WSL serv
 ### Structure
 
 * **home**  
-  _These are the $HOME items for the ZSH profile associated with the active WSL user account, including shell configuration, Git settings, GPG agent configuration, dircolors, and Zed server settings._
+  _These are the managed `$HOME` items for the active WSL user account, including shell configuration, Git settings, non-secret GnuPG configuration, dircolors, and Zed server settings._
 
 ### Items
 
 * **bootstrap.sh**  
-  _Authored in 2026, this script automates the full bootstrapping of the CachyOS WSL environment in a single pass, including system updates, base utilities, modern CLI tools, development platforms, Azure tooling, shell configuration, native WSL project storage, and selected home directory links to the Windows host._
+  _Authored in 2026, this script bootstraps the CachyOS WSL environment in two restart-safe phases, including system updates, base utilities, modern CLI tools, development platforms, Azure tooling, shell configuration, native WSL project storage, and selected home directory links to the Windows host._
