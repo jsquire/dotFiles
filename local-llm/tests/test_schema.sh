@@ -27,6 +27,7 @@ for lname, ldef in lm["launchers"].items():
         for cat in wdef["categories"]:
             for r in cat["rows"]:
                 keys.append(r["key"])
+                ok("slot" in r, f"{lname}/{which} row [{r['key']}] missing slot")
                 if "slot" in r:
                     ok(r["slot"] in ta, f"{lname}/{which} row [{r['key']}] slot '{r.get('slot')}' not in task_alias")
         ok(len(keys) == len(set(keys)), f"{lname}/{which} duplicate keys: {keys}")
@@ -40,6 +41,7 @@ for lname, ldef in lm["launchers"].items():
     )
 for al, e in reg.items():
     ok("label" in e, f"registry[{al}] missing label")
+    ok(isinstance(e.get("ctx"), int) and e["ctx"] > 0, f"registry[{al}] ctx must be a positive integer")
 
 need = ("mode", "key", "label", "task", "model_id", "ctx", "max_output", "max_prompt", "unit", "imagegen_disabled")
 skeys = []; ndef = 0
@@ -47,10 +49,19 @@ for m in sm["modes"]:
     skeys.append(m["key"])
     for k in need:
         ok(k in m, f"server mode '{m.get('mode')}' missing '{k}'")
+    for k in ("ctx", "max_output", "max_prompt"):
+        ok(isinstance(m.get(k), int) and m[k] > 0, f"server mode '{m.get('mode')}' {k} must be a positive integer")
+    if all(isinstance(m.get(k), int) for k in ("ctx", "max_output", "max_prompt")):
+        ok(
+            m["max_prompt"] + m["max_output"] <= m["ctx"],
+            f"server mode '{m.get('mode')}' prompt/output caps exceed ctx",
+        )
     if m.get("default"): ndef += 1
 ok(len(skeys) == len(set(skeys)), f"server duplicate keys: {skeys}")
 ok(ndef == 1, f"server default count {ndef} != 1")
 ok(sm.get("default_mode") in [m["mode"] for m in sm["modes"]], "default_mode is not a known mode")
+default_modes = [m["mode"] for m in sm["modes"] if m.get("default")]
+ok(default_modes == [sm.get("default_mode")], f"default flag {default_modes} != default_mode {sm.get('default_mode')}")
 
 # server-models.json client-vs-daemon: the daemon reads this exact file, so the modes it will
 # advertise are these modes. Assert model_ids are unique too (clients address by model_id).

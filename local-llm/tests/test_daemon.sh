@@ -5,7 +5,13 @@ set -uo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 DAEMON="$REPO_DIR/cachyos/vllm-switch-web.py"
-PORT=45090
+read -r PORT FALLBACK_PORT MALFORMED_PORT XSS_PORT < <(python3 -c '
+import socket
+sockets = [socket.socket() for _ in range(4)]
+for sock in sockets: sock.bind(("127.0.0.1", 0))
+print(*(sock.getsockname()[1] for sock in sockets))
+for sock in sockets: sock.close()
+')
 LOCK="$(mktemp)"; rm -f "$LOCK"
 DPID=""
 cleanup() { [[ -n "$DPID" ]] && kill "$DPID" 2>/dev/null; rm -f "$LOCK"; }
@@ -40,8 +46,19 @@ assert_eq "GET /models has no glm mode" "0" "$(python3 -c 'import json,sys;print
 page="$(curl -fsS "$BASE/")"
 assert_contains "GET / has mistral button" "$page" 'data-m="mistral"'
 if [[ "$page" != *"__BUTTONS__"* && "$page" != *"__NAMES__"* ]]; then LL_PASS=$((LL_PASS+1)); else LL_FAIL=$((LL_FAIL+1)); echo "  FAIL: GET / still has a template placeholder"; fi
-assert_eq "GET /status is valid json" "ok" "$(curl -fsS "$BASE/status" | python3 -c 'import json,sys;json.load(sys.stdin);print("ok")')"
+status="$(curl -fsS "$BASE/status")"
+assert_eq "GET /status mode is null while units are inactive" "None" \
+    "$(python3 -c 'import json,sys;print(json.load(sys.stdin)["mode"])' <<<"$status")"
+assert_eq "GET /status reports API down" "False" \
+    "$(python3 -c 'import json,sys;print(json.load(sys.stdin)["api_up"])' <<<"$status")"
+assert_eq "GET /status served model is null" "None" \
+    "$(python3 -c 'import json,sys;print(json.load(sys.stdin)["served_model"])' <<<"$status")"
 assert_eq "POST /switch valid ->200" "200" "$(code -X POST -H 'Content-Type: application/json' -d '{"mode":"coder"}' "$BASE/switch")"
+status="$(curl -fsS "$BASE/status")"
+assert_eq "POST /switch records requested mode" "coder" \
+    "$(python3 -c 'import json,sys;print(json.load(sys.stdin)["last_switch"]["mode"])' <<<"$status")"
+assert_eq "POST /switch records successful command" "ok" \
+    "$(python3 -c 'import json,sys;print(json.load(sys.stdin)["last_switch"]["result"])' <<<"$status")"
 assert_eq "POST /switch experimental ->200" "200" "$(code -X POST -H 'Content-Type: application/json' -d '{"mode":"nemotron"}' "$BASE/switch")"
 assert_eq "POST /switch injection ->400" "400" "$(code -X POST -H 'Content-Type: application/json' -d '{"mode":"evil;rm -rf"}' "$BASE/switch")"
 assert_eq "POST /switch retired glm ->400" "400" "$(code -X POST -H 'Content-Type: application/json' -d '{"mode":"glm"}' "$BASE/switch")"
@@ -52,15 +69,15 @@ assert_eq "GET /nope ->404" "404" "$(code "$BASE/nope")"
 kill "$DPID" 2>/dev/null; wait "$DPID" 2>/dev/null || true; DPID=""
 
 # ── Missing roster -> built-in fallback ──
-assert_true "daemon starts (missing roster)" start_daemon "/nonexistent/server-models.json" "45091"
-fb="$(curl -fsS http://127.0.0.1:45091/models)"
+assert_true "daemon starts (missing roster)" start_daemon "/nonexistent/server-models.json" "$FALLBACK_PORT"
+fb="$(curl -fsS "http://127.0.0.1:$FALLBACK_PORT/models")"
 assert_eq "fallback roster 7 modes" "7" "$(jq_count <<<"$fb")"
 kill "$DPID" 2>/dev/null; wait "$DPID" 2>/dev/null || true; DPID=""
 
 # ── Malformed roster -> built-in fallback (no crash) ──
 bad="$(mktemp)"; echo '{ this is not json' > "$bad"
-assert_true "daemon starts (malformed roster)" start_daemon "$bad" "45092"
-mf="$(curl -fsS http://127.0.0.1:45092/models)"
+assert_true "daemon starts (malformed roster)" start_daemon "$bad" "$MALFORMED_PORT"
+mf="$(curl -fsS "http://127.0.0.1:$MALFORMED_PORT/models")"
 assert_eq "malformed -> fallback 7 modes" "7" "$(jq_count <<<"$mf")"
 kill "$DPID" 2>/dev/null; wait "$DPID" 2>/dev/null || true; DPID=""
 rm -f "$bad"
@@ -75,8 +92,8 @@ cat > "$xss" <<'JSON'
   ]
 }
 JSON
-assert_true "daemon starts (xss roster)" start_daemon "$xss" "45093"
-xpage="$(curl -fsS http://127.0.0.1:45093/)"
+assert_true "daemon starts (xss roster)" start_daemon "$xss" "$XSS_PORT"
+xpage="$(curl -fsS "http://127.0.0.1:$XSS_PORT/")"
 assert_contains "page escapes label '<' -> &lt;" "$xpage" "A&lt;b&gt;"
 assert_contains "page escapes label '&' -> &amp;" "$xpage" "&amp;"
 assert_contains "NAMES escapes '<' -> \\u003c" "$xpage" '\u003c'

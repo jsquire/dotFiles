@@ -16,8 +16,13 @@ else
 fi
 
 # 2) integration with a stub upstream that records the last received body.
-STUB_PORT=45471
-PROXY_PORT=45472
+read -r STUB_PORT PROXY_PORT < <(python3 -c '
+import socket
+sockets = [socket.socket() for _ in range(2)]
+for sock in sockets: sock.bind(("127.0.0.1", 0))
+print(*(sock.getsockname()[1] for sock in sockets))
+for sock in sockets: sock.close()
+')
 work="$(mktemp -d)"
 reqfile="$work/last_req.json"
 cat > "$work/stub.py" <<'PY'
@@ -57,21 +62,27 @@ done
 assert_eq "proxy accepts connections" "1" "$up"
 
 for route in /v1/chat/completions /api/chat; do
-    curl -fsS -m 5 -X POST -H 'Content-Type: application/json' \
+    if ! curl -fsS -m 5 -X POST -H 'Content-Type: application/json' \
         -d '{"messages":[{"role":"assistant","content":null},{"role":"user","content":"hi"}]}' \
-        "http://127.0.0.1:$PROXY_PORT$route" >/dev/null 2>&1
+        "http://127.0.0.1:$PROXY_PORT$route" >/dev/null 2>&1; then
+        LL_FAIL=$((LL_FAIL + 1)); echo "  FAIL: $route null-content request failed"; continue
+    fi
     got="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); c=d["messages"][0]["content"]; print("EMPTYSTR" if c=="" else repr(c))' "$reqfile" 2>/dev/null)"
     assert_eq "$route null content sanitized" "EMPTYSTR" "$got"
 
-    curl -fsS -m 5 -X POST -H 'Content-Type: application/json' \
+    if ! curl -fsS -m 5 -X POST -H 'Content-Type: application/json' \
         -d '{"messages":[{"role":"user","content":"keep me"}]}' \
-        "http://127.0.0.1:$PROXY_PORT$route" >/dev/null 2>&1
+        "http://127.0.0.1:$PROXY_PORT$route" >/dev/null 2>&1; then
+        LL_FAIL=$((LL_FAIL + 1)); echo "  FAIL: $route string-content request failed"; continue
+    fi
     got2="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["messages"][0]["content"])' "$reqfile" 2>/dev/null)"
     assert_eq "$route string content untouched" "keep me" "$got2"
 done
 
 # non-chat path passes through unchanged
-curl -fsS -m 5 "http://127.0.0.1:$PROXY_PORT/api/tags" >/dev/null 2>&1
+if ! curl -fsS -m 5 "http://127.0.0.1:$PROXY_PORT/api/tags" >/dev/null 2>&1; then
+    LL_FAIL=$((LL_FAIL + 1)); echo "  FAIL: non-chat pass-through request failed"
+fi
 gotp="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("path",""))' "$reqfile" 2>/dev/null)"
 assert_eq "non-chat path passes through" "/api/tags" "$gotp"
 

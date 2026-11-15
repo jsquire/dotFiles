@@ -16,15 +16,15 @@ assert_true "office SKILL.md present in repo" test -f "$REPO_DIR/config/skills/o
 
 # Both installers deploy it to Copilot's personal skills dir.
 assert_true "windows installer deploys office skill to ~/.copilot/skills" \
-    grep -q '\.copilot[\\/]skills[\\/]office' "$WIN"
+    grep -Eq '^[[:space:]]*Copy-Item .*officeSkillSrc.*copilotSkillsDir' "$WIN"
 assert_true "cachyos installer deploys office skill to ~/.copilot/skills" \
-    grep -q '\.copilot/skills/office' "$CACHY"
+    grep -Eq '^[[:space:]]*cp -r .*skills_source_dir.*/office.*copilot_skills_office' "$CACHY"
 
 # Both uninstallers clean it up when configuration is not retained.
 assert_true "windows remover cleans ~/.copilot/skills/office" \
-    grep -q '\.copilot[\\/]skills[\\/]office' "$REPO_DIR/windows/remove-windows.ps1"
+    grep -Eq '^[[:space:]]*Remove-SafeItem .*\.copilot[\\/]skills[\\/]office' "$REPO_DIR/windows/remove-windows.ps1"
 assert_true "cachyos remover cleans ~/.copilot/skills/office" \
-    grep -q '\.copilot/skills/office' "$REPO_DIR/cachyos/remove-cachyos.sh"
+    grep -Eq '^[[:space:]]*remove_user_path .*\.copilot/skills/office' "$REPO_DIR/cachyos/remove-cachyos.sh"
 
 # Neither Copilot launcher uses the broken custom-instructions mechanism any more.
 assert_eq "copilot-local.sh drops COPILOT_CUSTOM_INSTRUCTIONS_DIRS export" "0" \

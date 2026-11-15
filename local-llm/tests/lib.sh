@@ -9,9 +9,6 @@ TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$TESTS_DIR/.." && pwd)"          # local-llm/
 STUBS_DIR="$TESTS_DIR/stubs"
 
-# Self-heal exec bits (Windows checkouts / git modes may drop them).
-chmod +x "$STUBS_DIR"/* "$TESTS_DIR"/*.sh 2>/dev/null || true
-
 LL_PASS=0
 LL_FAIL=0
 
@@ -72,9 +69,14 @@ ll_run_sh() {
         -e "s|__SQUIRE_SSH_TARGET__|test@127.0.0.1|g" \
         -e "s|__LL_PROVIDERS__|${providers}|g" \
         "$src" > "$sb/launcher.sh"
+    local status=0
     LL_LAST_OUT="$(cd "$sb/work" && env HOME="$sb" PATH="$STUBS_DIR:$PATH" LL_TEST=1 \
         LL_STUB_SERVER_JSON="$sb/.config/local-llm/server-models.json" $extra_env \
-        bash "$sb/launcher.sh" $largs <<<"$input" 2>&1)"
+        bash "$sb/launcher.sh" $largs <<<"$input" 2>&1)" || status=$?
+    if [[ $status -ne 0 ]]; then
+        LL_FAIL=$((LL_FAIL + 1))
+        printf '  FAIL: launcher exited %d\n' "$status"
+    fi
     rm -rf "$sb"
 }
 

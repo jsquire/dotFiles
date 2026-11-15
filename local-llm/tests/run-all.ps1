@@ -60,6 +60,7 @@ foreach ($f in @("$repo\scripts\local-models.json", "$repo\cachyos\server-models
 
 foreach ($suite in @(
     "test_launchers_parity.ps1",
+    "test_ollama_launcher_health.ps1",
     "test_launcher_switch.ps1",
     "test_imagegen_context.ps1",
     "test_token_budgets.ps1",

@@ -44,6 +44,7 @@ function New-OwnedProfile($name) {
         (Join-Path $profile ".config\local-llm\local-models.json"),
         (Join-Path $profile ".config\local-llm\server-models.json"),
         (Join-Path $profile ".config\local-llm\icons\copilot-light.ico"),
+        (Join-Path $profile ".config\local-llm\icons\user-theme.ico"),
         (Join-Path $profile ".config\local-llm\.installer-owned\copilot-mcp-config"),
         (Join-Path $profile ".copilot\skills\office\SKILL.md"),
         (Join-Path $profile ".copilot\mcp-config.json"),
@@ -65,6 +66,7 @@ Assert-Eq "office skill removed" $false (Test-Path (Join-Path $removeCase.Profil
 Assert-Eq "managed MCP removed" $false (Test-Path (Join-Path $removeCase.Profile ".copilot\mcp-config.json"))
 Assert-Eq "shortcut removed" $false (Test-Path (Join-Path $removeCase.AppData "Microsoft\Windows\Start Menu\Programs\AI\Copilot (Local).lnk"))
 Assert-Eq "user file preserved" $true (Test-Path (Join-Path $removeCase.Profile ".config\local-llm\user-notes.json"))
+Assert-Eq "unowned icon preserved" $true (Test-Path (Join-Path $removeCase.Profile ".config\local-llm\icons\user-theme.ico"))
 
 $keepCase = New-OwnedProfile ("keep_owned_" + [guid]::NewGuid().ToString("N"))
 Remove-InstallerOwnedClientAssets $keepCase.Profile $keepCase.AppData $true
@@ -73,5 +75,11 @@ Assert-Eq "keep-config preserves roster" $true (Test-Path (Join-Path $keepCase.P
 Assert-Eq "keep-config preserves office" $true (Test-Path (Join-Path $keepCase.Profile ".copilot\skills\office\SKILL.md"))
 Assert-Eq "keep-config preserves MCP" $true (Test-Path (Join-Path $keepCase.Profile ".copilot\mcp-config.json"))
 
-Remove-Item $removeCase.Root, $keepCase.Root -Recurse -Force
+$unownedCase = New-OwnedProfile ("unowned_mcp_" + [guid]::NewGuid().ToString("N"))
+Remove-Item (Join-Path $unownedCase.Profile ".config\local-llm\.installer-owned\copilot-mcp-config")
+Remove-InstallerOwnedClientAssets $unownedCase.Profile $unownedCase.AppData $false
+Assert-Eq "unowned MCP is preserved" $true (Test-Path (Join-Path $unownedCase.Profile ".copilot\mcp-config.json"))
+Assert-Eq "unowned case still removes roster" $false (Test-Path (Join-Path $unownedCase.Profile ".config\local-llm\local-models.json"))
+
+Remove-Item $removeCase.Root, $keepCase.Root, $unownedCase.Root -Recurse -Force
 if (PS-Summary "windows-remove-symmetry") { exit 0 } else { exit 1 }

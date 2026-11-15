@@ -3,7 +3,7 @@
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 command -v uv >/dev/null 2>&1 || { echo "ERROR: uv is required for Python tests." >&2; exit 1; }
-uv run --no-project \
+PYTHONDONTWRITEBYTECODE=1 uv run --no-project \
     --with fastmcp \
     --with httpx \
     --with fastapi \

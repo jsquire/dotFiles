@@ -281,20 +281,55 @@ Write-Host "  Launching $modelLabel  [alias $($env:COPILOT_MODEL)]  $selTag"
 # ── Launch Copilot ───────────────────────────────────────────────────────────
 # Local Ollama is reached through ollama-host's compat proxy (:11435), which coerces content:null -> ""
 # so reasoning-model turns can't poison a session with Ollama's "invalid message content type: <nil>"
-# 400. If ollama-host isn't running there's nothing on :11435, so fall back to Ollama direct (:11434).
+# 400. The proxy uses Windows HTTP.sys, so Get-NetTCPConnection cannot reliably identify its listener.
+function Test-LocalOllamaEndpoint {
+    param([string]$BaseUrl)
+    try {
+        Invoke-RestMethod -Uri "$BaseUrl/api/version" -TimeoutSec 3 -ErrorAction Stop | Out-Null
+        return $true
+    } catch {
+        return $false
+    }
+}
 function Get-LocalOllamaBase {
-    if ($env:LL_TEST) { return "http://localhost:11435/v1" }   # test harness: assume the proxy, never probe
-    if (Get-NetTCPConnection -LocalPort 11435 -State Listen -ErrorAction SilentlyContinue) { return "http://localhost:11435/v1" }
-    Write-Host "  WARN: ollama-host isn't running (nothing on :11435). Launch 'Ollama Host' from the Start Menu"
-    Write-Host "        for the content:null fix; falling back to Ollama direct on :11434 (content:null 400s possible)."
-    return "http://localhost:11434/v1"
+    if (Test-LocalOllamaEndpoint "http://127.0.0.1:11435") {
+        return "http://localhost:11435/v1"
+    }
+    if (Test-LocalOllamaEndpoint "http://127.0.0.1:11434") {
+        Write-Host "  WARN: ollama-host's compatibility proxy is unavailable on :11435."
+        Write-Host "        Falling back to Ollama direct on :11434 (content:null 400s possible)."
+        return "http://localhost:11434/v1"
+    }
+    return $null
+}
+function Initialize-LocalOllamaModel {
+    param([string]$Model)
+    $keepAlive = if ($env:OLLAMA_KEEP_ALIVE) { $env:OLLAMA_KEEP_ALIVE } else { "5m" }
+    $body = @{ model = $Model; keep_alive = $keepAlive; stream = $false } | ConvertTo-Json -Compress
+    Write-Host -NoNewline "  Preparing $Model"
+    try {
+        Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/generate" -Method Post `
+            -ContentType "application/json" -Body $body -TimeoutSec 300 -ErrorAction Stop | Out-Null
+        Write-Host " - ready."
+        return $true
+    } catch {
+        Write-Host " - failed."
+        Write-Host "  ERROR: Ollama could not load $Model. $($_.Exception.Message)"
+        return $false
+    }
 }
 $copilotArgs = @('--model', $env:COPILOT_MODEL) + $mcpFlags + $gitSafety + $extraFlags + $args
 if ($env:COPILOT_PROVIDER_BASE_URL) {
     Write-Host "  Remote: $($env:COPILOT_PROVIDER_BASE_URL)"; Write-Host ""
     & copilot @copilotArgs
 } else {
+    $localBase = Get-LocalOllamaBase
+    if (-not $localBase) {
+        Write-Host "  ERROR: Ollama is unavailable on ports 11434 and 11435. Start Ollama Host and try again."
+        exit 1
+    }
+    if (-not (Initialize-LocalOllamaModel $env:COPILOT_MODEL)) { exit 1 }
     Write-Host ""
-    $env:COPILOT_PROVIDER_BASE_URL = Get-LocalOllamaBase
+    $env:COPILOT_PROVIDER_BASE_URL = $localBase
     & copilot @copilotArgs
 }

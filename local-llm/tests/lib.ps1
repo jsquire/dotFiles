@@ -9,6 +9,7 @@ $PS_REPO      = Split-Path -Parent $PS_TESTS_DIR
 $script:PS_PASS = 0
 $script:PS_FAIL = 0
 $script:PS_LAST_OUT = ""
+$script:PS_LAST_EXIT = 0
 
 function Assert-Eq($name, $expected, $actual) {
     if ($expected -ceq $actual) {
@@ -77,6 +78,10 @@ $env:LL_TEST = '1'
 $env:LL_STUB_SERVER_JSON = '__SERVER_JSON__'
 $env:LL_STUB_SWITCH_MODE = '__SWITCH_MODE__'
 $env:LL_STUB_SWITCH_LOG = '__SWITCH_LOG__'
+$env:LL_STUB_PROXY_MODE = '__PROXY_MODE__'
+$env:LL_STUB_DIRECT_MODE = '__DIRECT_MODE__'
+$env:LL_STUB_PRELOAD_MODE = '__PRELOAD_MODE__'
+$env:LL_STUB_OLLAMA_LOG = '__OLLAMA_LOG__'
 $env:LL_SWITCH_POLL_ATTEMPTS = '2'
 $env:LL_SWITCH_POLL_DELAY = '0'
 function Clear-Host {}
@@ -94,9 +99,29 @@ function copilot {
     Write-Host ("ARGV_JSON=[" + ($jsonArgs -join ',') + "]")
     foreach ($arg in $capturedArgs) { Write-Host ("ARGV_ITEM=" + $arg) }
 }
-$script:__switchMode = ""
+$global:__llSwitchMode = ""
 function Invoke-RestMethod {
     param($Uri, $Method, $ContentType, $Body, $TimeoutSec, $ErrorAction)
+    if ($Uri -eq 'http://127.0.0.1:11435/api/version') {
+        if ($env:LL_STUB_OLLAMA_LOG) { Add-Content $env:LL_STUB_OLLAMA_LOG "HEALTH_URL=$Uri" }
+        if ($env:LL_STUB_PROXY_MODE -eq 'failure') { throw "stubbed proxy failure" }
+        return [pscustomobject]@{ version = "test" }
+    }
+    if ($Uri -eq 'http://127.0.0.1:11434/api/version') {
+        if ($env:LL_STUB_OLLAMA_LOG) { Add-Content $env:LL_STUB_OLLAMA_LOG "HEALTH_URL=$Uri" }
+        if ($env:LL_STUB_DIRECT_MODE -eq 'failure') { throw "stubbed direct failure" }
+        return [pscustomobject]@{ version = "test" }
+    }
+    if ($Uri -eq 'http://127.0.0.1:11434/api/generate') {
+        if ($env:LL_STUB_OLLAMA_LOG) {
+            Add-Content $env:LL_STUB_OLLAMA_LOG "PRELOAD_URL=$Uri"
+            Add-Content $env:LL_STUB_OLLAMA_LOG "PRELOAD_METHOD=$Method"
+            Add-Content $env:LL_STUB_OLLAMA_LOG "PRELOAD_TIMEOUT=$TimeoutSec"
+            Add-Content $env:LL_STUB_OLLAMA_LOG "PRELOAD_BODY=$Body"
+        }
+        if ($env:LL_STUB_PRELOAD_MODE -eq 'failure') { throw "stubbed preload failure" }
+        return [pscustomobject]@{ done = $true }
+    }
     if ($Uri -like '*/models') {
         return (Get-Content $env:LL_STUB_SERVER_JSON -Raw | ConvertFrom-Json)
     }
@@ -106,22 +131,23 @@ function Invoke-RestMethod {
             Add-Content $env:LL_STUB_SWITCH_LOG "SWITCH_BODY=$Body"
         }
         if ($env:LL_STUB_SWITCH_MODE -eq 'failure') { throw "stubbed switch failure" }
-        $script:__switchMode = (ConvertFrom-Json $Body).mode
-        return [pscustomobject]@{ ok = $true; mode = $script:__switchMode }
+        $global:__llSwitchMode = (ConvertFrom-Json $Body).mode
+        return [pscustomobject]@{ ok = $true; mode = $global:__llSwitchMode }
     }
     if ($Uri -like '*/status') {
         if ($env:LL_STUB_SWITCH_LOG) { Add-Content $env:LL_STUB_SWITCH_LOG "STATUS_URL=$Uri" }
         return [pscustomobject]@{
-            mode = $script:__switchMode
+            mode = $global:__llSwitchMode
             api_up = ($env:LL_STUB_SWITCH_MODE -eq 'success')
         }
     }
     throw "test double refused URL: $Uri"
 }
-$script:__in = @(__INPUTS__); $script:__i = 0
-function Read-Host { param($p) $v = $script:__in[$script:__i]; $script:__i++; $v }
+$global:__llInputs = @(__INPUTS__); $global:__llInputIndex = 0
+function Read-Host { param($p) $v = $global:__llInputs[$global:__llInputIndex]; $global:__llInputIndex++; $v }
 Set-Location (Join-Path '__SB__' 'work')
-. (Join-Path '__SB__' 'launcher.ps1') __LARGS__
+& (Join-Path '__SB__' 'launcher.ps1') __LARGS__
+if (-not $?) { exit 1 }
 '@
 
 # Run a .ps1 launcher headless. Sets $script:PS_LAST_OUT.
@@ -133,7 +159,12 @@ function Invoke-LauncherPs1 {
         [string]$ModelArg,
         [string]$LocalRoster,
         [string]$SwitchMode = "failure",
-        [string]$SwitchLog = ""
+        [string]$SwitchLog = "",
+        [string]$ProxyMode = "success",
+        [string]$DirectMode = "success",
+        [string]$PreloadMode = "success",
+        [string]$OllamaLog = "",
+        [int]$ExpectedExitCode = 0
     )
     $sb = Join-Path $env:TEMP ("llt_" + [guid]::NewGuid().ToString("N").Substring(0, 10))
     New-Item -ItemType Directory -Force -Path (Join-Path $sb ".config\local-llm"), (Join-Path $sb "work") | Out-Null
@@ -158,13 +189,20 @@ function Invoke-LauncherPs1 {
         Replace('__SERVER_JSON__', (Join-Path $sb ".config\local-llm\server-models.json")).
         Replace('__SWITCH_MODE__', $SwitchMode).
         Replace('__SWITCH_LOG__', $SwitchLog).
+        Replace('__PROXY_MODE__', $ProxyMode).
+        Replace('__DIRECT_MODE__', $DirectMode).
+        Replace('__PRELOAD_MODE__', $PreloadMode).
+        Replace('__OLLAMA_LOG__', $OllamaLog).
         Replace('__INPUTS__', $inLit).
         Replace('__LARGS__', $largs)
     [System.IO.File]::WriteAllText((Join-Path $sb "wrapper.ps1"), $wrapper, $withBom)
 
-    $raw = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $sb "wrapper.ps1") 2>&1 |
+    $processOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $sb "wrapper.ps1") 2>&1
+    $script:PS_LAST_EXIT = $LASTEXITCODE
+    $raw = $processOutput |
         ForEach-Object { ($_ | Out-String).TrimEnd("`r", "`n") -replace "$([char]27)\[[0-9;]*m", "" }
     $script:PS_LAST_OUT = ($raw -join "`n")
+    Assert-Eq "launcher exit code" $ExpectedExitCode $script:PS_LAST_EXIT
 
     Remove-Item -Recurse -Force $sb
 }

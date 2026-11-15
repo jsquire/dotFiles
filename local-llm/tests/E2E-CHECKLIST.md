@@ -14,7 +14,8 @@ hardware (a running vLLM/Ollama server and the `copilot` binary). Run them once 
 - [ ] `~/.config/local-llm/server-models.json` (client fallback) present
 
 ## 2. Client launchers (Windows box and/or CachyOS client)
-- [ ] `copilot-local` -> Local -> pick each category's model -> Copilot launches against Ollama (`:11434`)
+- [ ] `copilot-local` -> Local -> pick each category's model -> the launcher verifies Ollama Host,
+      preloads the model, then Copilot launches through the compatibility proxy (`:11435`)
 - [ ] `copilot-local` -> Squire-Server -> pick a model -> the server switches, then Copilot talks to vLLM
       (`:8000`); banner shows the roster label + the expected prompt/output caps
 - [ ] `copilot-local` -> `[6]` Office documents -> Copilot discovers the office skill (`copilot skill list` shows it)

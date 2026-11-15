@@ -5,6 +5,7 @@ if (-not $uv) {
     Write-Host "ERROR: uv is required for Python tests."
     exit 1
 }
+$env:PYTHONDONTWRITEBYTECODE = "1"
 & $uv.Source run --no-project `
     --with fastmcp `
     --with httpx `

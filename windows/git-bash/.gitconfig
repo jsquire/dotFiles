@@ -62,6 +62,3 @@
 
 [credential]
   helper = manager
-
-[gpg]
-  program = C:/Program Files (x86)/GnuPG/bin/gpg.exe

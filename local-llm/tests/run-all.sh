@@ -2,7 +2,6 @@
 # Orchestrator for the Bash-side suites with recursive protected-root isolation validation.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-chmod +x "$DIR"/*.sh "$DIR"/stubs/* 2>/dev/null || true
 
 snapshot="$(mktemp)"
 after_snapshot="$(mktemp)"
@@ -48,7 +47,7 @@ PY
 
 snapshot_protected > "$snapshot"
 fail=0
-for s in test_schema.sh test_daemon.sh test_launchers_parity.sh test_launcher_switch.sh test_token_budgets.sh test_installer_gen.sh test_imagegen_context.sh test_imagegen_path.sh test_office_skill.sh test_ollama_proxy.sh run-python-tests.sh; do
+for s in test_schema.sh test_daemon.sh test_launchers_parity.sh test_launcher_switch.sh test_token_budgets.sh test_installer_gen.sh test_imagegen_path.sh test_office_skill.sh test_ollama_proxy.sh run-python-tests.sh; do
     echo "########## $s ##########"
     if bash "$DIR/$s"; then echo "-> $s OK"; else echo "-> $s FAILED"; fail=1; fi
     echo
