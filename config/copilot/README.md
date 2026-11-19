@@ -9,4 +9,4 @@ The development bootstrap for each supported operating system installs these ins
 ### Items
 
 * **copilot-instructions.md**  
-  _Authored in 2026, this file defines personal defaults loaded by GitHub Copilot CLI from `$HOME/.copilot/copilot-instructions.md`.  The current guidance directs explicit C# and .NET project creation requests to the installed `jesse-csharp` template._
+  _Authored in 2026, this file defines personal environment defaults loaded by GitHub Copilot CLI from `$HOME/.copilot/copilot-instructions.md`.
