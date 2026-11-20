@@ -28,9 +28,9 @@ internal sealed class DisplayWakeCoordinator : IDisposable
         PolychromeRestarter restarter,
         FileLog log)
     {
-        ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(restarter);
-        ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(options, nameof(options));
+        ArgumentNullException.ThrowIfNull(restarter, nameof(restarter));
+        ArgumentNullException.ThrowIfNull(log, nameof(log));
 
         Options = options;
         Restarter = restarter;
@@ -102,6 +102,7 @@ internal sealed class DisplayWakeCoordinator : IDisposable
         if (Interlocked.Exchange(ref _restartInProgress, 1) != 0)
         {
             Log.Information("A Polychrome restart is already in progress.");
+
             return false;
         }
 
@@ -112,6 +113,7 @@ internal sealed class DisplayWakeCoordinator : IDisposable
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or Win32Exception)
         {
             Log.Error("Polychrome restart failed.", exception);
+
             return false;
         }
         finally

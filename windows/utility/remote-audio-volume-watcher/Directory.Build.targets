@@ -1,0 +1,8 @@
+<Project>
+  <ItemGroup>
+    <None Remove="dist\**" />
+    <None Remove="**\*.md" />
+    <Compile Remove="dist\**" />
+    <EmbeddedResource Remove="dist\**" />
+  </ItemGroup>
+</Project>

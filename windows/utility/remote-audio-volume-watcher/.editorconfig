@@ -1,0 +1,57 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = false
+trim_trailing_whitespace = true
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.cs]
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_indent_block_contents = true
+csharp_indent_braces = false
+csharp_indent_case_contents = true
+csharp_indent_case_contents_when_block = true
+csharp_indent_switch_labels = true
+csharp_style_namespace_declarations = file_scoped:suggestion
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = true:suggestion
+csharp_prefer_braces = true:warning
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:suggestion
+dotnet_style_readonly_field = true:suggestion
+
+dotnet_naming_rule.constant_fields_should_be_pascal_case.severity = warning
+dotnet_naming_rule.constant_fields_should_be_pascal_case.symbols = constant_fields
+dotnet_naming_rule.constant_fields_should_be_pascal_case.style = pascal_case
+dotnet_naming_symbols.constant_fields.applicable_kinds = field
+dotnet_naming_symbols.constant_fields.required_modifiers = const
+
+dotnet_naming_rule.readonly_fields_should_be_pascal_case.severity = warning
+dotnet_naming_rule.readonly_fields_should_be_pascal_case.symbols = readonly_fields
+dotnet_naming_rule.readonly_fields_should_be_pascal_case.style = pascal_case
+dotnet_naming_symbols.readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.readonly_fields.required_modifiers = readonly
+
+dotnet_naming_rule.mutable_fields_should_be_camel_case_with_underscore.severity = warning
+dotnet_naming_rule.mutable_fields_should_be_camel_case_with_underscore.symbols = mutable_fields
+dotnet_naming_rule.mutable_fields_should_be_camel_case_with_underscore.style = camel_case_with_underscore
+dotnet_naming_symbols.mutable_fields.applicable_kinds = field
+dotnet_naming_symbols.mutable_fields.applicable_accessibilities = private, internal
+dotnet_naming_style.camel_case_with_underscore.required_prefix = _
+dotnet_naming_style.camel_case_with_underscore.capitalization = camel_case
+
+dotnet_naming_style.pascal_case.capitalization = pascal_case

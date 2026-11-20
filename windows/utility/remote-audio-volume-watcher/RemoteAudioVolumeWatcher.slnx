@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/RemoteAudioVolumeWatcher/RemoteAudioVolumeWatcher.csproj" />
+  <Project Path="tests/RemoteAudioVolumeWatcher.Tests.csproj" />
+</Solution>

@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(CommonTargetFramework)-windows</TargetFramework>
+    <RootNamespace>Squire.RemoteAudioVolumeWatcher</RootNamespace>
+    <StartupObject>Squire.RemoteAudioVolumeWatcher.Program</StartupObject>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>remote-audio-volume-watcher</AssemblyName>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <ApplicationIcon>assets\remote-audio.ico</ApplicationIcon>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <OptimizationPreference>Size</OptimizationPreference>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="Properties\" />
+    <None Include="assets\remote-audio.ico"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest"
+          TargetPath="remote-audio.ico" />
+    <None Include="assets\LICENSE.txt"
+          CopyToPublishDirectory="PreserveNewest"
+          TargetPath="LICENSE-Fluent-System-Icons.txt" />
+  </ItemGroup>
+
+  <Target Name="StageShippingBinary" AfterTargets="Publish">
+    <PropertyGroup>
+      <DistDirectory>$(MSBuildProjectDirectory)\..\..\dist</DistDirectory>
+      <PublishedExecutable>$(PublishDir)$(AssemblyName).exe</PublishedExecutable>
+      <DistExecutable>$(DistDirectory)\$(AssemblyName).exe</DistExecutable>
+      <PublishedIcon>$(PublishDir)remote-audio.ico</PublishedIcon>
+      <DistIcon>$(DistDirectory)\remote-audio.ico</DistIcon>
+      <PublishedIconLicense>$(PublishDir)LICENSE-Fluent-System-Icons.txt</PublishedIconLicense>
+      <DistIconLicense>$(DistDirectory)\LICENSE-Fluent-System-Icons.txt</DistIconLicense>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(DistDirectory)" />
+    <Copy SourceFiles="$(PublishedExecutable)" DestinationFolder="$(DistDirectory)" />
+    <Copy SourceFiles="$(PublishedIcon)" DestinationFiles="$(DistIcon)" />
+    <Copy SourceFiles="$(PublishedIconLicense)" DestinationFiles="$(DistIconLicense)" />
+
+    <GetFileHash Files="$(DistExecutable)" Algorithm="SHA256">
+      <Output TaskParameter="Hash" PropertyName="ShippingBinaryHash" />
+    </GetFileHash>
+
+    <WriteLinesToFile File="$(DistExecutable).sha256"
+                      Lines="$(ShippingBinaryHash.ToLowerInvariant())  $(AssemblyName).exe"
+                      Overwrite="true" />
+
+    <Message Importance="high"
+             Text="Staged $(AssemblyName).exe into $(DistDirectory) and refreshed its .sha256." />
+  </Target>
+</Project>

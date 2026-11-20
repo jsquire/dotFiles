@@ -27,6 +27,7 @@ internal static class Program
             var version = typeof(Program).Assembly.GetName().Version;
 
             Console.WriteLine($"polychrome-display-watcher {version?.ToString(3) ?? "unknown"}");
+
             return 0;
         }
 
@@ -38,6 +39,7 @@ internal static class Program
         if (!created)
         {
             log.Information("Another watcher instance is already running.");
+
             return 0;
         }
 
@@ -53,6 +55,7 @@ internal static class Program
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or Win32Exception)
         {
             log.Error("The watcher stopped because of an unrecoverable error.", exception);
+
             return 1;
         }
     }

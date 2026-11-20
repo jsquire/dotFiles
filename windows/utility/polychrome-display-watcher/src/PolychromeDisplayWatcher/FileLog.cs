@@ -47,7 +47,7 @@ internal sealed class FileLog
     ///
     public void Error(string message, Exception exception)
     {
-        ArgumentNullException.ThrowIfNull(exception);
+        ArgumentNullException.ThrowIfNull(exception, nameof(exception));
 
         Write("ERR", string.Create(
             CultureInfo.InvariantCulture,

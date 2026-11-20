@@ -85,6 +85,128 @@ internal static partial class Native
     /// <summary>The GUID for display-state changes in the interactive session.</summary>
     internal static readonly Guid SessionDisplayStatus = new("2B84C20E-AD23-4DDF-93DB-05FFBD7EFCA5");
 
+    [LibraryImport("kernel32.dll", EntryPoint = "GetModuleHandleW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    internal static partial nint GetModuleHandle(string? moduleName);
+
+    [LibraryImport("user32.dll", EntryPoint = "RegisterClassExW", SetLastError = true)]
+    internal static partial ushort RegisterClass(ref WindowClass windowClass);
+
+    [LibraryImport("user32.dll", EntryPoint = "UnregisterClassW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool UnregisterClass(string className, nint instance);
+
+    [LibraryImport("user32.dll", EntryPoint = "CreateWindowExW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    internal static partial nint CreateWindow(
+        uint extendedStyle,
+        string className,
+        string windowName,
+        uint style,
+        int x,
+        int y,
+        int width,
+        int height,
+        nint parent,
+        nint menu,
+        nint instance,
+        nint parameter);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool DestroyWindow(nint windowHandle);
+
+    [LibraryImport("user32.dll", EntryPoint = "DefWindowProcW")]
+    internal static partial nint DefWindowProc(nint windowHandle, uint message, nuint wParam, nint lParam);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    internal static partial nint RegisterPowerSettingNotification(
+        nint recipient,
+        in Guid powerSetting,
+        uint flags);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool UnregisterPowerSettingNotification(nint handle);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetMessageW", SetLastError = true)]
+    internal static partial int GetMessage(out Message message, nint windowHandle, uint minimumFilter, uint maximumFilter);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool TranslateMessage(in Message message);
+
+    [LibraryImport("user32.dll", EntryPoint = "DispatchMessageW")]
+    internal static partial nint DispatchMessage(in Message message);
+
+    [LibraryImport("user32.dll")]
+    internal static partial void PostQuitMessage(int exitCode);
+
+    [LibraryImport("user32.dll", EntryPoint = "RegisterWindowMessageW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    internal static partial uint RegisterWindowMessage(string messageName);
+
+    [LibraryImport("user32.dll", EntryPoint = "LoadImageW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    internal static partial nint LoadImage(
+        nint instance,
+        string name,
+        uint type,
+        int width,
+        int height,
+        uint loadFlags);
+
+    [LibraryImport("user32.dll", EntryPoint = "LoadIconW", SetLastError = true)]
+    internal static partial nint LoadIcon(nint instance, nint iconName);
+
+    [LibraryImport("user32.dll")]
+    internal static partial int GetSystemMetrics(int index);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool DestroyIcon(nint icon);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    internal static partial nint CreatePopupMenu();
+
+    [LibraryImport("user32.dll", EntryPoint = "AppendMenuW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool AppendMenu(nint menu, uint flags, nuint identifier, string? item);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool TrackPopupMenu(
+        nint menu,
+        uint flags,
+        int x,
+        int y,
+        int reserved,
+        nint window,
+        nint rectangle);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool DestroyMenu(nint menu);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool GetCursorPos(out Point point);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SetForegroundWindow(nint window);
+
+    [LibraryImport("user32.dll", EntryPoint = "PostMessageW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool PostMessage(nint window, uint message, nuint wParam, nint lParam);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    internal static partial nuint SetTimer(nint window, nuint identifier, uint intervalMilliseconds, nint callback);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool KillTimer(nint window, nuint identifier);
+
+    [LibraryImport("shell32.dll", EntryPoint = "Shell_NotifyIconW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static unsafe partial bool ShellNotifyIcon(uint message, NotifyIconData* data);
+
     /// <summary>
     /// Defines the callback used by a native window.
     /// </summary>
@@ -250,126 +372,4 @@ internal static partial class Native
         /// <summary>The custom balloon icon.</summary>
         internal nint _balloonIcon;
     }
-
-    [LibraryImport("kernel32.dll", EntryPoint = "GetModuleHandleW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
-    internal static partial nint GetModuleHandle(string? moduleName);
-
-    [LibraryImport("user32.dll", EntryPoint = "RegisterClassExW", SetLastError = true)]
-    internal static partial ushort RegisterClass(ref WindowClass windowClass);
-
-    [LibraryImport("user32.dll", EntryPoint = "UnregisterClassW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool UnregisterClass(string className, nint instance);
-
-    [LibraryImport("user32.dll", EntryPoint = "CreateWindowExW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
-    internal static partial nint CreateWindow(
-        uint extendedStyle,
-        string className,
-        string windowName,
-        uint style,
-        int x,
-        int y,
-        int width,
-        int height,
-        nint parent,
-        nint menu,
-        nint instance,
-        nint parameter);
-
-    [LibraryImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool DestroyWindow(nint windowHandle);
-
-    [LibraryImport("user32.dll", EntryPoint = "DefWindowProcW")]
-    internal static partial nint DefWindowProc(nint windowHandle, uint message, nuint wParam, nint lParam);
-
-    [LibraryImport("user32.dll", SetLastError = true)]
-    internal static partial nint RegisterPowerSettingNotification(
-        nint recipient,
-        in Guid powerSetting,
-        uint flags);
-
-    [LibraryImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool UnregisterPowerSettingNotification(nint handle);
-
-    [LibraryImport("user32.dll", EntryPoint = "GetMessageW", SetLastError = true)]
-    internal static partial int GetMessage(out Message message, nint windowHandle, uint minimumFilter, uint maximumFilter);
-
-    [LibraryImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool TranslateMessage(in Message message);
-
-    [LibraryImport("user32.dll", EntryPoint = "DispatchMessageW")]
-    internal static partial nint DispatchMessage(in Message message);
-
-    [LibraryImport("user32.dll")]
-    internal static partial void PostQuitMessage(int exitCode);
-
-    [LibraryImport("user32.dll", EntryPoint = "RegisterWindowMessageW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
-    internal static partial uint RegisterWindowMessage(string messageName);
-
-    [LibraryImport("user32.dll", EntryPoint = "LoadImageW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
-    internal static partial nint LoadImage(
-        nint instance,
-        string name,
-        uint type,
-        int width,
-        int height,
-        uint loadFlags);
-
-    [LibraryImport("user32.dll", EntryPoint = "LoadIconW", SetLastError = true)]
-    internal static partial nint LoadIcon(nint instance, nint iconName);
-
-    [LibraryImport("user32.dll")]
-    internal static partial int GetSystemMetrics(int index);
-
-    [LibraryImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool DestroyIcon(nint icon);
-
-    [LibraryImport("user32.dll", SetLastError = true)]
-    internal static partial nint CreatePopupMenu();
-
-    [LibraryImport("user32.dll", EntryPoint = "AppendMenuW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool AppendMenu(nint menu, uint flags, nuint identifier, string? item);
-
-    [LibraryImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool TrackPopupMenu(
-        nint menu,
-        uint flags,
-        int x,
-        int y,
-        int reserved,
-        nint window,
-        nint rectangle);
-
-    [LibraryImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool DestroyMenu(nint menu);
-
-    [LibraryImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool GetCursorPos(out Point point);
-
-    [LibraryImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool SetForegroundWindow(nint window);
-
-    [LibraryImport("user32.dll", EntryPoint = "PostMessageW", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool PostMessage(nint window, uint message, nuint wParam, nint lParam);
-
-    [LibraryImport("user32.dll", SetLastError = true)]
-    internal static partial nuint SetTimer(nint window, nuint identifier, uint intervalMilliseconds, nint callback);
-
-    [LibraryImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool KillTimer(nint window, nuint identifier);
-
-    [LibraryImport("shell32.dll", EntryPoint = "Shell_NotifyIconW", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static unsafe partial bool ShellNotifyIcon(uint message, NotifyIconData* data);
 }

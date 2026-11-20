@@ -23,8 +23,8 @@ internal sealed class PolychromeRestarter
     ///
     public PolychromeRestarter(WatcherOptions options, FileLog log)
     {
-        ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(options, nameof(options));
+        ArgumentNullException.ThrowIfNull(log, nameof(log));
 
         Options = options;
         Log = log;
@@ -43,6 +43,7 @@ internal sealed class PolychromeRestarter
             Log.Error(
                 $"Polychrome executable was not found at '{Options.ExecutablePath}'.",
                 new FileNotFoundException("The configured Polychrome executable does not exist.", Options.ExecutablePath));
+
             return false;
         }
 
@@ -62,6 +63,7 @@ internal sealed class PolychromeRestarter
                 Log.Error(
                     "Polychrome processes remained after the exit timeout.",
                     new TimeoutException($"Processes did not exit within {ExitTimeout}."));
+
                 return false;
             }
         }
@@ -88,10 +90,12 @@ internal sealed class PolychromeRestarter
             Log.Error(
                 "Windows did not return a process after launching Polychrome.",
                 new InvalidOperationException("Process.Start returned null."));
+
             return false;
         }
 
         Log.Information($"Polychrome DISPLAY relaunched as process {startedProcess.Id}.");
+
         return true;
     }
 

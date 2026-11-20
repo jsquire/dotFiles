@@ -45,8 +45,8 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
         DisplayWakeCoordinator coordinator,
         FileLog log)
     {
-        ArgumentNullException.ThrowIfNull(coordinator);
-        ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(coordinator, nameof(coordinator));
+        ArgumentNullException.ThrowIfNull(log, nameof(log));
 
         Coordinator = coordinator;
         Log = log;
@@ -62,7 +62,7 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
     public void Initialize(nint windowHandle, Action exitRequested)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        ArgumentNullException.ThrowIfNull(exitRequested);
+        ArgumentNullException.ThrowIfNull(exitRequested, nameof(exitRequested));
 
         _windowHandle = windowHandle;
         _exitRequested = exitRequested;
@@ -102,7 +102,7 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
         {
             var mouseMessage = unchecked((int)((nuint)lParam & 0xFFFF));
 
-            if ((mouseMessage == Native.WmRightButtonUp) || (mouseMessage == Native.WmLeftButtonUp))
+            if (mouseMessage is Native.WmRightButtonUp or Native.WmLeftButtonUp)
             {
                 ShowMenu();
             }
@@ -113,12 +113,14 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
         if (message == Native.WmCommand)
         {
             HandleCommand(unchecked((int)(wParam & 0xFFFF)));
+
             return true;
         }
 
         if ((message == Native.WmTimer) && (wParam == RetryTimerIdentifier))
         {
             RetryAddIcon();
+
             return true;
         }
 
@@ -127,6 +129,7 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
             _iconAdded = false;
             _retryAttempts = 0;
             AddIcon();
+
             return true;
         }
 
@@ -197,6 +200,7 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
         {
             StopRetryTimer();
             Log.Information($"Tray icon added after {_retryAttempts} retry attempt(s).");
+
             return;
         }
 
@@ -219,6 +223,7 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
         if (Native.SetTimer(_windowHandle, RetryTimerIdentifier, RetryIntervalMilliseconds, nint.Zero) == 0)
         {
             Log.Error("Windows did not create the tray icon retry timer.", CreateWin32Exception());
+
             return;
         }
 
@@ -328,12 +333,7 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
         {
             FileName = Log.FullPath,
             UseShellExecute = true
-        });
-
-        if (process is null)
-        {
-            throw new InvalidOperationException("Windows did not open the watcher log.");
-        }
+        }) ?? throw new InvalidOperationException("Windows did not open the watcher log.");
     }
 
     private void AddMenuItem(int command, string text, bool grayed = false)
@@ -372,6 +372,7 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
             {
                 _ownsIcon = true;
                 Log.Information($"Tray icon loaded from '{iconPath}'.");
+
                 return icon;
             }
 
@@ -387,6 +388,7 @@ internal sealed unsafe class NativeTrayIcon : IDisposable
         }
 
         _ownsIcon = false;
+
         return Native.LoadIcon(nint.Zero, new nint(Native.ApplicationIcon));
     }
 
