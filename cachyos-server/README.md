@@ -20,7 +20,7 @@ These resources from the base `cachyos/` directory are directly compatible with 
 ### Structure
 
 * **home**  
-  _Based on `cachyos/home`, this contains the $HOME items for the user account, including zsh, git, and gpg-agent configuration adapted for the server environment with `EDITOR=nano` and curses pinentry. The shared Ghostty profile remains in `cachyos/home` and is deployed directly by the server bootstrap rather than duplicated here._
+  _Based on `cachyos/home`, this contains the $HOME items for the user account, including Zsh, SSH-based Git signing, and GnuPG configuration for non-Git use, adapted for the server environment with `EDITOR=nano` and curses pinentry. The shared Ghostty profile remains in `cachyos/home` and is deployed directly by the server bootstrap rather than duplicated here._
 
 * **container-services**  
   _Docker Compose services and operational scripts for the server-hosted containers (AdGuard Home, Plex)._
@@ -43,6 +43,28 @@ These resources from the base `cachyos/` directory are directly compatible with 
   | `--maintenance-schedule CAL` | `Sat *-*-* 00:00:00` | `OnCalendar` expression for the automated maintenance window |
 
   If `--nas-host`/`--nas-media-export` are omitted, the NFS media mount is skipped (with a warning) and can be added later.  Likewise, if `--nas-host`/`--nas-backup-export` are omitted, the NAS backup mount and Kopia repo setup are skipped and can be added later.
+
+### SSH Signing
+
+The shared SSH identity is restored separately and is not stored in this
+repository. Restore `github_signing`, `github_signing.pub`, and
+`allowed_signers` under `~/.ssh` before running the bootstrap.
+
+The bootstrap applies modes `600`, `640`, and `640`, enables the systemd user
+socket for `ssh-agent`, configures its socket path, and migrates existing
+signing-related Git settings to SSH without replacing the configured email.
+Load the signing identity after login:
+
+```bash
+SSH_AUTH_SOCK="/run/user/$(id -u)/ssh-agent.socket" ssh-add "$HOME/.ssh/github_signing"
+SSH_AUTH_SOCK="/run/user/$(id -u)/ssh-agent.socket" ssh-add -l -E sha256
+```
+
+Run the first command yourself in your terminal, never through Copilot. The
+explicit socket prevents an inherited forwarded agent from receiving the key.
+
+Git commits and tags use SSH signing. GnuPG remains configured for non-Git
+OpenPGP operations.
 
 ### Storage / NAS
 
@@ -91,11 +113,12 @@ pacdiff --output                                         # list unmerged config 
 
 ### Post-Install Manual Steps
 
-1. Configure the UNAS Pro: create the RAID groups and enable NFS (Collaborative/all-squash) on the media (Group 2) and backups (Group 1) shares, allowed to this server's IP. No uid/gid matching is required under all-squash.
-2. Copy existing Plex media onto the NAS Group 2 pool before first Plex start.
-3. If `--nas-backup-export` wasn't provided during bootstrap, re-run `bootstrap.sh` with `--nas-host` and `--nas-backup-export` to mount the NAS backups export and complete Kopia setup.
-4. First container start (if not using `--full`): `cd <install-dir>/container-services && ./start-services.sh` (generates `.env` with secrets).
-5. Resolve any unmerged config files with `sudo pacdiff` (`pacdiff --output` lists them).  `pacman` writes a `.pacnew` whenever a config file it tracks was changed both locally and upstream, so it never silently discards a local edit.  Keeping this list empty is what makes the maintenance job's drift report meaningful.
+1. Manually load the restored SSH signing identity into the host-local agent with `SSH_AUTH_SOCK="/run/user/$(id -u)/ssh-agent.socket" ssh-add "$HOME/.ssh/github_signing"`. Do not run this through Copilot.
+2. Configure the UNAS Pro: create the RAID groups and enable NFS (Collaborative/all-squash) on the media (Group 2) and backups (Group 1) shares, allowed to this server's IP. No uid/gid matching is required under all-squash.
+3. Copy existing Plex media onto the NAS Group 2 pool before first Plex start.
+4. If `--nas-backup-export` wasn't provided during bootstrap, re-run `bootstrap.sh` with `--nas-host` and `--nas-backup-export` to mount the NAS backups export and complete Kopia setup.
+5. First container start (if not using `--full`): `cd <install-dir>/container-services && ./start-services.sh` (generates `.env` with secrets).
+6. Resolve any unmerged config files with `sudo pacdiff` (`pacdiff --output` lists them).  `pacman` writes a `.pacnew` whenever a config file it tracks was changed both locally and upstream, so it never silently discards a local edit.  Keeping this list empty is what makes the maintenance job's drift report meaningful.
 
 ### Execution Order
 

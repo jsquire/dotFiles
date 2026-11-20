@@ -197,7 +197,8 @@ if [ "$INSTALL_SHELL" = true ]; then
         shell_args+=(--force)
     fi
 
-    bash "$SCRIPT_DIR/init-shell.sh" "${shell_args[@]}"
+    DOTFILES_DEFER_SSH_ACTION=true \
+        bash "$SCRIPT_DIR/init-shell.sh" "${shell_args[@]}"
 fi
 
 if [ "$INSTALL_DEVELOPMENT" = true ]; then
@@ -210,3 +211,11 @@ fi
 
 echo
 echo "macOS bootstrap completed."
+
+if [ "$INSTALL_SHELL" = true ]; then
+    echo
+    echo "ACTION REQUIRED: run this yourself in a normal local Terminal, not through Copilot or SSH:"
+    printf '  SSH_AUTH_SOCK="$(/bin/launchctl getenv SSH_AUTH_SOCK)" /usr/bin/ssh-add --apple-use-keychain %q\n' \
+        "$HOME/.ssh/github_signing"
+    echo "Then log out and back in once to activate automatic local login loading."
+fi

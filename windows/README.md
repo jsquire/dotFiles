@@ -18,7 +18,7 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
   _Authored in 2026, this directory contains the Windows bootstrap for shared user-scoped development assets, including personal agent instructions and project templates maintained under the root `config` directory._
 
 * **git-bash**  
-  _Authored over a period of time starting in roughly 2012, these are the $HOME items for the bash profile associated with the Git for Windows environment. Git signing uses the GnuPG distribution bundled with Git for Windows. The profile leaves `gpg.program` unset and allows GnuPG to start its agent on demand._
+  _Authored over a period of time starting in roughly 2012, these are the $HOME items for the bash profile associated with the Git for Windows environment. Git commits and tags use the shared SSH signing identity through the Windows OpenSSH agent service. The directory README documents the required host activation because the Windows installation is not fully scripted._
   
 * **settings**  
   _Authored over a long period of time, starting in the mid-2000s, these are a collection of miscellaneous settings and configuration-related assets._  

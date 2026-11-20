@@ -9,7 +9,7 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
 ### Structure
 
 * **home**  
-  _Authored over a period of time starting in roughly 2012, these are the $HOME items for the user account, including shell configuration layered on the CachyOS system zsh config, git settings, and terminal customizations.  Items in `.local/bin` may need to be marked as executable._
+  _Authored over a period of time starting in roughly 2012, these are the $HOME items for the user account, including shell configuration layered on the CachyOS system zsh config, SSH-based Git signing settings, and terminal customizations. Items in `.local/bin` may need to be marked as executable._
 
   * **home/.config/alacritty**  
     _Alacritty terminal emulator configuration with a custom Nord-inspired dark theme._
@@ -58,6 +58,32 @@ supported.
 The Ruby environment includes Bundler, Ruby LSP, and `rdbg`. The Go environment
 includes `gopls`, Delve, and Staticcheck. Rust includes rustfmt, Clippy, and
 rust-analyzer.
+
+### SSH Signing
+
+The SSH identity is restored separately and is not stored in this repository.
+Before running `init-shell.sh`, restore these files under `~/.ssh`:
+
+* `github_signing`
+* `github_signing.pub`
+* `allowed_signers`
+
+The script installs OpenSSH, applies modes `600`, `640`, and `640`
+respectively, enables the systemd user socket for `ssh-agent`, and configures
+the socket path for shell and desktop sessions. It migrates existing
+signing-related Git settings to SSH while preserving the configured email and
+other personalized values. Load the passphrase-protected identity after login:
+
+```bash
+SSH_AUTH_SOCK="/run/user/$(id -u)/ssh-agent.socket" ssh-add "$HOME/.ssh/github_signing"
+SSH_AUTH_SOCK="/run/user/$(id -u)/ssh-agent.socket" ssh-add -l -E sha256
+```
+
+Run the first command yourself in your terminal, never through Copilot. The
+explicit socket prevents an inherited forwarded agent from receiving the key.
+
+Git commits and tags use SSH signing. The tracked GnuPG configuration remains
+available for non-Git OpenPGP operations.
 
 #### Using mise
 
@@ -153,7 +179,7 @@ used on the desktop.
   ```
 
 * **init-shell.sh**  
-  _Authored in 2026, this script installs ZSH and sets it as the default shell, deploys the explicitly listed top-level shell and Git files, and installs the shared Ghostty configuration, Jesse theme, and desktop Zed settings with timestamped backups when content changes. It does not deploy Alacritty, the custom Zed theme, editor, COSMIC Terminal, or GPG agent configuration. It is intended to be run after bootstrapping to establish the shell and terminal environment._
+  _Authored in 2026, this script installs OpenSSH and ZSH, sets ZSH as the default shell, deploys the explicitly listed top-level shell and Git files, enables the user SSH-agent socket, and installs the shared Ghostty configuration, Jesse theme, and desktop Zed settings with timestamped backups when content changes. It does not deploy SSH identity files, Alacritty, the custom Zed theme, editor, COSMIC Terminal, or GPG agent configuration. It is intended to be run after bootstrapping to establish the shell and terminal environment._
 
 * **install-development.sh**  
   _Authored in 2026, this script automates installing and configuring a set of development tools and shared user-scoped assets, focusing on Azure, .NET, GitHub Copilot, Node.js, mise-managed Ruby and Go, Rust, and Zed. It removes legacy chruby and ruby-install artifacts only after the mise-managed Ruby and Go environments and their language tools verify successfully. The actions performed by this script are intended to be general-purpose, but are targeted at a development workstation. Orphan removal and cache pruning run only when `--package-maintenance` is supplied._

@@ -37,7 +37,7 @@ if command -v mise &>/dev/null; then
     eval "$(mise activate zsh)"
 fi
 
-# Enable GPG signing
+# Keep OpenPGP tools usable for non-Git operations
 export GPG_TTY=$TTY
 
 # History

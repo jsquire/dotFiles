@@ -116,11 +116,41 @@ tracked environments.
 The same Jesse color palette, font, and window dimensions are installed as an
 Apple Terminal profile and selected as its default. Unmodified installed
 profiles receive tracked updates. GnuPG uses Homebrew's pinentry while
-preserving the configured agent cache duration.
+preserving the configured agent cache duration for non-Git OpenPGP operations.
 
 An existing modified `.gitconfig` is preserved unless `--force` is used. A
-fresh installation receives a template with identity and signing-key
-placeholders that must be configured before signed commits will work.
+fresh installation receives a template with an email placeholder and the
+standard shared SSH signing-key path.
+
+### SSH Signing
+
+The SSH identity is restored separately and is not stored in this repository.
+Restore these files under `~/.ssh` before running `init-shell.sh`:
+
+* `github_signing`
+* `github_signing.pub`
+* `allowed_signers`
+
+The script applies modes `600`, `640`, and `640`, installs a noninteractive
+per-user login job, and ends with a manual action. Run that command yourself in
+a normal local Terminal, never through Copilot or SSH:
+
+```bash
+SSH_AUTH_SOCK="$(/bin/launchctl getenv SSH_AUTH_SOCK)" /usr/bin/ssh-add --apple-use-keychain ~/.ssh/github_signing
+```
+
+This one-time manual step stores the passphrase in the login Keychain without
+exposing it to the installer or an AI-controlled process. Log out and back in
+once afterward. The `com.jessesquire.github-signing` LaunchAgent then runs at
+local GUI login and loads only `github_signing` from Keychain. It pins
+`SSH_AUTH_SOCK` to the launchd-owned local socket, refuses remote SSH sessions,
+refuses execution outside its launchd parent, disables askpass, has no terminal
+input, and logs a nonsecret message instead of prompting if loading fails.
+
+Git commits and tags use SSH signing. The public key must be registered with
+GitHub as a signing key, and `allowed_signers` must associate the Git commit
+email with that public key. Existing personalized Git configuration is
+migrated by changing only signing-related settings.
 
 ### Structure
 
@@ -136,8 +166,9 @@ placeholders that must be configured before signed commits will work.
   and shared development assets._
 
 * **init-shell.sh**  
-  _Deploys additive shell, Git, GnuPG, Ghostty, Terminal, Zed, and Powerlevel10k
-  configuration with timestamped backups._
+  _Deploys additive shell, SSH-based Git signing, GnuPG, Ghostty, Terminal,
+  Zed, and Powerlevel10k configuration with timestamped backups. SSH identity
+  files remain outside this repository._
 
 * **home**  
   _Contains portable user configuration and macOS-specific terminal settings._

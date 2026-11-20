@@ -1,7 +1,14 @@
 [user]
   name = Jesse Squire
   email = << EMAIL HERE >>
-  signingkey = << GPG KEY HERE >>
+  signingkey = ~/.ssh/github_signing.pub
+
+[gpg]
+  format = ssh
+
+[gpg "ssh"]
+  allowedSignersFile = ~/.ssh/allowed_signers
+  program = C:/Windows/System32/OpenSSH/ssh-keygen.exe
 
 [core]
   editor = code --new-window --wait

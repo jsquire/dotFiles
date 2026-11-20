@@ -1,7 +1,13 @@
 [user]
   name = Jesse Squire
   email = << ADD EMAIL HERE >>
-  signingkey = << ADD KEY HERE >>
+  signingkey = ~/.ssh/github_signing.pub
+
+[gpg]
+  format = ssh
+
+[gpg "ssh"]
+  allowedSignersFile = ~/.ssh/allowed_signers
 
 [core]
   editor = code --new-window --wait
