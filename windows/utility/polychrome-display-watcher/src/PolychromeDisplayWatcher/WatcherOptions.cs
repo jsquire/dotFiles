@@ -5,6 +5,12 @@ namespace Squire.PolychromeDisplayWatcher;
 /// </summary>
 internal sealed class WatcherOptions
 {
+    /// <summary>The process name used by Polychrome DISPLAY.</summary>
+    public const string ProcessName = "Polychrome DISPLAY";
+
+    /// <summary>The arguments used to relaunch Polychrome in its normal tray state.</summary>
+    public const string LaunchArguments = "--startupWithMinimize";
+
     /// <summary>The environment variable that overrides the Polychrome executable path.</summary>
     internal const string ExecutablePathEnvironmentVariable = "POLYCHROME_WATCHER_EXECUTABLE_PATH";
 
@@ -16,12 +22,6 @@ internal sealed class WatcherOptions
 
     /// <summary>The environment variable that overrides the log path.</summary>
     internal const string LogPathEnvironmentVariable = "POLYCHROME_WATCHER_LOG_PATH";
-
-    /// <summary>The process name used by Polychrome DISPLAY.</summary>
-    public const string ProcessName = "Polychrome DISPLAY";
-
-    /// <summary>The arguments used to relaunch Polychrome in its normal tray state.</summary>
-    public const string LaunchArguments = "--startupWithMinimize";
 
     /// <summary>
     /// Gets the full path to the Polychrome executable.
@@ -61,7 +61,7 @@ internal sealed class WatcherOptions
     ///
     internal static WatcherOptions FromEnvironment(Func<string, string?> getEnvironmentVariable)
     {
-        ArgumentNullException.ThrowIfNull(getEnvironmentVariable);
+        ArgumentNullException.ThrowIfNull(getEnvironmentVariable, nameof(getEnvironmentVariable));
 
         var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
         var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);

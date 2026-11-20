@@ -1,0 +1,44 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+.artifacts/
+
+# Test output
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+# IDE and user files
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+
+# Packages and build logs
+*.nupkg
+*.snupkg
+*.binlog
+MSBuild_Logs/
+
+# Operating systems and temporary files
+.DS_Store
+Thumbs.db
+[Dd]esktop.ini
+*.tmp
+*.log
+*~

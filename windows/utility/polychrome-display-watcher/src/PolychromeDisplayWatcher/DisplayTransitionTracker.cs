@@ -43,6 +43,7 @@ internal sealed class DisplayTransitionTracker
             if ((state == MonitorDisplayState.Off) && _restartPending)
             {
                 _restartPending = false;
+
                 return DisplayTransitionAction.CancelRestart;
             }
 
@@ -57,6 +58,7 @@ internal sealed class DisplayTransitionTracker
             }
 
             _restartPending = true;
+
             return DisplayTransitionAction.ScheduleRestart;
         }
     }
@@ -79,6 +81,7 @@ internal sealed class DisplayTransitionTracker
             }
 
             _restartPending = true;
+
             return true;
         }
     }

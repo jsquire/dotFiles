@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(CommonTargetFramework)-windows</TargetFramework>
+    <RootNamespace>Squire.RemoteAudioVolumeWatcher.Tests</RootNamespace>
+    <AssemblyName>RemoteAudioVolumeWatcher.Tests</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\src\RemoteAudioVolumeWatcher\RemoteAudioVolumeWatcher.csproj" />
+  </ItemGroup>
+</Project>

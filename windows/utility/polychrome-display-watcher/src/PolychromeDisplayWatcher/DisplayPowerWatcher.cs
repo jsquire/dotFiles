@@ -11,6 +11,7 @@ internal sealed class DisplayPowerWatcher : IDisposable
     private const string WindowClassName = "Squire.PolychromeDisplayWatcher.MessageWindow";
 
     private static readonly Native.WindowProcedure WindowProcedure = ProcessWindowMessage;
+    private static DisplayPowerWatcher? _current;
 
     private readonly DisplayWakeCoordinator Coordinator;
     private readonly FileLog Log;
@@ -21,8 +22,6 @@ internal sealed class DisplayPowerWatcher : IDisposable
     private nint _windowClassName;
     private bool _classRegistered;
     private bool _disposed;
-
-    private static DisplayPowerWatcher? _current;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DisplayPowerWatcher"/> class.
@@ -35,8 +34,8 @@ internal sealed class DisplayPowerWatcher : IDisposable
         DisplayWakeCoordinator coordinator,
         FileLog log)
     {
-        ArgumentNullException.ThrowIfNull(coordinator);
-        ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(coordinator, nameof(coordinator));
+        ArgumentNullException.ThrowIfNull(log, nameof(log));
 
         Coordinator = coordinator;
         Log = log;
@@ -231,6 +230,7 @@ internal sealed class DisplayPowerWatcher : IDisposable
             if (message == Native.WmDestroy)
             {
                 Native.PostQuitMessage(0);
+
                 return nint.Zero;
             }
         }
