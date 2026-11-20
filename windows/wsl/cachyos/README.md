@@ -34,11 +34,40 @@ After first setup:
 2. Run `bootstrap.sh`. It updates `/etc/wsl.conf` and exits.
 3. From PowerShell, run `wsl --terminate cachyos`.
 4. Launch the distribution again and rerun `bootstrap.sh`.
-5. Configure the email and signing key placeholders in `home/.gitconfig` before running the bootstrap.
-6. Import the GnuPG signing key from secure backup when signed commits are required. The bootstrap creates a native `~/.gnupg` and installs only non-secret configuration.
+5. Restore the shared Windows `.ssh` identity directory before rerunning the bootstrap. WSL links `~/.ssh` to that directory.
+6. Configure `user.email` in `~/.gitconfig`. On first installation the bootstrap copies the repository template there. Later runs preserve the existing file.
 7. Authenticate GitHub CLI and Copilot through the Linux Secret Service.
 8. Enable Docker Desktop integration for `cachyos` when Docker tooling is required.
 9. Validate SSH, signed commits, Secret Service, Zed, Zsh, Powerlevel10k, and each development toolchain.
+
+### SSH Signing
+
+Git uses the same SSH signing identity as Windows. The bootstrap links
+`~/.ssh` to the Windows profile, applies DrvFs metadata permissions, enables the
+CachyOS systemd user socket for `ssh-agent`, and configures the socket path for
+future sessions. It also migrates an existing Git configuration from OpenPGP
+to SSH without changing the configured email. As on native CachyOS, an existing
+`~/.gitconfig` is treated as personalized and is never overwritten.
+
+The shared SSH directory must contain:
+
+* `github_signing` with mode `600`
+* `github_signing.pub` with mode `640`
+* `allowed_signers` with mode `640`
+
+The key is loaded separately into the WSL agent because Windows and WSL run
+different agent processes:
+
+```bash
+SSH_AUTH_SOCK="/run/user/$(id -u)/ssh-agent.socket" ssh-add "$HOME/.ssh/github_signing"
+SSH_AUTH_SOCK="/run/user/$(id -u)/ssh-agent.socket" ssh-add -l -E sha256
+```
+
+Run the first command yourself in the WSL terminal, never through Copilot. The
+explicit socket prevents an inherited forwarded agent from receiving the key.
+
+The bootstrap keeps native `~/.gnupg` configuration for non-Git OpenPGP use,
+but Git commit and tag signing use SSH.
 
 ### Development Environments
 
@@ -130,9 +159,9 @@ The Windows Zed installation and extensions remain managed on Windows.  WSL serv
 ### Structure
 
 * **home**  
-  _These are the managed `$HOME` items for the active WSL user account, including shell configuration, Git settings, non-secret GnuPG configuration, dircolors, and Zed server settings._
+  _These are the managed `$HOME` items for the active WSL user account, including shell configuration, SSH-based Git signing settings, non-secret GnuPG configuration for non-Git use, dircolors, and Zed server settings._
 
 ### Items
 
 * **bootstrap.sh**  
-  _Authored in 2026, this script bootstraps the CachyOS WSL environment in two restart-safe phases, including system updates, base utilities, modern CLI tools, development platforms, Azure tooling, shell configuration, native WSL project storage, and selected home directory links to the Windows host._
+  _Authored in 2026, this script bootstraps the CachyOS WSL environment in two restart-safe phases, including system updates, base utilities, modern CLI tools, development platforms, Azure tooling, shell configuration, SSH-agent activation, native WSL project storage, and selected home directory links to the Windows host._

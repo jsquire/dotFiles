@@ -1,5 +1,6 @@
-# GPG needs the real TTY before p10k instant prompt redirects stdin
+# OpenPGP tools need the real TTY before p10k instant prompt redirects stdin
 export GPG_TTY=$(tty)
+export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
 
 # Set plugins BEFORE sourcing CachyOS config (it respects pre-set plugins)
 plugins=(git fzf extract dotnet docker docker-compose)
@@ -10,7 +11,7 @@ source /usr/share/cachyos-zsh-config/cachyos-config.zsh
 # Disable zsh-syntax-highlighting (colored text while typing)
 ZSH_HIGHLIGHT_HIGHLIGHTERS=()
 
-# Tell gpg-agent to use this terminal for pinentry
+# Keep the OpenPGP agent usable for non-Git operations
 gpg-connect-agent updatestartuptty /bye >/dev/null 2>&1
 
 # Load customized .dircolors, if it exists

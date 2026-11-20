@@ -9,6 +9,8 @@ SHARED_GHOSTTY_THEME_SOURCE="$REPOSITORY_ROOT/cachyos/home/.config/ghostty/theme
 SHARED_ZED_THEME_SOURCE="$REPOSITORY_ROOT/cachyos/home/.config/zed/themes/jesse.json"
 GPG_AGENT_CONFIG_SOURCE="$SCRIPT_DIR/home/.gnupg/gpg-agent.conf"
 TERMINAL_PROFILE_SOURCE="$SCRIPT_DIR/home/.config/terminal/Jesse.terminal"
+SSH_SIGNING_LOADER_SOURCE="$SCRIPT_DIR/home/.config/dotfiles/load-ssh-signing-key.sh"
+SSH_SIGNING_LAUNCH_AGENT_SOURCE="$SCRIPT_DIR/home/Library/LaunchAgents/com.jessesquire.github-signing.plist"
 STATE_FILE="$HOME/.config/dotfiles/install-state.tsv"
 FORCE=false
 
@@ -45,7 +47,9 @@ for source_file in \
     "$SHARED_GHOSTTY_THEME_SOURCE" \
     "$SHARED_ZED_THEME_SOURCE" \
     "$GPG_AGENT_CONFIG_SOURCE" \
-    "$TERMINAL_PROFILE_SOURCE"; do
+    "$TERMINAL_PROFILE_SOURCE" \
+    "$SSH_SIGNING_LOADER_SOURCE" \
+    "$SSH_SIGNING_LAUNCH_AGENT_SOURCE"; do
     if [ ! -f "$source_file" ]; then
         echo "ERROR: shared configuration not found at $source_file" >&2
         echo "Run this script from a complete dotFiles repository clone." >&2
@@ -227,6 +231,31 @@ install_gpg_agent_config() {
     gpgconf --kill gpg-agent
 }
 
+configure_ssh_signing() {
+    local private_key="$HOME/.ssh/github_signing"
+    local public_key="$HOME/.ssh/github_signing.pub"
+    local allowed_signers="$HOME/.ssh/allowed_signers"
+    local missing=false
+
+    for required_file in "$private_key" "$public_key" "$allowed_signers"; do
+        if [ ! -f "$required_file" ]; then
+            echo "ACTION REQUIRED: restore $required_file from the SSH identity backup."
+            missing=true
+        fi
+    done
+
+    if [ "$missing" = true ]; then
+        echo "ERROR: SSH signing identity is incomplete." >&2
+        echo "Restore the missing files, then rerun:" >&2
+        printf '  bash %q\n' "$SCRIPT_DIR/init-shell.sh" >&2
+        return 1
+    fi
+
+    chmod 700 "$HOME/.ssh"
+    chmod 600 "$private_key"
+    chmod 640 "$public_key" "$allowed_signers"
+}
+
 terminal_profile_exists() {
     local profile_name="${1:-Jesse}"
 
@@ -366,12 +395,21 @@ fi
 mkdir -p \
     "$HOME/.config/dotfiles" \
     "$HOME/.config/ghostty/themes" \
-    "$HOME/.config/zed/themes"
+    "$HOME/.config/zed/themes" \
+    "$HOME/Library/LaunchAgents"
 install -d -m 700 "$HOME/.gnupg"
 
 install_home_file \
     "$SCRIPT_DIR/home/.config/dotfiles/profile.zsh" \
     "$HOME/.config/dotfiles/profile.zsh"
+install_home_file \
+    "$SSH_SIGNING_LOADER_SOURCE" \
+    "$HOME/.config/dotfiles/load-ssh-signing-key.sh"
+chmod 700 "$HOME/.config/dotfiles/load-ssh-signing-key.sh"
+install_home_file \
+    "$SSH_SIGNING_LAUNCH_AGENT_SOURCE" \
+    "$HOME/Library/LaunchAgents/com.jessesquire.github-signing.plist"
+chmod 644 "$HOME/Library/LaunchAgents/com.jessesquire.github-signing.plist"
 install_home_file \
     "$SCRIPT_DIR/home/.config/dotfiles/shell.zsh" \
     "$HOME/.config/dotfiles/shell.zsh"
@@ -396,6 +434,14 @@ install_home_file \
 install_home_file \
     "$SCRIPT_DIR/home/.gitconfig" \
     "$HOME/.gitconfig"
+git config --global user.signingkey '~/.ssh/github_signing.pub'
+git config --global gpg.format ssh
+git config --global gpg.ssh.allowedSignersFile '~/.ssh/allowed_signers'
+git config --global commit.gpgsign true
+git config --global tag.gpgsign true
+git config --global --unset-all gpg.program 2>/dev/null || true
+git config --global --remove-section gpg.openpgp 2>/dev/null || true
+configure_ssh_signing
 install_gpg_agent_config
 install_terminal_profile
 
@@ -410,12 +456,20 @@ if [ "$SHELL" != "/bin/zsh" ]; then
     chsh -s /bin/zsh
 fi
 
-if grep -q 'ADD EMAIL HERE\|ADD KEY HERE\|ADD TOKEN HERE' "$HOME/.gitconfig" 2>/dev/null; then
+if grep -q 'ADD EMAIL HERE\|ADD TOKEN HERE' "$HOME/.gitconfig" 2>/dev/null; then
     echo
     echo "ACTION REQUIRED: $HOME/.gitconfig contains template placeholders."
-    echo "Set user.email and user.signingkey before creating signed commits."
+    echo "Set user.email and any required token before creating signed commits."
 fi
 
 echo
 echo "Shell and editor configuration installation completed."
 echo "In Ghostty 1.3 or later, select Ghostty > Set Ghostty as Default Terminal App."
+
+if [ "${DOTFILES_DEFER_SSH_ACTION:-false}" != "true" ]; then
+    echo
+    echo "ACTION REQUIRED: run this yourself in a normal local Terminal, not through Copilot or SSH:"
+    printf '  SSH_AUTH_SOCK="$(/bin/launchctl getenv SSH_AUTH_SOCK)" /usr/bin/ssh-add --apple-use-keychain %q\n' \
+        "$HOME/.ssh/github_signing"
+    echo "Then log out and back in once to activate automatic local login loading."
+fi

@@ -298,12 +298,42 @@ if [ -d "$HOME/.ssh" ]; then
     find -L "$HOME/.ssh/" -mindepth 1 -maxdepth 1 -type f \
         \( -name '*.pub' -o -name 'known_hosts*' \) \
         -exec chmod 644 {} +
+
+    [ ! -f "$HOME/.ssh/github_signing" ] || chmod 600 "$HOME/.ssh/github_signing"
+    [ ! -f "$HOME/.ssh/github_signing.pub" ] || chmod 640 "$HOME/.ssh/github_signing.pub"
+    [ ! -f "$HOME/.ssh/allowed_signers" ] || chmod 640 "$HOME/.ssh/allowed_signers"
 fi
 
+mkdir -p "$HOME/.config/environment.d"
+printf 'SSH_AUTH_SOCK=/run/user/%s/ssh-agent.socket\n' "$(id -u)" \
+    > "$HOME/.config/environment.d/10-ssh-agent.conf"
+export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
+systemctl --user enable --now ssh-agent.socket
+
+for required_file in \
+    "$HOME/.ssh/github_signing" \
+    "$HOME/.ssh/github_signing.pub" \
+    "$HOME/.ssh/allowed_signers"; do
+    if [ ! -f "$required_file" ]; then
+        echo "ACTION REQUIRED: restore $required_file in the linked Windows SSH directory."
+    fi
+done
 
 ############################################
 # Shell configuration
 ############################################
+
+install_home_file() {
+    local src="$1" dest="$2" preserve="${3:-}"
+    if [ -f "$dest" ]; then
+        if [ "$preserve" = "preserve" ]; then
+            echo "Keeping existing $dest (personalized; not overwritten)."
+            return 0
+        fi
+        cmp -s "$src" "$dest" || cp -a "$dest" "${dest}.bak-$(date +%Y%m%d%H%M%S)"
+    fi
+    cp "$src" "$dest"
+}
 
 if [ "$(getent passwd "$USER" | cut -d: -f7)" != "/usr/bin/zsh" ]; then
     sudo chsh -s /usr/bin/zsh "$USER"
@@ -312,10 +342,25 @@ fi
 cp "${SCRIPT_DIR}/home/.bashrc"    "$HOME/.bashrc"
 cp "${SCRIPT_DIR}/home/.profile"   "$HOME/.profile"
 cp "${SCRIPT_DIR}/home/.zshrc"     "$HOME/.zshrc"
-cp "${SCRIPT_DIR}/home/.gitconfig" "$HOME/.gitconfig"
+install_home_file \
+    "${SCRIPT_DIR}/home/.gitconfig" \
+    "$HOME/.gitconfig" \
+    preserve
 cp "${SCRIPT_DIR}/home/.gitignore" "$HOME/.gitignore"
 cp "${SCRIPT_DIR}/home/.dircolors" "$HOME/.dircolors"
 cp "${SCRIPT_DIR}/home/.p10k.zsh"  "$HOME/.p10k.zsh"
+
+git config --global user.signingkey '~/.ssh/github_signing.pub'
+git config --global gpg.format ssh
+git config --global gpg.ssh.allowedSignersFile '~/.ssh/allowed_signers'
+git config --global commit.gpgsign true
+git config --global tag.gpgsign true
+git config --global --unset-all gpg.program 2>/dev/null || true
+git config --global --remove-section gpg.openpgp 2>/dev/null || true
+
+if grep -q 'ADD EMAIL HERE' "$HOME/.gitconfig" 2>/dev/null; then
+    echo "ACTION REQUIRED: set user.email in $HOME/.gitconfig before creating signed commits."
+fi
 
 install -d -m 700 "$HOME/.gnupg"
 install -m 600 \
@@ -613,3 +658,8 @@ if command -v paccache &>/dev/null; then
 else
     sudo pacman -Sc --noconfirm
 fi
+
+echo
+echo "ACTION REQUIRED: run this yourself in your WSL terminal, not through Copilot:"
+echo '  SSH_AUTH_SOCK="/run/user/$(id -u)/ssh-agent.socket" ssh-add "$HOME/.ssh/github_signing"'
+echo "This explicitly targets the WSL-local agent instead of an inherited forwarded agent."

@@ -268,6 +268,14 @@ install_home_file "${SCRIPT_DIR}/home/.p10k.zsh"  "$HOME/.p10k.zsh"
 install_home_file "${SCRIPT_DIR}/home/.profile"   "$HOME/.profile"
 install_home_file "${SCRIPT_DIR}/home/.zshrc"     "$HOME/.zshrc"
 
+git config --global user.signingkey '~/.ssh/github_signing.pub'
+git config --global gpg.format ssh
+git config --global gpg.ssh.allowedSignersFile '~/.ssh/allowed_signers'
+git config --global commit.gpgsign true
+git config --global tag.gpgsign true
+git config --global --unset-all gpg.program 2>/dev/null || true
+git config --global --remove-section gpg.openpgp 2>/dev/null || true
+
 mkdir -p "$HOME/.config/ghostty/themes"
 install_home_file \
     "${SCRIPT_DIR}/../cachyos/home/.config/ghostty/config.ghostty" \
@@ -276,26 +284,45 @@ install_home_file \
     "${SCRIPT_DIR}/../cachyos/home/.config/ghostty/themes/Jesse" \
     "$HOME/.config/ghostty/themes/Jesse"
 
-# The template .gitconfig ships placeholders rather than a real identity, and it
-# sets commit.gpgsign/tag.gpgsign to true. Left unedited, git does not merely
-# record a wrong email: every commit fails outright with "gpg: skipped ... No
-# secret key" and exit 128. The preserve guard above means a personalized file is
-# never clobbered, so this only ever fires on a genuinely unconfigured copy.
+mkdir -p "$HOME/.config/environment.d"
+printf 'SSH_AUTH_SOCK=/run/user/%s/ssh-agent.socket\n' "$(id -u)" \
+    > "$HOME/.config/environment.d/10-ssh-agent.conf"
+export SSH_AUTH_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/ssh-agent.socket"
+systemctl --user enable --now ssh-agent.socket
 
-if grep -q 'ADD EMAIL HERE\|ADD KEY HERE\|ADD TOKEN HERE' "$HOME/.gitconfig" 2>/dev/null; then
+if [ -d "$HOME/.ssh" ]; then
+    chmod 700 "$HOME/.ssh"
+    [ ! -f "$HOME/.ssh/github_signing" ] || chmod 600 "$HOME/.ssh/github_signing"
+    [ ! -f "$HOME/.ssh/github_signing.pub" ] || chmod 640 "$HOME/.ssh/github_signing.pub"
+    [ ! -f "$HOME/.ssh/allowed_signers" ] || chmod 640 "$HOME/.ssh/allowed_signers"
+fi
+
+# The template uses a fixed SSH signing-key path and enables commit and tag
+# signing. A missing identity file or placeholder email makes every commit fail.
+
+if grep -q 'ADD EMAIL HERE\|ADD TOKEN HERE' "$HOME/.gitconfig" 2>/dev/null; then
     echo ""
     echo "  ACTION REQUIRED: $HOME/.gitconfig still has template placeholders."
-    echo "  commit.gpgsign is enabled, so git commits will FAIL until these are set:"
-    grep -n 'ADD EMAIL HERE\|ADD KEY HERE\|ADD TOKEN HERE' "$HOME/.gitconfig" | sed 's/^/    line /'
+    echo "  Automatic SSH signing is enabled, so Git commits will fail until these are set:"
+    grep -n 'ADD EMAIL HERE\|ADD TOKEN HERE' "$HOME/.gitconfig" | sed 's/^/    line /'
     echo ""
     echo "  Set them with, for example:"
     echo "    git config --global user.email 'you@example.com'"
-    echo "    git config --global user.signingkey '<your-gpg-key-id>'"
     echo "  Or edit $HOME/.gitconfig directly. To commit without signing instead:"
     echo "    git config --global commit.gpgsign false"
     echo "    git config --global tag.gpgsign false"
     echo ""
 fi
+
+for required_file in \
+    "$HOME/.ssh/github_signing" \
+    "$HOME/.ssh/github_signing.pub" \
+    "$HOME/.ssh/allowed_signers"; do
+    if [ ! -f "$required_file" ]; then
+        echo "  ACTION REQUIRED: restore $required_file from the SSH identity backup."
+    fi
+done
+
 mkdir -p "$HOME/.gnupg"
 cp "${SCRIPT_DIR}/home/.gnupg/gpg-agent.conf" "$HOME/.gnupg/gpg-agent.conf"
 chmod 700 "$HOME/.gnupg"
@@ -1169,9 +1196,9 @@ if [ "$FULL_INSTALL" = true ]; then
     printf '[main]\ndns=default\n' | sudo tee /etc/NetworkManager/conf.d/dns.conf >/dev/null
 
     sudo systemctl mask --now systemd-resolved 2>/dev/null || true
-    
+
     # Drop a stale systemd-resolved symlink so NetworkManager can manage resolv.conf.
-    
+
     if [ -L /etc/resolv.conf ]; then
         sudo rm -f /etc/resolv.conf
     fi
@@ -1271,3 +1298,7 @@ echo
 echo "Bootstrap complete."
 echo "Manual follow-up: finish Kopia setup from cachyos/backups/ and verify the NFS media mount."
 echo "Log out and back in for shell and group membership changes."
+echo
+echo "ACTION REQUIRED: run this yourself in your terminal, not through Copilot:"
+echo '  SSH_AUTH_SOCK="/run/user/$(id -u)/ssh-agent.socket" ssh-add "$HOME/.ssh/github_signing"'
+echo "This explicitly targets the host-local agent instead of an inherited forwarded agent."

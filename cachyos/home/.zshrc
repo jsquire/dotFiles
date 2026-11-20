@@ -60,10 +60,11 @@ fi
 # Enable MISE tooling for Go and Ruby
 eval "$(mise activate zsh)"
 
-# Enable GPG signing
+# Keep OpenPGP tools usable for non-Git operations
 # Use zsh's $TTY (not $(tty)): under Powerlevel10k instant prompt, stdin is
 # redirected so $(tty) yields "not a tty", which breaks pinentry. $TTY is always correct.
 export GPG_TTY=$TTY
+export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
 
 # History
 HISTSIZE=50000
