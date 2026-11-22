@@ -1237,41 +1237,43 @@ TIMESTEP_TOKEN_NUM = 1
         Write-Warn "Launcher script not found at $launcherPs1Source — skipping."
     }
 
-    # ── Step: Deploy ollama-host (tray supervisor) ────────────────────────
-    # Default Windows supervisor: a NativeAOT tray app that OWNS Ollama's lifecycle and hosts the
-    # content:null proxy in-process (no .NET runtime needed). Ships prebuilt in windows/ollama-host/dist.
-    # Installs to its own %LOCALAPPDATA%\ollama-host\ dir (exe + appsettings + logs). Clients point at
-    # :11435; if ollama-host isn't running the launchers fall back to Ollama direct on :11434. The
-    # Python compat proxy is CachyOS-only and is never deployed on Windows.
-    Write-Step "Deploy ollama-host (tray supervisor)"
-    $ollamaHostSource = Join-Path $PSScriptRoot "ollama-host\dist\ollama-host.exe"
-    $ollamaHostDir = Join-Path $UserProfile "AppData\Local\ollama-host"
-    $ollamaHostDest = Join-Path $ollamaHostDir "ollama-host.exe"
-    if (Test-Path $ollamaHostSource) {
-        if (-not (Test-Path $ollamaHostDir)) { New-Item -ItemType Directory -Path $ollamaHostDir -Force | Out-Null }
-        $shaFile = "$ollamaHostSource.sha256"
-        $verified = $true
-        if (Test-Path $shaFile) {
-            $expected = ((Get-Content $shaFile -Raw).Trim() -split '\s+')[0]
-            $actual = (Get-FileHash $ollamaHostSource -Algorithm SHA256).Hash
-            if ($expected -and $expected -ne $actual) {
-                $verified = $false
-                Write-Warn "ollama-host.exe SHA256 mismatch — skipping deploy (expected $expected, got $actual)."
+    if ($IsFullMode) {
+        # ── Step: Deploy ollama-host (tray supervisor) ────────────────────
+        # Default Windows supervisor: a NativeAOT tray app that OWNS Ollama's lifecycle and hosts the
+        # content:null proxy in-process (no .NET runtime needed). Ships prebuilt in windows/ollama-host/dist.
+        # Installs to its own %LOCALAPPDATA%\ollama-host\ dir (exe + appsettings + logs). Clients point at
+        # :11435; if ollama-host isn't running the launchers fall back to Ollama direct on :11434. The
+        # Python compat proxy is CachyOS-only and is never deployed on Windows.
+        Write-Step "Deploy ollama-host (tray supervisor)"
+        $ollamaHostSource = Join-Path $PSScriptRoot "ollama-host\dist\ollama-host.exe"
+        $ollamaHostDir = Join-Path $UserProfile "AppData\Local\ollama-host"
+        $ollamaHostDest = Join-Path $ollamaHostDir "ollama-host.exe"
+        if (Test-Path $ollamaHostSource) {
+            if (-not (Test-Path $ollamaHostDir)) { New-Item -ItemType Directory -Path $ollamaHostDir -Force | Out-Null }
+            $shaFile = "$ollamaHostSource.sha256"
+            $verified = $true
+            if (Test-Path $shaFile) {
+                $expected = ((Get-Content $shaFile -Raw).Trim() -split '\s+')[0]
+                $actual = (Get-FileHash $ollamaHostSource -Algorithm SHA256).Hash
+                if ($expected -and $expected -ne $actual) {
+                    $verified = $false
+                    Write-Warn "ollama-host.exe SHA256 mismatch — skipping deploy (expected $expected, got $actual)."
+                }
             }
-        }
-        if ($verified) {
-            Copy-Item $ollamaHostSource $ollamaHostDest -Force
-            Write-Success "Deployed ollama-host.exe to $ollamaHostDir (the default supervisor for Ollama + content:null proxy)"
-            # Ship the example config only if the user does not already have one (never clobber local edits).
-            $ollamaHostConfigSrc = Join-Path $PSScriptRoot "ollama-host\dist\appsettings.json"
-            $ollamaHostConfigDest = Join-Path $ollamaHostDir "appsettings.json"
-            if ((Test-Path $ollamaHostConfigSrc) -and -not (Test-Path $ollamaHostConfigDest)) {
-                Copy-Item $ollamaHostConfigSrc $ollamaHostConfigDest -Force
-                Write-Info "Deployed default appsettings.json (edit to override ports or logging)."
+            if ($verified) {
+                Copy-Item $ollamaHostSource $ollamaHostDest -Force
+                Write-Success "Deployed ollama-host.exe to $ollamaHostDir (the default supervisor for Ollama + content:null proxy)"
+                # Ship the example config only if the user does not already have one (never clobber local edits).
+                $ollamaHostConfigSrc = Join-Path $PSScriptRoot "ollama-host\dist\appsettings.json"
+                $ollamaHostConfigDest = Join-Path $ollamaHostDir "appsettings.json"
+                if ((Test-Path $ollamaHostConfigSrc) -and -not (Test-Path $ollamaHostConfigDest)) {
+                    Copy-Item $ollamaHostConfigSrc $ollamaHostConfigDest -Force
+                    Write-Info "Deployed default appsettings.json (edit to override ports or logging)."
+                }
             }
+        } else {
+            Write-Warn "ollama-host.exe not found at $ollamaHostSource. Skipping; the launchers will fall back to Ollama direct on :11434 (content:null 400s possible). The python compat proxy is CachyOS-only and must not be used on Windows."
         }
-    } else {
-        Write-Warn "ollama-host.exe not found at $ollamaHostSource. Skipping; the launchers will fall back to Ollama direct on :11434 (content:null 400s possible). The python compat proxy is CachyOS-only and must not be used on Windows."
     }
 
     # ── Step: Deploy model roster data files ──────────────────────────────
@@ -1340,17 +1342,19 @@ TIMESTEP_TOKEN_NUM = 1
     $copilotLnk.Save()
     Write-Success "Created shortcut: Copilot (Local)"
 
-    # Ollama Host shortcut — the default supervisor (starts Ollama + content:null proxy from the tray)
-    $ollamaHostExe = Join-Path $UserProfile "AppData\Local\ollama-host\ollama-host.exe"
-    if (Test-Path $ollamaHostExe) {
-        $ollamaAppIcon = Join-Path $UserProfile "AppData\Local\Programs\Ollama\app.ico"
-        $hostLnk = $shell.CreateShortcut((Join-Path $aiFolder "Ollama Host.lnk"))
-        $hostLnk.TargetPath = $ollamaHostExe
-        $hostLnk.WorkingDirectory = Split-Path $ollamaHostExe
-        $hostLnk.Description = "Ollama Host — supervises Ollama and the content:null compat proxy from the system tray"
-        if (Test-Path $ollamaAppIcon) { $hostLnk.IconLocation = "$ollamaAppIcon,0" }
-        $hostLnk.Save()
-        Write-Success "Created shortcut: Ollama Host"
+    if ($IsFullMode) {
+        # Ollama Host shortcut — the default supervisor (starts Ollama + content:null proxy from the tray)
+        $ollamaHostExe = Join-Path $UserProfile "AppData\Local\ollama-host\ollama-host.exe"
+        if (Test-Path $ollamaHostExe) {
+            $ollamaAppIcon = Join-Path $UserProfile "AppData\Local\Programs\Ollama\app.ico"
+            $hostLnk = $shell.CreateShortcut((Join-Path $aiFolder "Ollama Host.lnk"))
+            $hostLnk.TargetPath = $ollamaHostExe
+            $hostLnk.WorkingDirectory = Split-Path $ollamaHostExe
+            $hostLnk.Description = "Ollama Host — supervises Ollama and the content:null compat proxy from the system tray"
+            if (Test-Path $ollamaAppIcon) { $hostLnk.IconLocation = "$ollamaAppIcon,0" }
+            $hostLnk.Save()
+            Write-Success "Created shortcut: Ollama Host"
+        }
     }
 
     [System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell) | Out-Null

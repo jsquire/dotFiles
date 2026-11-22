@@ -42,4 +42,45 @@ Assert-Eq "language server requires Full mode" $true ($conditions -contains '$Is
 Assert-Eq "language server requires client tools" $true ($conditions -contains '$InstallClientTools')
 Assert-Eq "Client mode does not guard the language server call" $false ($conditions -contains '$IsClientMode')
 
+function Get-AncestorConditions($node) {
+    $result = @()
+    $node = $node.Parent
+    while ($node) {
+        if ($node -is [Management.Automation.Language.IfStatementAst]) {
+            foreach ($clause in $node.Clauses) {
+                $result += $clause.Item1.Extent.Text.Trim()
+            }
+        }
+        $node = $node.Parent
+    }
+    @($result)
+}
+
+$hostCopies = @($ast.FindAll(
+    {
+        param($node)
+        $node -is [Management.Automation.Language.CommandAst] -and
+            $node.GetCommandName() -eq 'Copy-Item' -and
+            $node.Extent.Text -match '\$ollamaHostSource'
+    },
+    $true))
+
+Assert-Eq "Ollama Host executable has one deployment copy" 1 $hostCopies.Count
+$hostCopyConditions = if ($hostCopies.Count -eq 1) { Get-AncestorConditions $hostCopies[0] } else { @() }
+Assert-Eq "Ollama Host deployment requires Full mode" $true ($hostCopyConditions -contains '$IsFullMode')
+Assert-Eq "Ollama Host deployment requires client tools" $true ($hostCopyConditions -contains '$InstallClientTools')
+
+$hostShortcuts = @($ast.FindAll(
+    {
+        param($node)
+        $node -is [Management.Automation.Language.AssignmentStatementAst] -and
+            $node.Left.Extent.Text -eq '$hostLnk'
+    },
+    $true))
+
+Assert-Eq "Ollama Host has one shortcut creation" 1 $hostShortcuts.Count
+$hostShortcutConditions = if ($hostShortcuts.Count -eq 1) { Get-AncestorConditions $hostShortcuts[0] } else { @() }
+Assert-Eq "Ollama Host shortcut requires Full mode" $true ($hostShortcutConditions -contains '$IsFullMode')
+Assert-Eq "Ollama Host shortcut requires client tools" $true ($hostShortcutConditions -contains '$InstallClientTools')
+
 if (PS-Summary "windows-installer-scope") { exit 0 } else { exit 1 }
