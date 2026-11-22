@@ -19,7 +19,7 @@ In some cases, the artifacts may be a subset of functionality, requiring use in 
 ### Items
 
 * **Install-DevelopmentEnvironment.ps1**  
-  _Authored in 2026, this idempotent PowerShell bootstrap installs or refreshes the user-scoped development assets in this section.  It currently deploys the personal Copilot instructions and packages, registers, and verifies the .NET project templates._
+  _Authored in 2026, this idempotent PowerShell bootstrap installs or refreshes the user-scoped development assets in this section.  It currently deploys the personal Copilot instructions and packages, registers, and verifies the .NET 11 project templates._
 
 ### Usage
 

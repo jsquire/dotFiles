@@ -4,7 +4,7 @@
 
 Included in this section are source and packaging assets for personal project templates installed by the operating-system development bootstraps.
 
-The current collection contains the `jesse-csharp` .NET solution template.  It is packaged as `Jesse.CSharp.Templates` and registered with the current user's `dotnet new` template registry, allowing it to be used from any working directory without a source or package path.
+The current collection contains the `jesse-csharp` .NET 11 solution template.  It is packaged as `Jesse.CSharp.Templates` and registered with the current user's `dotnet new` template registry, allowing it to be used from any working directory without a source or package path.
 
 ### Structure
 

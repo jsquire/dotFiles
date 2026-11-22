@@ -452,6 +452,67 @@ function Install-WinGetPackage {
     return $true
 }
 
+function Install-CSharpLanguageServer {
+    Write-Step "Install csharp-ls (C# language server)"
+    Write-Info "csharp-ls provides C# language intelligence to compatible local development clients."
+
+    $dotnetExe = $null
+    $dotnetCmd = Get-Command dotnet -ErrorAction SilentlyContinue
+    if ($dotnetCmd) { $dotnetExe = $dotnetCmd.Source }
+    elseif (Test-Path "$env:ProgramFiles\dotnet\dotnet.exe") { $dotnetExe = "$env:ProgramFiles\dotnet\dotnet.exe" }
+
+    $hasDotNet11Sdk = $false
+    if ($dotnetExe) { $hasDotNet11Sdk = [bool]((& $dotnetExe --list-sdks 2>$null) | Where-Object { $_ -match '^11\.' }) }
+
+    if (-not $hasDotNet11Sdk) {
+        Write-Info ".NET 11 SDK not found — installing Microsoft.DotNet.SDK.11 (required for csharp-ls)."
+        Install-WinGetPackage -Id "Microsoft.DotNet.SDK.11" -Name ".NET 11 SDK" | Out-Null
+        $dotnetCmd = Get-Command dotnet -ErrorAction SilentlyContinue
+        if ($dotnetCmd) { $dotnetExe = $dotnetCmd.Source }
+        elseif (Test-Path "$env:ProgramFiles\dotnet\dotnet.exe") { $dotnetExe = "$env:ProgramFiles\dotnet\dotnet.exe" }
+        if ($dotnetExe) { $hasDotNet11Sdk = [bool]((& $dotnetExe --list-sdks 2>$null) | Where-Object { $_ -match '^11\.' }) }
+    }
+
+    if (-not $hasDotNet11Sdk) {
+        Add-NonFatalWarning "No .NET 11 SDK is available; csharp-ls was not installed."
+        return
+    }
+
+    $globalTools = & $dotnetExe tool list --global 2>$null
+    $toolInstalled = $globalTools -match '(?im)^\s*csharp-ls\s'
+
+    if ($toolInstalled) {
+        Write-Info "csharp-ls is already installed — skipping."
+    } else {
+        # Pin this optional tool so a new package release cannot break the full installer.
+        Write-Host "  Installing csharp-ls 0.28.0 (dotnet global tool)..." -ForegroundColor White
+        $csOut = & $dotnetExe tool install --global csharp-ls --version 0.28.0 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $toolInstalled = $true
+            Write-Success "csharp-ls installed."
+        } else {
+            $csTail = (($csOut | Select-Object -Last 3) -join " | ").Trim()
+            Add-NonFatalWarning "csharp-ls install failed: $csTail"
+            return
+        }
+    }
+
+    $csToolsDir = Join-Path $env:USERPROFILE ".dotnet\tools"
+    $csUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    if ($csUserPath -notlike "*$csToolsDir*") {
+        [Environment]::SetEnvironmentVariable("Path", "$csUserPath;$csToolsDir", "User")
+        Write-Success "Added $csToolsDir to user PATH."
+    }
+    if ($env:Path -notlike "*$csToolsDir*") { $env:Path = "$env:Path;$csToolsDir" }
+
+    $csExe = Join-Path $csToolsDir "csharp-ls.exe"
+    if (Test-Path $csExe) {
+        $csVer = (& $csExe --version 2>&1 | Select-Object -First 1)
+        if ($LASTEXITCODE -eq 0) { Write-Info "csharp-ls verified: $csVer" }
+        else { Add-NonFatalWarning "csharp-ls installed but did not run cleanly." }
+    }
+}
+
 function Wait-ForOllama {
     param([int]$TimeoutSeconds = 30)
 
@@ -883,64 +944,8 @@ if ($ShouldInstallSoftware) {
         }
     }
 
-    # ── Step: csharp-ls (C# language server) ──────────────────────────────
-    Write-Step "Install csharp-ls (C# language server)"
-    Write-Info "csharp-ls provides C# language intelligence to compatible clients."
-
-    # Resolve a dotnet executable. 'dotnet tool install' needs an SDK (not just a runtime).
-    $dotnetExe = $null
-    $dotnetCmd = Get-Command dotnet -ErrorAction SilentlyContinue
-    if ($dotnetCmd) { $dotnetExe = $dotnetCmd.Source }
-    elseif (Test-Path "$env:ProgramFiles\dotnet\dotnet.exe") { $dotnetExe = "$env:ProgramFiles\dotnet\dotnet.exe" }
-
-    $hasSdk = $false
-    if ($dotnetExe) { $hasSdk = [bool]((& $dotnetExe --list-sdks 2>$null) | Where-Object { $_ -match '^\d' }) }
-
-    if (-not $hasSdk) {
-        Write-Info ".NET SDK not found — installing Microsoft.DotNet.SDK.10 (required for csharp-ls)."
-        Install-WinGetPackage -Id "Microsoft.DotNet.SDK.10" -Name ".NET SDK 10" | Out-Null
-        # winget PATH changes are not live in this session — re-resolve, falling back to the install path.
-        $dotnetCmd = Get-Command dotnet -ErrorAction SilentlyContinue
-        if ($dotnetCmd) { $dotnetExe = $dotnetCmd.Source }
-        elseif (Test-Path "$env:ProgramFiles\dotnet\dotnet.exe") { $dotnetExe = "$env:ProgramFiles\dotnet\dotnet.exe" }
-        if ($dotnetExe) { $hasSdk = [bool]((& $dotnetExe --list-sdks 2>$null) | Where-Object { $_ -match '^\d' }) }
-    }
-
-    if ($hasSdk) {
-        $globalTools = & $dotnetExe tool list --global 2>$null
-        if ($globalTools -match '(?im)^\s*csharp-ls\s') {
-            Write-Info "csharp-ls already installed — skipping."
-        } else {
-            Write-Host "  Installing csharp-ls (dotnet global tool)..." -ForegroundColor White
-            $csOut = & $dotnetExe tool install --global csharp-ls 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                Write-Success "csharp-ls installed."
-            } else {
-                $csTail = (($csOut | Select-Object -Last 3) -join " | ").Trim()
-                Write-Warn "csharp-ls install failed: $csTail"
-                $script:Failures += "csharp-ls ($csTail)"
-            }
-        }
-
-        # Ensure the dotnet global-tools dir is on the user PATH.
-        $csToolsDir = Join-Path $env:USERPROFILE ".dotnet\tools"
-        $csUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
-        if ($csUserPath -notlike "*$csToolsDir*") {
-            [Environment]::SetEnvironmentVariable("Path", "$csUserPath;$csToolsDir", "User")
-            Write-Success "Added $csToolsDir to user PATH."
-        }
-        if ($env:Path -notlike "*$csToolsDir*") { $env:Path = "$env:Path;$csToolsDir" }
-
-        # Verify the tool actually runs (catches a .NET runtime mismatch).
-        $csExe = Join-Path $csToolsDir "csharp-ls.exe"
-        if (Test-Path $csExe) {
-            $csVer = (& $csExe --version 2>&1 | Select-Object -First 1)
-            if ($LASTEXITCODE -eq 0) { Write-Info "csharp-ls verified: $csVer" }
-            else { Write-Warn "csharp-ls installed but did not run cleanly (may need a specific .NET runtime)." }
-        }
-    } else {
-        Write-Warn "No .NET SDK available — skipping csharp-ls."
-        $script:Failures += "csharp-ls (no .NET SDK)"
+    if ($IsFullMode) {
+        Install-CSharpLanguageServer
     }
 
     # ── Step: Warm office authoring libraries (uv cache) ────────────────

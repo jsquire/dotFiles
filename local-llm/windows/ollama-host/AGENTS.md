@@ -47,7 +47,7 @@ Nothing operationally significant is hard-coded: ports and logging come from `Ol
 
 Do not duplicate these in individual `.csproj` files; they live in the shared MSBuild files:
 
-- `Directory.Build.props` — metadata, version, `net10.0` (`$(CommonTargetFramework)`), `LangVersion latest`, nullable + implicit usings enabled, `TreatWarningsAsErrors`.
+- `Directory.Build.props` — metadata, version, `net11.0` (`$(CommonTargetFramework)`), `LangVersion latest`, nullable + implicit usings enabled, `TreatWarningsAsErrors`.
 
 - `Directory.Packages.props` — central package management; add package versions here, not in `.csproj`.
 
@@ -74,7 +74,7 @@ defects.
 
 **Language & framework**
 
-- Target the latest .NET LTS (`net10.0`), latest C# (`LangVersion latest`), nullable enabled throughout.
+- Target .NET 11 (`net11.0`), latest C# (`LangVersion latest`), nullable enabled throughout.
 
 - Prefer `var`. Use language keywords (`int`, `string`) over BCL type names.
 

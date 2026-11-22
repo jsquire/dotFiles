@@ -102,7 +102,7 @@ ASRock's tasks.
 
 ## Build and test
 
-The project targets .NET 10 and uses NUnit.
+The project targets .NET 11 and uses NUnit.
 
 ```powershell
 dotnet restore

@@ -6,7 +6,7 @@
 
   <!-- Shared Versions -->
   <PropertyGroup>
-    <MicrosoftExtensionsVersion>10.0.7</MicrosoftExtensionsVersion>
+    <MicrosoftExtensionsVersion>11.0.0</MicrosoftExtensionsVersion>
   </PropertyGroup>
 
   <!-- General Dependencies -->

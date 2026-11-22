@@ -47,7 +47,7 @@ The development installer assigns one version manager to each managed ecosystem.
 | Rust | [rustup](https://rustup.rs/) |
 | Node | [NVM](https://github.com/nvm-sh/nvm) |
 | Python | CachyOS packages |
-| .NET | CachyOS packages |
+| .NET 11 | CachyOS packages |
 
 Ruby and Go request `latest` during each installer run. Mise resolves and
 installs the current stable releases, then records the resolved versions in its
@@ -182,7 +182,7 @@ used on the desktop.
   _Authored in 2026, this script installs OpenSSH and ZSH, sets ZSH as the default shell, deploys the explicitly listed top-level shell and Git files, enables the user SSH-agent socket, and installs the shared Ghostty configuration, Jesse theme, and desktop Zed settings with timestamped backups when content changes. It does not deploy SSH identity files, Alacritty, the custom Zed theme, editor, COSMIC Terminal, or GPG agent configuration. It is intended to be run after bootstrapping to establish the shell and terminal environment._
 
 * **install-development.sh**  
-  _Authored in 2026, this script automates installing and configuring a set of development tools and shared user-scoped assets, focusing on Azure, .NET, GitHub Copilot, Node.js, mise-managed Ruby and Go, Rust, and Zed. It removes legacy chruby and ruby-install artifacts only after the mise-managed Ruby and Go environments and their language tools verify successfully. The actions performed by this script are intended to be general-purpose, but are targeted at a development workstation. Orphan removal and cache pruning run only when `--package-maintenance` is supplied._
+  _Authored in 2026, this script automates installing and configuring a set of development tools and shared user-scoped assets, focusing on Azure, .NET 11, GitHub Copilot, Node.js, mise-managed Ruby and Go, Rust, and Zed. It removes legacy chruby and ruby-install artifacts only after the mise-managed Ruby and Go environments and their language tools verify successfully. The actions performed by this script are intended to be general-purpose, but are targeted at a development workstation. Orphan removal and cache pruning run only when `--package-maintenance` is supplied._
 
 * **backups/**  
   _Backup and restore setup, configuration, and scripts.  See `backups/README.md` for details._

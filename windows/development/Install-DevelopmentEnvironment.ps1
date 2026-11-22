@@ -45,7 +45,7 @@ $ErrorActionPreference = 'Stop'
 $TemplatePackageId = 'Jesse.CSharp.Templates'
 $LegacyTemplatePackageIds = @('CanonicalProject.Templates')
 $TemplateShortName = 'jesse-csharp'
-$MinimumSdkVersion = [version]'10.0.400'
+$MinimumSdkVersion = [version]'11.0.100'
 $RepositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $SharedConfigRoot = Join-Path $RepositoryRoot 'config'
 $TemplateRoot = Join-Path $SharedConfigRoot 'templates\csharp'
@@ -231,7 +231,7 @@ function Test-ApplicationVariants {
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue))
 {
-    throw '.NET SDK is required. Install .NET SDK 10.0.400 or later before running this bootstrap.'
+    throw '.NET 11 SDK is required. Install .NET SDK 11.0.100 or later before running this bootstrap.'
 }
 
 if (-not (Test-Path -LiteralPath $TemplateProject -PathType Leaf))
@@ -251,7 +251,7 @@ if (-not (Test-Path -LiteralPath $CopilotInstructionsSource -PathType Leaf))
 
 if (-not (Test-CompatibleSdk))
 {
-    throw "The Jesse C# template requires .NET SDK $MinimumSdkVersion or a later .NET 10 SDK."
+    throw "The Jesse C# template requires .NET SDK $MinimumSdkVersion or a later .NET 11 SDK."
 }
 
 $stagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('dotfiles-development-' + [guid]::NewGuid().ToString('N'))

@@ -86,7 +86,7 @@ The development installer assigns one manager to each managed ecosystem.
 | Rust | [rustup](https://rustup.rs/) |
 | Node | [NVM](https://github.com/nvm-sh/nvm) |
 | Python | [uv](https://docs.astral.sh/uv/) |
-| .NET | [.NET SDK](https://dotnet.microsoft.com/download) |
+| .NET 11 | [.NET SDK](https://dotnet.microsoft.com/download) |
 
 Ruby and Go request `latest` during each installer run. Node installs the latest
 LTS release and makes it the default. Rust uses the stable toolchain.

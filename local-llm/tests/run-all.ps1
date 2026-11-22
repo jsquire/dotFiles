@@ -66,6 +66,7 @@ foreach ($suite in @(
     "test_token_budgets.ps1",
     "test_windows_remove_symmetry.ps1",
     "test_windows_installer_help.ps1",
+    "test_windows_installer_scope.ps1",
     "run-python-tests.ps1"
 )) {
     Write-Host ""

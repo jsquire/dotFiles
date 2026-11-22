@@ -80,7 +80,7 @@ The bootstrap assigns one version manager to each managed ecosystem.
 | Rust | [rustup](https://rustup.rs/) |
 | Node | [NVM](https://github.com/nvm-sh/nvm) |
 | Python | [uv](https://docs.astral.sh/uv/) |
-| .NET | CachyOS packages |
+| .NET 11 | CachyOS packages |
 
 Ruby and Go request `latest` during each bootstrap run.  Mise resolves and installs the current stable releases, then records the resolved versions in its global configuration.  Individual repositories can override them with exact or rolling versions in `mise.toml`.  Ruby projects using `.ruby-version` are also supported.
 

@@ -3,10 +3,10 @@
   "author": "Jesse Squire",
   "classifications": [
     "C#",
-    ".NET",
+    ".NET 11",
     "Solution"
   ],
-  "description": "Creates a .NET solution with agent guidance, centralized build settings, NUnit tests, CI, and dependency updates.",
+  "description": "Creates a .NET 11 solution with agent guidance, centralized build settings, NUnit tests, CI, and dependency updates.",
   "identity": "Jesse.CSharp.Solution",
   "name": "Jesse C# Solution",
   "shortName": "jesse-csharp",
@@ -109,7 +109,7 @@
         },
         {
           "choice": "worker",
-          "description": "Creates a .NET worker service."
+          "description": "Creates a .NET 11 worker service."
         }
       ]
     }

@@ -373,7 +373,7 @@ cp "${SCRIPT_DIR}/home/.config/zed/settings.json" "$HOME/.config/zed/settings.js
 
 
 ############################################
-# Install .NET SDK
+# Install .NET 11 SDK
 ############################################
 
 sudo pacman -S --needed --noconfirm \

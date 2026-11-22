@@ -56,7 +56,7 @@ written for this project, since the logging ecosystem ships no first-party file 
 
 ## How do I build it
 
-Building requires the **.NET 10 SDK** or greater. A NativeAOT publish additionally requires the **MSVC C++
+Building requires the **.NET 11 SDK** or greater. A NativeAOT publish additionally requires the **MSVC C++
 toolchain** (generally installed by Visual Studio C++ build tools) on `PATH`; the SDK alone fails at the native-link step.
 Run the publish from a Developer Command Prompt, or after calling `vcvars64.bat`.
 

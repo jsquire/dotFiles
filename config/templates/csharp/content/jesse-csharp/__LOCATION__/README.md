@@ -22,7 +22,7 @@ dotnet build --no-restore
 dotnet test --no-build
 ```
 
-The repository targets .NET 10 LTS and uses Microsoft.Testing.Platform with NUnit.
+The repository targets .NET 11 and uses Microsoft.Testing.Platform with NUnit.
 
 ## Package management
 

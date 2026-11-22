@@ -2,7 +2,7 @@
 
 ## Repository
 
-This repository contains one .NET 10 application under `src` and its NUnit tests under `tests`.
+This repository contains one .NET 11 application under `src` and its NUnit tests under `tests`.
 
 Build and test from the repository root.
 

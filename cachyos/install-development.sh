@@ -11,7 +11,7 @@ TEMPLATE_PROJECT="$TEMPLATE_ROOT/Jesse.CSharp.Templates.csproj"
 COPILOT_INSTRUCTIONS_SOURCE="$SHARED_CONFIG_ROOT/copilot/copilot-instructions.md"
 TEMPLATE_PACKAGE_ID="Jesse.CSharp.Templates"
 TEMPLATE_SHORT_NAME="jesse-csharp"
-MINIMUM_DOTNET_SDK="10.0.400"
+MINIMUM_DOTNET_SDK="11.0.100"
 STAGING_ROOT=""
 
 usage() {
@@ -84,7 +84,7 @@ sudo pacman -Syu --noconfirm
 
 
 ############################################
-# Install .NET SDK (CachyOS / Arch Repo)
+# Install .NET 11 SDK (CachyOS / Arch Repo)
 ############################################
 
 sudo pacman -S --needed --noconfirm \
@@ -127,16 +127,16 @@ if [[ ! -f "$TEMPLATE_PROJECT" ]]; then
     exit 1
 fi
 
-latest_dotnet_10=$(
+latest_dotnet_11=$(
     dotnet --list-sdks |
-        awk '$1 ~ /^10\./ { print $1 }' |
+        awk '$1 ~ /^11\./ { print $1 }' |
         sort -V |
         tail -n 1
 )
 
-if [[ -z "$latest_dotnet_10" ||
-      "$(printf '%s\n%s\n' "$MINIMUM_DOTNET_SDK" "$latest_dotnet_10" | sort -V | head -n 1)" != "$MINIMUM_DOTNET_SDK" ]]; then
-    echo "The Jesse C# template requires .NET SDK $MINIMUM_DOTNET_SDK or a later .NET 10 SDK." >&2
+if [[ -z "$latest_dotnet_11" ||
+      "$(printf '%s\n%s\n' "$MINIMUM_DOTNET_SDK" "$latest_dotnet_11" | sort -V | head -n 1)" != "$MINIMUM_DOTNET_SDK" ]]; then
+    echo "The Jesse C# template requires .NET SDK $MINIMUM_DOTNET_SDK or a later .NET 11 SDK." >&2
     exit 1
 fi
 

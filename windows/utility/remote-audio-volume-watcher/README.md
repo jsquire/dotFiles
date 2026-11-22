@@ -79,7 +79,7 @@ The script removes only the watcher scheduled task and
 
 ## Build and test
 
-The project targets .NET 10 without external package dependencies.
+The project targets .NET 11 without external package dependencies.
 
 ```powershell
 dotnet restore

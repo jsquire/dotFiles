@@ -5,10 +5,10 @@
 
   <ItemGroup>
     <!--#if (apptype == "web-api") -->
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="11.0.0" />
     <!--#endif -->
     <!--#if (apptype == "worker") -->
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
     <!--#endif -->
   </ItemGroup>
 

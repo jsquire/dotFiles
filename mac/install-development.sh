@@ -10,7 +10,7 @@ TEMPLATE_PROJECT="$TEMPLATE_ROOT/Jesse.CSharp.Templates.csproj"
 COPILOT_INSTRUCTIONS_SOURCE="$SHARED_CONFIG_ROOT/copilot/copilot-instructions.md"
 TEMPLATE_PACKAGE_ID="Jesse.CSharp.Templates"
 TEMPLATE_SHORT_NAME="jesse-csharp"
-MINIMUM_DOTNET_SDK="10.0.400"
+MINIMUM_DOTNET_SDK="11.0.100"
 NVM_VERSION="v0.40.8"
 STAGING_ROOT=""
 NVM_INSTALLER=""
@@ -67,7 +67,7 @@ has_minimum_dotnet_sdk() {
                 split(minimum, required, ".")
                 found = 0
             }
-            $1 ~ /^10\./ {
+            $1 ~ /^11\./ {
                 split($1, actual, ".")
                 if (actual[1] > required[1] ||
                     (actual[1] == required[1] && actual[2] > required[2]) ||
@@ -132,7 +132,7 @@ if [[ ! -f "$TEMPLATE_PROJECT" ]]; then
 fi
 
 if ! has_minimum_dotnet_sdk; then
-    echo "ERROR: the Jesse C# template requires .NET SDK $MINIMUM_DOTNET_SDK or a later .NET 10 SDK." >&2
+    echo "ERROR: the Jesse C# template requires .NET SDK $MINIMUM_DOTNET_SDK or a later .NET 11 SDK." >&2
     exit 1
 fi
 
