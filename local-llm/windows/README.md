@@ -43,6 +43,7 @@ cd local-llm\windows
 
 # Show all options
 .\install-windows.ps1 -Help
+.\install-windows.ps1 --help
 ```
 
 > **Note:** The default 5090 roster downloads ~135 GB of models. Use `-ModelPath` to store them on a fast secondary drive (SSD/NVMe) instead of filling your OS drive. The script sets `OLLAMA_MODELS` environment variable and restarts Ollama automatically.
@@ -65,7 +66,7 @@ Provider tokens: `local` = local Ollama · `server` = CachyOS vLLM server.
 | `-ModelsOnly` | Skip software; just pull/update models |
 | `-ModelPath D:\models` | Custom model storage location |
 | `-EnableLAN` | Expose Ollama to LAN (for laptop access) |
-| `-Help` | Show detailed usage information |
+| `-Help`, `-h`, `--help` | Show detailed usage information |
 
 > Legacy `-Mode Full\|Client` and the `squire-server` provider name remain accepted as deprecated aliases.
 

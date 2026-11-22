@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Installs the self-hosted AI coding assistant stack on Windows.
@@ -101,7 +101,6 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet("Full", "Client")]
     [string]$Mode = "Full",
 
     [ValidateSet("", "Full", "Client", "OllamaOnly")]
@@ -134,6 +133,14 @@ param(
 
     [switch]$Help
 )
+
+if ($Mode -eq "--help") {
+    $Help = $true
+    $Mode = "Full"
+}
+if ($Mode -notin @("Full", "Client")) {
+    throw "Invalid installation mode '$Mode'. Expected Full or Client."
+}
 
 if ($Help) {
     Write-Host @"
@@ -199,7 +206,7 @@ if ($Help) {
     -Theme <Dark|Light>  Shortcut icon theme (default: Dark)
                          Dark  = white icons (for dark taskbar/Start Menu)
                          Light = dark icons (for light taskbar/Start Menu)
-    -Help                Show this help text
+    -Help, -h, --help    Show this help text
 
   EXAMPLES:
     .\install-windows.ps1                                    # 5090 tier, full install
