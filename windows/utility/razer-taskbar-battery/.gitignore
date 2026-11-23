@@ -1,0 +1,8 @@
+bin/
+obj/
+publish-light/
+publish-light-v2/
+razer-battery-diagnostics.txt
+*.user
+*.suo
+*.pdb
