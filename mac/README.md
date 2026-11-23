@@ -173,5 +173,9 @@ migrated by changing only signing-related settings.
 * **home**  
   _Contains portable user configuration and macOS-specific terminal settings._
 
+* **utility**  
+  _Contains independently built macOS utilities, including the native Razer
+  battery menu-bar monitor. These are not installed by the bootstrap._
+
 Organization-specific enrollment, authentication, security controls, and
 internal documentation are intentionally outside this public repository.

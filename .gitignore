@@ -100,6 +100,16 @@ Temporary Items
 /[Bb]in
 /[Oo]bj
 
+# Razer Battery build and test output
+/mac/utility/razer-battery/**/dist/
+/mac/utility/razer-battery/**/.build/
+/mac/utility/razer-battery/**/.module-cache/
+/mac/utility/razer-battery/**/.razer-build.*/
+/mac/utility/razer-battery/**/.razer-test.*/
+/mac/utility/razer-battery/**/*.o
+/mac/utility/razer-battery/**/*.dSYM/
+/mac/utility/razer-battery/**/razer-battery-tests
+
 ########################
 ## VISUAL STUDIO CODE ##
 ########################
