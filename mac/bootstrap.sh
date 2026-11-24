@@ -68,6 +68,17 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
+if [ "$INSTALL_APPLICATIONS" = true ]; then
+    macos_version=$(sw_vers -productVersion)
+    macos_major_version=${macos_version%%.*}
+
+    if ! [[ "$macos_major_version" =~ ^[0-9]+$ ]] ||
+       [ "$macos_major_version" -lt 15 ]; then
+        echo "ERROR: installing the managed applications requires macOS 15 or later because of Windows App." >&2
+        exit 1
+    fi
+fi
+
 if ! xcode-select -p &>/dev/null; then
     echo "ERROR: Xcode Command Line Tools are required." >&2
     echo "Run 'xcode-select --install', complete the installer, then retry." >&2
@@ -151,6 +162,24 @@ install_application() {
     brew install --cask "$cask"
 }
 
+install_mas_application() {
+    local application="$1"
+    local app_store_id="$2"
+
+    if application_exists "$application"; then
+        echo "$application is already installed. Mac App Store installation skipped."
+        return
+    fi
+
+    echo "Installing $application from the Mac App Store. Sign-in or authentication may be required."
+    mas get "$app_store_id"
+
+    if ! application_exists "$application"; then
+        echo "ERROR: Mac App Store reported success, but $application was not found." >&2
+        return 1
+    fi
+}
+
 install_font() {
     if compgen -G "$HOME/Library/Fonts/Caskaydia*Mono*Nerd*" >/dev/null ||
        brew list --cask font-caskaydia-mono-nerd-font &>/dev/null; then
@@ -182,12 +211,17 @@ brew bundle --file="$SCRIPT_DIR/Brewfile"
 if [ "$INSTALL_APPLICATIONS" = true ]; then
     install_font
     install_application ghostty "Ghostty.app"
+    install_application 1password "1Password.app"
+    install_application linearmouse "LinearMouse.app"
     install_application visual-studio-code "Visual Studio Code.app"
     install_application zed "Zed.app"
     install_application microsoft-edge "Microsoft Edge.app"
     install_application onedrive "OneDrive.app"
     install_application slack "Slack.app"
+    install_application windows-app "Windows App.app"
     install_microsoft_office
+    bash "$SCRIPT_DIR/install-write-md.sh"
+    install_mas_application "Xcode.app" "497799835"
 fi
 
 if [ "$INSTALL_SHELL" = true ]; then

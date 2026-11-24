@@ -7,8 +7,9 @@ It installs cross-platform applications and command-line development tools,
 then adds shell and editor configuration. Files changed after deployment are
 preserved unless replacement is explicitly requested.
 
-The scripts target macOS 14 or later. Homebrew casks enforce any stricter
-application requirements.
+The scripts target macOS 14 or later. Running the Applications phase requires
+macOS 15 or later because Windows App does not support earlier releases.
+Homebrew casks enforce any other stricter application requirements.
 
 ### Usage
 
@@ -58,15 +59,27 @@ The bootstrap installs these public vendor applications when they are not
 already present.
 
 * Ghostty
+* 1Password
+* LinearMouse
 * Microsoft Edge
 * Microsoft 365
 * OneDrive
 * Slack
 * Visual Studio Code
+* Windows App
+* Write.md
+* Xcode
 * Zed
 
 Existing application bundles are preserved regardless of whether they were
 installed manually, by Homebrew, or by device-management software.
+
+Xcode is installed from the Mac App Store and requires an Apple Account signed
+in there; macOS may also request authentication and administrator approval.
+Windows App requires macOS 15 or later. Write.md is pinned to a signed and
+notarized Apple silicon release, with its published SHA-256 checked before
+installation. Update the version and checksum in
+`install-write-md.sh` when adopting a new release.
 
 Ghostty 1.3 or later includes a supported menu action for becoming the default
 terminal application. After installation, select **Ghostty > Set Ghostty as
