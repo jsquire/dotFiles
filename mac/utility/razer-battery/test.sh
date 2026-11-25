@@ -33,6 +33,7 @@ xcrun swiftc \
     "$WORK_DIR/USBControlReader.o" \
     "$SCRIPT_DIR/Sources/LoginStartup.swift" \
     "$SCRIPT_DIR/Sources/BatteryProtocol.swift" \
+    "$SCRIPT_DIR/Sources/BatteryPolling.swift" \
     "$SCRIPT_DIR/Sources/BatteryReader.swift" \
     "$SCRIPT_DIR/Sources/MenuBarApp.swift" \
     "$SCRIPT_DIR/Tests/main.swift" \

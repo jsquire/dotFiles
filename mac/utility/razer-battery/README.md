@@ -2,7 +2,13 @@
 
 Native macOS menu-bar battery indicator, based on the device table and battery request in `windows/utility/razer-taskbar-battery`. This version uses Swift, AppKit, IOKit, and a small Objective-C USB control-transfer bridge instead of Windows Forms and Windows DLLs. It compiles ahead of time into a standalone executable with no .NET runtime, Synapse, third-party packages, or background service.
 
-The menu bar shows the battery percentage in green, yellow, or red. It polls every five minutes and after wake, with timer tolerance to allow macOS to coalesce background work. Choose **Refresh now** for an immediate reading or **Quit** to exit. Device communication runs off the UI thread. Failed readings replace the previous percentage with `?`, rather than leaving a stale value on display.
+The menu bar shows the battery percentage in green, yellow, or red. It polls every five minutes and after wake, with timer tolerance to allow macOS to coalesce background work. Choose **Refresh now** for an immediate reading or **Quit** to exit. Device communication runs off the UI thread.
+
+Transient failures get up to three complete scan attempts, with half-second and one-second delays between attempts. Detected disconnection, access denial, and unknown product IDs do not retry within a scan. After an unsuccessful scan, automatic recovery polls back off through 30, 60, and 120 seconds, then return to five-minute intervals until a reading succeeds.
+
+A failed scan preserves the last successful percentage in a subdued color with an asterisk, such as `75%*`. The menu and tooltip label it **stale**, show the failure reason, and retain the actual last-success time. The reading expires to `?` fifteen minutes after its last success, including while a poll is still running. Before any successful reading, the display is `?`. Recovery removes the stale marker and restores normal polling. Cached readings are held only in memory and are not restored after restarting.
+
+**Show Last Failure** retains the latest unsuccessful scan's time, reason, and bounded diagnostic details, including its retry attempts. These remain inspectable after recovery, without continuous logging or writing device data to disk.
 
 ## Requirements
 
@@ -62,7 +68,7 @@ bash ./test.sh
 bash ./test.sh ./dist/tests --ui
 ```
 
-Protocol tests cover request construction, battery scaling including 0%, truncated reports, stale responses, failed or mismatched commands, and corrupt checksums. The optional UI test runs the application lifecycle with a temporary menu-bar item, verifies asynchronous readings, the Refresh action, clearing stale values after failure, and coalescing overlapping requests, then removes the item. It uses a simulated battery and does not access devices.
+Protocol tests cover request construction, battery scaling including 0%, truncated reports, stale responses, failed or mismatched commands, and corrupt checksums. Recovery tests cover bounded retries, non-transient failures, stale-reading expiry, recovery backoff, and bounded diagnostic retention. The optional UI test runs the application lifecycle with a temporary menu-bar item, verifies stale rendering, failure details, coalescing overlapping requests, and an actual automatic recovery timer, then removes the item. It takes about 35 seconds, uses a simulated battery, and does not access devices.
 
 ## Protocol references
 

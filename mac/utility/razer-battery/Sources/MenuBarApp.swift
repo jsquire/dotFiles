@@ -5,10 +5,14 @@ import ServiceManagement
 final class BatteryAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
   private let reader: @Sendable () -> BatteryScan
   private var timer: Timer?
+  private var expiryTimer: Timer?
   private var refreshItem: NSMenuItem?
   private var summaryItem: NSMenuItem?
   private var updatedItem: NSMenuItem?
   private var loginItem: NSMenuItem?
+  private var failureItem: NSMenuItem?
+  private var polling = BatteryPollingState()
+  private var isTerminating = false
   private var isRefreshing = false
   private(set) var statusItem: NSStatusItem?
   private(set) var lastOutcome: BatteryOutcome?
@@ -36,6 +40,10 @@ final class BatteryAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
     summaryItem?.isEnabled = false
     updatedItem = menu.addItem(withTitle: "Not yet updated", action: nil, keyEquivalent: "")
     updatedItem?.isEnabled = false
+    failureItem = menu.addItem(
+      withTitle: "Show Last Failure", action: #selector(showLastFailure), keyEquivalent: "")
+    failureItem?.target = self
+    failureItem?.isEnabled = false
     menu.addItem(.separator())
     refreshItem = menu.addItem(
       withTitle: "Refresh now", action: #selector(refresh), keyEquivalent: "r")
@@ -49,12 +57,6 @@ final class BatteryAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
     quitItem.target = self
     item.menu = menu
 
-    let timer = Timer(
-      timeInterval: 300, target: self, selector: #selector(refresh),
-      userInfo: nil, repeats: true)
-    self.timer = timer
-    timer.tolerance = 30
-    RunLoop.main.add(timer, forMode: .common)
     NSWorkspace.shared.notificationCenter.addObserver(
       self, selector: #selector(didWake(_:)), name: NSWorkspace.didWakeNotification,
       object: nil)
@@ -63,6 +65,19 @@ final class BatteryAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
 
   func menuWillOpen(_ menu: NSMenu) {
     updateLoginItem()
+    render()
+  }
+
+  @objc private func showLastFailure() {
+    guard let failure = polling.lastFailure else { return }
+    let alert = NSAlert()
+    alert.messageText = "Last Battery Read Failure"
+    alert.informativeText = [
+      DateFormatter.localizedString(from: failure.time, dateStyle: .short, timeStyle: .medium),
+      failure.reason,
+      failure.diagnostics.joined(separator: "\n"),
+    ].joined(separator: "\n\n")
+    alert.runModal()
   }
 
   private func updateLoginItem() {
@@ -91,7 +106,8 @@ final class BatteryAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
   }
 
   @objc func refresh() {
-    guard !isRefreshing else { return }
+    guard !isRefreshing && !isTerminating else { return }
+    timer?.invalidate()
     isRefreshing = true
     refreshItem?.isEnabled = false
 
@@ -99,23 +115,61 @@ final class BatteryAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
     DispatchQueue.global(qos: .utility).async { [weak self] in
       let scan = reader()
       DispatchQueue.main.async { [weak self] in
-        self?.apply(scan.outcome)
+        self?.apply(scan)
       }
     }
   }
 
-  private func apply(_ outcome: BatteryOutcome) {
-    lastOutcome = outcome
+  private func apply(_ scan: BatteryScan) {
+    guard !isTerminating else { return }
+    lastOutcome = scan.outcome
+    polling.record(scan, at: Date())
     isRefreshing = false
     refreshItem?.isEnabled = true
-    summaryItem?.title = outcome.description
-    statusItem?.button?.toolTip = outcome.description
-    let updated = DateFormatter.localizedString(
-      from: Date(), dateStyle: .none, timeStyle: .short)
-    updatedItem?.title = "Updated \(updated)"
+    failureItem?.isEnabled = polling.lastFailure != nil
+    render()
+    schedulePoll()
+    expiryTimer?.invalidate()
+    if let success = polling.lastSuccess {
+      let remaining = BatteryPollingState.staleLifetime - Date().timeIntervalSince(success)
+      if remaining > 0 {
+        let expiry = Timer(
+          timeInterval: remaining, target: self, selector: #selector(expireReading),
+          userInfo: nil, repeats: false)
+        expiryTimer = expiry
+        RunLoop.main.add(expiry, forMode: .common)
+      }
+    }
+  }
 
-    switch outcome {
-    case .reading(_, let percent):
+  private func schedulePoll() {
+    timer?.invalidate()
+    let interval = polling.nextPollInterval
+    let timer = Timer(
+      timeInterval: interval, target: self, selector: #selector(refresh),
+      userInfo: nil, repeats: false)
+    timer.tolerance = interval == BatteryPollingState.regularInterval ? 30 : 1
+    self.timer = timer
+    RunLoop.main.add(timer, forMode: .common)
+  }
+
+  @objc private func expireReading() {
+    render()
+  }
+
+  private func render() {
+    let display = polling.display(at: Date())
+    var summary = polling.outcome?.description ?? "Reading battery..."
+    if let success = polling.lastSuccess {
+      let time = DateFormatter.localizedString(
+        from: success, dateStyle: .short, timeStyle: .medium)
+      updatedItem?.title = "Last successful read \(time)"
+    } else {
+      updatedItem?.title = "No successful reading yet"
+    }
+    switch display {
+    case .fresh(let device, let percent):
+      summary = "\(device): \(percent)%"
       let color: NSColor = percent >= 50 ? .systemGreen : percent >= 20 ? .systemYellow : .systemRed
       statusItem?.button?.attributedTitle = NSAttributedString(
         string: " \(percent)%",
@@ -124,10 +178,21 @@ final class BatteryAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
           .font: NSFont.monospacedDigitSystemFont(
             ofSize: NSFont.systemFontSize, weight: .regular),
         ])
-    case .unavailable:
+    case .stale(let device, let percent):
+      summary = "\(device): \(percent)% (stale)\n\(summary)"
+      statusItem?.button?.attributedTitle = NSAttributedString(
+        string: " \(percent)%*",
+        attributes: [
+          .foregroundColor: NSColor.secondaryLabelColor,
+          .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular),
+        ])
+    case .unknown:
+      if case .reading = polling.outcome { summary = "Last battery reading has expired." }
       statusItem?.button?.attributedTitle = NSAttributedString(
         string: " ?", attributes: [.foregroundColor: NSColor.labelColor])
     }
+    summaryItem?.title = summary.replacingOccurrences(of: "\n", with: " ")
+    statusItem?.button?.toolTip = "\(summary)\n\(updatedItem?.title ?? "")"
   }
 
   @objc private func didWake(_ notification: Notification) {
@@ -139,8 +204,11 @@ final class BatteryAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
   }
 
   func applicationWillTerminate(_ notification: Notification) {
+    isTerminating = true
     timer?.invalidate()
     timer = nil
+    expiryTimer?.invalidate()
+    expiryTimer = nil
     NSWorkspace.shared.notificationCenter.removeObserver(self)
     if let statusItem {
       NSStatusBar.system.removeStatusItem(statusItem)

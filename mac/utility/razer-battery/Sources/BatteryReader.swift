@@ -4,10 +4,15 @@ import IOKit.hid
 struct BatteryScan: Sendable {
   let outcome: BatteryOutcome
   let diagnostics: [String]
+  var failureKind: BatteryFailureKind = .transient
 }
 
 enum BatteryReader {
   static func read() -> BatteryScan {
+    BatteryRetry.read { readOnce() }
+  }
+
+  private static func readOnce() -> BatteryScan {
     let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
     IOHIDManagerSetDeviceMatching(
       manager, [kIOHIDVendorIDKey: RazerProduct.vendorID] as CFDictionary)
@@ -128,17 +133,23 @@ enum BatteryReader {
     }
 
     let reason: String
+    let failureKind: BatteryFailureKind
     if accessDenied && !accessibleInterfaceFound {
       reason = "Device access denied. Check macOS Input Monitoring permissions."
+      failureKind = .accessDenied
     } else if knownDeviceFound {
       reason = "Razer device found, but no valid battery report was received."
+      failureKind = .transient
     } else if devices.isEmpty {
       reason = "No Razer HID device found. Connect the USB receiver or device."
+      failureKind = .disconnected
     } else {
       reason = "Connected Razer device is not in the device table."
+      failureKind = .unsupported
     }
     diagnostics.append("Battery result: \(reason)")
-    return BatteryScan(outcome: .unavailable(reason), diagnostics: diagnostics)
+    return BatteryScan(
+      outcome: .unavailable(reason), diagnostics: diagnostics, failureKind: failureKind)
   }
 
   private static func usbDevice(for device: IOHIDDevice) -> io_service_t? {
