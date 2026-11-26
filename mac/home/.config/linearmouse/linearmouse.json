@@ -1,0 +1,20 @@
+{
+  "$schema": "https://schema.linearmouse.app/0.13.0",
+  "schemes": [
+    {
+      "if": {
+        "device": {
+          "category": "mouse",
+          "productID": "0xab",
+          "productName": "Razer Basilisk V3 Pro",
+          "vendorID": "0x1532"
+        }
+      },
+      "scrolling": {
+        "reverse": {
+          "vertical": true
+        }
+      }
+    }
+  ]
+}

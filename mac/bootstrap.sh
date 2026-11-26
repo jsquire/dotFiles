@@ -206,6 +206,42 @@ install_microsoft_office() {
     brew install --cask microsoft-office
 }
 
+register_linearmouse_login() {
+    local application
+
+    if [ -d "/Applications/LinearMouse.app" ]; then
+        application="/Applications/LinearMouse.app"
+    elif [ -d "$HOME/Applications/LinearMouse.app" ]; then
+        application="$HOME/Applications/LinearMouse.app"
+    else
+        echo "ERROR: LinearMouse.app was not found for login registration." >&2
+        return 1
+    fi
+
+    if ! osascript - "$application" <<'APPLESCRIPT'
+on run argv
+    set appPath to item 1 of argv
+    tell application "System Events"
+        repeat with existingItem in login items
+            if path of existingItem is appPath then return
+            if name of existingItem is "LinearMouse" or name of existingItem is "LinearMouse.app" then
+                error "An existing LinearMouse login item points to a different path."
+            end if
+        end repeat
+        make login item at end with properties {path:appPath, hidden:false}
+        repeat with existingItem in login items
+            if path of existingItem is appPath then return
+        end repeat
+        error "LinearMouse login item was not registered."
+    end tell
+end run
+APPLESCRIPT
+    then
+        echo "ERROR: could not register LinearMouse at login. Allow System Events automation or add it in System Settings, then retry." >&2
+        return 1
+    fi
+}
+
 brew bundle --file="$SCRIPT_DIR/Brewfile"
 
 if [ "$INSTALL_APPLICATIONS" = true ]; then
@@ -213,6 +249,7 @@ if [ "$INSTALL_APPLICATIONS" = true ]; then
     install_application ghostty "Ghostty.app"
     install_application 1password "1Password.app"
     install_application linearmouse "LinearMouse.app"
+    install_application karabiner-elements "Karabiner-Elements.app"
     install_application visual-studio-code "Visual Studio Code.app"
     install_application zed "Zed.app"
     install_application microsoft-edge "Microsoft Edge.app"
@@ -222,6 +259,25 @@ if [ "$INSTALL_APPLICATIONS" = true ]; then
     install_microsoft_office
     bash "$SCRIPT_DIR/install-write-md.sh"
     install_mas_application "Xcode.app" "497799835"
+
+    input_args=()
+    if [ "$FORCE_CONFIGURATION" = true ]; then
+        input_args+=(--force)
+    fi
+    bash "$SCRIPT_DIR/install-input-config.sh" "${input_args[@]}"
+    register_linearmouse_login
+
+    echo "Opening Karabiner-Elements to set up its background services."
+    if [ -d "/Applications/Karabiner-Elements.app" ]; then
+        open "/Applications/Karabiner-Elements.app"
+    elif [ -d "$HOME/Applications/Karabiner-Elements.app" ]; then
+        open "$HOME/Applications/Karabiner-Elements.app"
+    else
+        echo "ERROR: Karabiner-Elements.app was not found." >&2
+        exit 1
+    fi
+    echo "ACTION REQUIRED: complete Karabiner-Elements permissions setup and enable the desired rules."
+    echo "Allow its background services in System Settings so it starts at login."
 fi
 
 if [ "$INSTALL_SHELL" = true ]; then

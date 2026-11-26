@@ -60,6 +60,7 @@ already present.
 
 * Ghostty
 * 1Password
+* Karabiner-Elements
 * LinearMouse
 * Microsoft Edge
 * Microsoft 365
@@ -87,6 +88,53 @@ Default Terminal App**.
 
 Zed is configured for local editing with client telemetry and AI disabled.
 Signing in and enabling hosted services remain manual decisions.
+
+### Keyboard and Mouse
+
+The Applications phase installs the custom Windows-style shortcut pack in
+`~/.config/karabiner/assets/complex_modifications/windows-shortcuts-custom.json`.
+It does not replace `karabiner.json` or enable rules automatically.
+
+1. Open Karabiner-Elements and complete its setup prompts, including the
+   required background services, Accessibility, Input Monitoring, and virtual
+   device permissions. Select the appropriate virtual keyboard layout.
+2. In **Complex Modifications**, choose **Add predefined rule**. Find
+   **Windows shortcuts on macOS (custom)** and enable the desired rules
+   individually. Do not enable a rule twice.
+3. Use Karabiner-EventViewer to verify the shortcuts in the intended apps.
+
+The pack excludes Ghostty from all its rules. It omits Ctrl+arrow shortcuts
+for Mission Control and Spaces, the Cmd+Tab remap, Ctrl+Click, and F5.
+Finder and Home/End rules are not limited to selected files or text fields.
+Some rules retain additional modifiers. For example, Ctrl+Shift+V becomes
+Cmd+Shift+V and can toggle Vim mode in Write.md.
+
+The Applications phase also installs the LinearMouse configuration for the
+Razer Basilisk V3 Pro, reversing vertical scrolling for that mouse. The tracked
+scheme matches the mouse model, not an individual serial number. Existing
+LinearMouse settings and locally modified rule packs are preserved unless
+`--force` is used. Managed files that have not been locally modified receive
+updates, and replacements have timestamped backups. When a rule pack changes,
+previously enabled rules in `karabiner.json` are not automatically updated;
+remove and re-enable the affected rules in Karabiner-Elements.
+
+The bootstrap registers LinearMouse under **System Settings > General > Login
+Items & Extensions > Open at Login**, and may request permission to automate
+System Events. It does not change LinearMouse's own **Start at login** setting.
+If that setting is already enabled, it also starts LinearMouse at login.
+
+The bootstrap opens Karabiner-Elements, which registers its own background
+services after it is opened.
+Complete its setup and ensure its services are allowed under **Login Items &
+Extensions > Allow in the Background**. Do not add Karabiner-Elements to
+**Open at Login**, which would open its settings window on every login.
+macOS permissions and the initial Karabiner setup must be completed manually;
+the bootstrap cannot verify that either application's permissions were granted.
+See the [Karabiner installation guide](https://karabiner-elements.pqrs.org/docs/getting-started/installation/)
+and [login guidance](https://karabiner-elements.pqrs.org/docs/help/troubleshooting/preferences-window-shown-at-login/).
+
+Skipping the Applications phase also skips input configuration deployment and
+LinearMouse login registration.
 
 ### Development Environments
 
@@ -173,6 +221,13 @@ migrated by changing only signing-related settings.
 * **bootstrap.sh**  
   _Orchestrates Homebrew, public applications, development tooling, and shell
   configuration._
+
+* **install-write-md.sh**  
+  _Installs the pinned and verified Write.md release._
+
+* **install-input-config.sh**  
+  _Deploys the custom Karabiner-Elements rule pack and LinearMouse settings,
+  preserving locally modified configurations._
 
 * **install-development.sh**  
   _Installs language runtimes, language tooling, cloud tooling, Copilot CLI,
