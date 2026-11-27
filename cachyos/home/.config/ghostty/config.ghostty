@@ -46,8 +46,10 @@ keybind = ctrl+shift+f=start_search
 keybind = ctrl+shift+b=start_search
 keybind = shift+page_up=scroll_page_up
 keybind = shift+page_down=scroll_page_down
-keybind = shift+home=scroll_to_top
-keybind = shift+end=scroll_to_bottom
+keybind = ctrl+home=scroll_to_top
+keybind = ctrl+end=scroll_to_bottom
+keybind = shift+home=adjust_selection:beginning_of_line
+keybind = shift+end=adjust_selection:end_of_line
 
 # Tabs, splits, and prompts
 keybind = ctrl+shift+t=new_tab
